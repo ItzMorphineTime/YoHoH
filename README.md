@@ -6,6 +6,10 @@
 </p>
 
 <p align="center">
+  <img src="Images/Islands/Island_01.png" alt="The Shattered Seas" width="480">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Three.js-r160+-blue" alt="Three.js">
   <img src="https://img.shields.io/badge/JavaScript-ES6+-yellow" alt="JavaScript">
   <img src="https://img.shields.io/badge/Vite-5.x-646CFF" alt="Vite">
@@ -69,6 +73,41 @@
 - **Station effects** — Turn rate, reload speed, sail speed, bilge pump, hull repair
 - **Carpenter repair** — Assigned carpenters repair hull and stop leaks over time (sailing/combat)
 
+<p align="center">
+  <img src="Images/Ships/Sloop_01.png" alt="Sloop" width="140">
+  <img src="Images/Ships/WarBrig_01.png" alt="Brigantine" width="140">
+  <img src="Images/Ships/Galleon_01.png" alt="Galleon" width="140">
+</p>
+
+---
+
+## The Shattered Seas
+
+Sail the fractured archipelago where five Pirate Kings hold dominion. Your mission: **rescue the last of the dragons** from those who hunt them.
+
+<p align="center">
+  <img src="Images/PirateKings/JasperBarrow.png" alt="Jasper Barrow" width="100">
+  <img src="Images/PirateKings/Captain_Mordekai_Drakon.png" alt="Mordekai Drakon" width="100">
+  <img src="Images/PirateKings/Lady_Adara_Thalassa.png" alt="Adara Thalassa" width="100">
+  <img src="Images/PirateKings/Nimue_Tideborn.png" alt="Nimue Tideborn" width="100">
+  <img src="Images/PirateKings/Flameheart_01.png" alt="Ebon Flameheart" width="100">
+</p>
+
+<p align="center">
+  <em>The Five Pirate Kings — Ghost Captain, Sea Serpent, Leviathan Queen, Kraken Caller, Dragon Marauder</em>
+</p>
+
+<p align="center">
+  <img src="Images/Dragons/Blaze.png" alt="Blaze" width="80">
+  <img src="Images/Dragons/Icey.png" alt="Icey" width="80">
+  <img src="Images/Dragons/Speedy.png" alt="Speedy" width="80">
+  <img src="Images/Dragons/Elder.png" alt="Elder" width="80">
+</p>
+
+<p align="center">
+  <em>Rescue the dragons. Defy the Kings.</em>
+</p>
+
 ---
 
 ## Controls
@@ -131,6 +170,11 @@ npm install
 npm run dev
 ```
 
+<p align="center">
+  <img src="Images/Maps/MapLayout.png" alt="Procedural map layout" width="400">
+  <img src="Images/Maps/MapEditor.jpg" alt="Archipelago map" width="400">
+</p>
+
 ---
 
 ## Roadmap
@@ -160,6 +204,8 @@ Demo/
 ├── index.html              # Main game entry
 ├── package.json
 ├── vite.config.js
+├── Images/                 # Art assets (Pirate Kings, dragons, ships, islands, maps)
+├── docs/                   # Presentation GDD (GitHub Pages)
 ├── src/
 │   ├── main.js             # Bootstrap
 │   ├── config.js           # Centralized config (WORLD, CAMERA, COMBAT, ECONOMY, UI, etc.)
