@@ -1,6 +1,6 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
-**Document status:** Draft v0.7  
+**Document status:** Draft v0.8  
 **Last updated:** 2026-01-29  
 **Target:** Small indie prototype — PC web browser  
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js  
@@ -339,7 +339,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Goal:** Improve core gameplay feel, sailing experience, and rendering quality before expanding content. Focus on making the sailing loop satisfying and the visuals readable at all display sizes.
 
-**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) largely complete. Economy (B.6–B.8) complete. B.11 dock fees implemented. Next: supplies (B.11), graphical bugs (§8.3a), sailing polish.
+**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) largely complete. Economy (B.6–B.8) complete. B.11 dock fees implemented. S.6 arrival toast implemented. Next: supplies (B.11), graphical bugs (§8.3a), sailing polish.
 
 ### 8.1 Sailing Experience
 | # | Task | Details |
@@ -349,7 +349,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | S.3 | Wake / trail | — Ship wake or foam trail when moving (visual feedback) |
 | S.4 | Sailing audio | — Ambient waves, creaking; optional wind SFX |
 | S.5 | Corridor feedback | — Subtle edge markers or water color change at corridor bounds |
-| S.6 | Arrival feel | — Brief "docked" state; transition to overworld with feedback |
+| S.6 | Arrival feel | ✓ Toast "Arrived at [Island]!" when ship reaches destination; MapUI.showToast |
 
 ### 8.2 Dynamic GUI & Layout
 | # | Task | Details |
@@ -495,7 +495,8 @@ SAILING_RENDER: {
 - [x] Chart Screen config (UI.chartScreen): showIslandLabels, showLegend, showCompass, islandScale, routeWidth, etc.
 - [x] Route selection panel: "Docked at" current island, connected routes list, destination details; UI.routeSelection config
 - [x] Sailing rendering: SAILING_RENDER.islandRadius for island circles; corridor width aligned with movement boundary
-- [ ] Sailing experience polish (wake, arrival, corridor feedback)
+- [ ] Sailing experience polish (wake, corridor feedback)
+- [x] Arrival feel (S.6): toast on arrival at destination
 - [ ] Rendering improvements (water, ship, islands)
 - [ ] Per-class ship rendering (§9.0.6 I.5)
 - [x] Optional UI scaling setting (Settings modal; G.4)

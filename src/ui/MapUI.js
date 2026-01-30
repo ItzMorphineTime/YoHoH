@@ -132,6 +132,11 @@ export class MapUI {
     }
   }
 
+  /** Public: show a toast message (e.g. arrival feedback) */
+  showToast(msg, type = 'success') {
+    this._showToast(msg, type);
+  }
+
   _showToast(msg, type = 'success') {
     const toast = this.elements.toast;
     if (!toast) return;
@@ -160,10 +165,10 @@ export class MapUI {
         a.download = `yohoh-map-${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
-        this._showToast('Map saved');
+        this.showToast('Map saved');
         this._toggleSettings();
       } else {
-        this._showToast('Nothing to save', 'error');
+        this.showToast('Nothing to save', 'error');
       }
     }
   }
@@ -178,10 +183,10 @@ export class MapUI {
       if (loadText) loadText.textContent = 'Load Map';
       const json = ev.target?.result;
       if (typeof json === 'string' && this.onLoadMap(json)) {
-        this._showToast('Map loaded');
+        this.showToast('Map loaded');
         this._toggleSettings();
       } else {
-        this._showToast('Failed to load map', 'error');
+        this.showToast('Failed to load map', 'error');
       }
     };
     reader.onerror = () => {

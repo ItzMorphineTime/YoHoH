@@ -197,6 +197,8 @@ export class Game {
       this.state = GAME_STATES.COMBAT;
       this.combatScene.init(overworldScene.getSailingShip());
     } else if (!overworldScene.isTraveling()) {
+      const arrivedIsland = overworldScene.getCurrentIsland();
+      if (arrivedIsland?.name) this.mapUI.showToast(`Arrived at ${arrivedIsland.name}!`);
       this.state = GAME_STATES.OVERWORLD;
     }
   }
