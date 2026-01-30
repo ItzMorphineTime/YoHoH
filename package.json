@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "d3-delaunay": "^6.0.4",
     "three": "^0.160.0"
   },
   "devDependencies": {

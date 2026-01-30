@@ -7,7 +7,7 @@ import { Ship } from '../entities/Ship.js';
 import { Enemy, ENEMY_TYPES } from '../entities/Enemy.js';
 import { SailingSystem } from '../systems/SailingSystem.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
-import { COMBAT } from '../config.js';
+import { COMBAT, COMBAT_ROCKS, SHIP } from '../config.js';
 
 const COMBAT_RESULT = {
   NONE: 'none',
@@ -27,13 +27,26 @@ export class CombatScene {
     this.aimingSide = null; // 'port' | 'starboard' | null — first press aims, second fires
   }
 
-  init() {
-    this.player = new Ship({
-      x: 0,
-      y: -80,
-      rotation: 0,
-      isPlayer: true,
-    });
+  init(playerShip = null) {
+    if (playerShip && !playerShip.dead) {
+      this.player = playerShip;
+      this.player.x = 0;
+      this.player.y = -80;
+      this.player.rotation = 0;
+      this.player.maxSpeed = SHIP.maxSpeed;
+      this.player.thrust = SHIP.thrust;
+      this.player.friction = SHIP.friction;
+      this.player.turnRate = SHIP.turnRate;
+      this.player.brakeMult = SHIP.brakeMult;
+      this.player.highSpeedTurnPenalty = SHIP.highSpeedTurnPenalty;
+    } else {
+      this.player = new Ship({
+        x: 0,
+        y: -80,
+        rotation: 0,
+        isPlayer: true,
+      });
+    }
     this.enemies = [
       new Enemy({ x: 60, y: 60, rotation: Math.PI, type: ENEMY_TYPES.RAIDER }),
       new Enemy({ x: -70, y: 50, rotation: 0, type: ENEMY_TYPES.TRADER }),
@@ -43,13 +56,7 @@ export class CombatScene {
     this.loot = { gold: 0, salvage: 0 };
     this.aimingSide = null;
 
-    // Simple rocks (circles for now)
-    this.rocks = [
-      { x: 40, y: -30, r: 12 },
-      { x: -50, y: -40, r: 10 },
-      { x: -30, y: 60, r: 8 },
-      { x: 70, y: -50, r: 15 },
-    ];
+    this.rocks = [...COMBAT_ROCKS];
   }
 
   update(dt, input) {
@@ -72,8 +79,8 @@ export class CombatScene {
     } else if (this.enemies.every(e => e.dead)) {
       this.result = COMBAT_RESULT.VICTORY;
       for (const e of this.enemies) {
-        this.loot.gold += e.lootGold ?? 50;
-        this.loot.salvage += e.lootSalvage ?? 25;
+        this.loot.gold += e.lootGold ?? COMBAT.lootGoldDefault;
+        this.loot.salvage += e.lootSalvage ?? COMBAT.lootSalvageDefault;
       }
     }
   }

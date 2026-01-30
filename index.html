@@ -2,9 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>YoHoH — You Only Have One Hull</title>
   <style>
+    :root {
+      /* Safe areas for notched displays */
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      /* Compact UI: smaller fonts/spacing to reduce overlap; vmin for aspect consistency */
+      --ui-font-base: clamp(8px, 0.8vmin, 14px);
+      --ui-font-sm: clamp(7px, 0.7vmin, 11px);
+      --ui-font-lg: clamp(10px, 0.95vmin, 16px);
+      --ui-space: clamp(3px, 0.4vmin, 10px);
+      --ui-space-lg: clamp(5px, 0.55vmin, 14px);
+      --ui-radius: clamp(3px, 0.4vmin, 8px);
+      --ui-minimap-size: clamp(72px, 8vmin, 140px);
+      --ui-big-map-size: min(85vw, 85vh, 700px);
+    }
+    @media (min-width: 2560px) {
+      :root {
+        --ui-font-base: clamp(9px, 0.85vmin, 16px);
+        --ui-font-sm: clamp(8px, 0.75vmin, 12px);
+        --ui-font-lg: clamp(11px, 1vmin, 18px);
+        --ui-space: clamp(4px, 0.45vmin, 12px);
+        --ui-space-lg: clamp(6px, 0.6vmin, 16px);
+        --ui-minimap-size: clamp(88px, 9vmin, 180px);
+        --ui-big-map-size: min(88vw, 88vh, 900px);
+      }
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
@@ -25,39 +52,39 @@
     }
     #hud {
       position: absolute;
-      bottom: 16px;
-      left: 16px;
+      bottom: calc(var(--ui-space-lg) + var(--safe-bottom));
+      left: calc(var(--ui-space-lg) + var(--safe-left));
       z-index: 10;
-      font-size: 11px;
+      font-size: var(--ui-font-base);
       color: #b8c4d0;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: var(--ui-space);
       pointer-events: none;
     }
     .hud-panel {
       background: rgba(10, 22, 40, 0.85);
       border: 1px solid #2a4a6a;
-      border-radius: 6px;
-      padding: 8px 12px;
+      border-radius: var(--ui-radius);
+      padding: var(--ui-space) var(--ui-space-lg);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--ui-space);
     }
-    .hud-stats { flex-direction: column; gap: 6px; }
+    .hud-stats { flex-direction: column; gap: calc(var(--ui-space) * 0.5); }
     .hud-stat {
       display: flex;
       align-items: center;
-      gap: 8px;
-      min-width: 140px;
+      gap: var(--ui-space);
+      min-width: clamp(80px, 8vmin, 140px);
     }
-    .hud-label { color: #7a8a9a; width: 40px; }
-    .hud-value { color: #e8e6e3; font-weight: 600; width: 28px; text-align: right; }
+    .hud-label { color: #7a8a9a; width: clamp(28px, 2.5vmin, 40px); }
+    .hud-value { color: #e8e6e3; font-weight: 600; width: clamp(20px, 2vmin, 32px); text-align: right; }
     .hud-bar {
       flex: 1;
-      height: 6px;
+      height: clamp(4px, 0.4vmin, 6px);
       background: #1a2a3a;
-      border-radius: 3px;
+      border-radius: calc(var(--ui-radius) * 0.5);
       overflow: hidden;
     }
     .hud-bar-fill {
@@ -68,11 +95,11 @@
     #hud-hull-bar { background: linear-gradient(90deg, #4a7c59, #6b9b7a); }
     #hud-sails-bar { background: linear-gradient(90deg, #5a8a9a, #7aacc0); }
     #hud-speed-bar { background: linear-gradient(90deg, #6a8acc, #8aacdd); }
-    .hud-heading { flex-direction: column; gap: 4px; }
+    .hud-heading { flex-direction: column; gap: calc(var(--ui-space) * 0.4); }
     .hud-compass {
-      width: 36px;
-      height: 36px;
-      border: 2px solid #2a4a6a;
+      width: clamp(20px, 2vmin, 34px);
+      height: clamp(20px, 2vmin, 34px);
+      border: 1px solid #2a4a6a;
       border-radius: 50%;
       position: relative;
       display: flex;
@@ -80,19 +107,19 @@
       justify-content: center;
     }
     #hud-compass-needle {
-      width: 2px;
-      height: 14px;
+      width: 1px;
+      height: clamp(6px, 0.7vmin, 12px);
       background: #88cc88;
       border-radius: 1px;
       transform-origin: center center;
-      margin-top: -10px;
-      box-shadow: 0 0 4px #88cc88;
+      margin-top: clamp(-5px, -0.5vmin, -8px);
+      box-shadow: 0 0 2px #88cc88;
     }
-    .hud-controls { gap: 12px; }
+    .hud-controls { gap: var(--ui-space); }
     .hud-key {
       background: #2a3a4a;
-      padding: 2px 6px;
-      border-radius: 4px;
+      padding: 1px clamp(3px, 0.4vmin, 6px);
+      border-radius: calc(var(--ui-radius) * 0.6);
       font-weight: 600;
       color: #aaccdd;
     }
@@ -101,18 +128,229 @@
 
     #minimap-wrapper {
       position: absolute;
-      top: 16px;
-      right: 16px;
+      top: calc(var(--ui-space-lg) + var(--safe-top));
+      right: calc(var(--ui-space-lg) + var(--safe-right));
       z-index: 10;
       background: rgba(10, 22, 40, 0.9);
       border: 1px solid #2a4a6a;
-      border-radius: 8px;
-      padding: 4px;
+      border-radius: var(--ui-radius);
+      padding: calc(var(--ui-space) * 0.4);
       pointer-events: none;
+      width: var(--ui-minimap-size);
+      height: var(--ui-minimap-size);
     }
     .minimap-canvas {
       display: block;
       border-radius: 4px;
+    }
+    #map-ui {
+      position: absolute;
+      top: calc(var(--ui-space-lg) + var(--safe-top));
+      left: calc(var(--ui-space-lg) + var(--safe-left));
+      z-index: 10;
+      pointer-events: auto;
+      display: flex;
+      align-items: flex-start;
+      gap: var(--ui-space);
+    }
+    .map-ui-layout {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--ui-space);
+    }
+    .map-ui-panel {
+      background: rgba(10, 22, 40, 0.95);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      padding: var(--ui-space) var(--ui-space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: calc(var(--ui-space) * 0.5);
+      font-size: var(--ui-font-base);
+      color: #b8c4d0;
+      min-width: clamp(100px, 10vmin, 180px);
+      max-width: min(35vw, 200px);
+    }
+    .map-ui-current {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .map-ui-island-label {
+      font-size: var(--ui-font-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6a7a8a;
+    }
+    .map-ui-island-name {
+      font-weight: 700;
+      font-size: var(--ui-font-lg);
+      color: #c8dce8;
+    }
+    .map-ui-status {
+      font-size: var(--ui-font-sm);
+      color: #8a9aaa;
+    }
+    .map-onboarding-hint {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space);
+      margin-top: calc(var(--ui-space) * 0.5);
+      padding: calc(var(--ui-space) * 0.6) var(--ui-space);
+      background: rgba(42, 74, 106, 0.4);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      font-size: var(--ui-font-sm);
+      color: #aaccdd;
+    }
+    .map-onboarding-hint span { flex: 1; }
+    .map-onboarding-dismiss {
+      background: transparent;
+      border: none;
+      color: #8a9aaa;
+      font-size: 1.2em;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .map-onboarding-dismiss:hover { color: #e8e6e3; }
+    .map-route-info {
+      margin-top: calc(var(--ui-space) * 0.5);
+      padding-top: calc(var(--ui-space) * 0.5);
+      border-top: 1px solid #2a4a6a;
+      font-size: var(--ui-font-sm);
+      color: #8a9aaa;
+    }
+    .map-route-label {
+      display: block;
+      font-size: var(--ui-font-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6a7a8a;
+      margin-bottom: 2px;
+    }
+    .map-route-dest-name {
+      font-weight: 600;
+      color: #aaccdd;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .map-route-details {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+    }
+    .map-route-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .map-route-icon {
+      opacity: 0.9;
+    }
+    .map-ui-settings {
+      position: relative;
+    }
+    .map-settings-btn {
+      width: clamp(24px, 2.2vmin, 32px);
+      height: clamp(24px, 2.2vmin, 32px);
+      background: rgba(10, 22, 40, 0.95);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      color: #b8c4d0;
+      font-size: var(--ui-font-lg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .map-settings-btn:hover {
+      background: rgba(42, 74, 106, 0.6);
+      border-color: #3a5a7a;
+    }
+    .map-settings-panel {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: calc(var(--ui-space) * 0.4);
+      background: rgba(10, 22, 40, 0.98);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      padding: var(--ui-space);
+      display: flex;
+      flex-direction: column;
+      gap: calc(var(--ui-space) * 0.5);
+      min-width: clamp(80px, 8vmin, 130px);
+    }
+    .map-settings-panel button,
+    .map-load-label {
+      padding: calc(var(--ui-space) * 0.75) var(--ui-space);
+      background: #2a3a4a;
+      border: 1px solid #3a4a5a;
+      border-radius: calc(var(--ui-radius) * 0.8);
+      color: #e8e6e3;
+      font-size: var(--ui-font-base);
+      cursor: pointer;
+      text-align: center;
+    }
+    .map-settings-panel button:hover,
+    .map-load-label:hover {
+      background: #3a4a5a;
+    }
+    .map-load-label { display: block; }
+    #big-map-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 100;
+      background: rgba(10, 22, 40, 0.95);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--ui-space-lg);
+      padding: var(--ui-space-lg);
+      pointer-events: auto;
+      outline: none;
+    }
+    #big-map-overlay.visible { display: flex; }
+    .chart-screen-title {
+      font-size: var(--ui-font-lg);
+      color: #aaccdd;
+      font-weight: 600;
+      margin: 0;
+    }
+    .chart-zoom-in, .chart-zoom-out {
+      min-width: 2em;
+      font-size: 1.2em;
+      font-weight: 700;
+      line-height: 1;
+    }
+    #big-map-canvas {
+      border: 2px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      cursor: grab;
+      flex-shrink: 0;
+    }
+    #big-map-canvas:active { cursor: grabbing; }
+    .chart-screen-controls {
+      display: flex;
+      gap: var(--ui-space);
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .chart-screen-controls button {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #2a4a6a;
+      border: 1px solid #3a5a7a;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      font-size: var(--ui-font-base);
+      cursor: pointer;
+    }
+    .chart-screen-controls button:hover {
+      background: #3a5a7a;
     }
   </style>
 </head>
@@ -120,6 +358,17 @@
   <div id="game-container">
     <div id="hud">WASD — Sail | Q Port | E Starboard</div>
     <div id="minimap-wrapper"></div>
+    <div id="map-ui" style="display:none"></div>
+    <div id="big-map-overlay" tabindex="0">
+      <h2 class="chart-screen-title">Chart Screen</h2>
+      <canvas id="big-map-canvas"></canvas>
+      <div class="chart-screen-controls">
+        <button class="chart-zoom-out" title="Zoom out">−</button>
+        <button class="chart-center-btn">Center on Ship</button>
+        <button class="chart-zoom-in" title="Zoom in">+</button>
+        <button class="big-map-close">Close (M or Esc)</button>
+      </div>
+    </div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

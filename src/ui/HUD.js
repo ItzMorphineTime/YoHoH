@@ -92,6 +92,16 @@ export class HUD {
       if (this.elements.mode) this.elements.mode.textContent = `Victory! Gold: ${loot?.gold ?? 0} | Salvage: ${loot?.salvage ?? 0} — R to restart`;
     } else if (result === 'defeat') {
       if (this.elements.mode) this.elements.mode.textContent = 'Defeat — Ship sunk! R to restart';
+    } else if (this.elements.mode) {
+      this.elements.mode.textContent = 'Combat';
     }
+  }
+
+  /** Sailing mode: hull, sails, speed, sailing controls */
+  updateSailing(ship) {
+    if (!ship) return;
+    this.update(ship, null, null, null);
+    if (this.elements.mode) this.elements.mode.textContent = 'WASD — Sail | M for chart';
+    if (this.elements.cannonStatus) this.elements.cannonStatus.textContent = '';
   }
 }
