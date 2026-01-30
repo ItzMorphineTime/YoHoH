@@ -172,7 +172,7 @@ npm run dev
 
 <p align="center">
   <img src="Images/Maps/MapLayout.png" alt="Procedural map layout" width="400">
-  <img src="Images/Maps/MapEditor.jpg" alt="Archipelago map" width="400">
+  <img src="Images/Maps/MapEditor.png" alt="Archipelago map" width="400">
 </p>
 
 ---
