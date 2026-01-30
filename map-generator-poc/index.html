@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YoHoH — Procedural Map Generator (POC)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0a0e17;
+      color: #e8e6e3;
+      overflow: hidden;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #controls {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(10, 14, 23, 0.95);
+      border: 1px solid #2a3548;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 260px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    #controls-save-load {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(10, 14, 23, 0.95);
+      border: 1px solid #2a3548;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 220px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    #controls h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #7eb8da;
+      margin-bottom: 4px;
+    }
+    .control-section {
+      padding-bottom: 8px;
+      border-bottom: 1px solid #2a3548;
+    }
+    .control-section:last-of-type { border-bottom: none; }
+    .control-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .control-row:last-child { margin-bottom: 0; }
+    .control-row label {
+      flex: 0 0 100px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .control-row input[type="number"],
+    .control-row input[type="text"],
+    .control-row select {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 8px;
+      background: #1a2332;
+      border: 1px solid #2a3548;
+      border-radius: 4px;
+      color: #e8e6e3;
+      font-size: 12px;
+    }
+    .control-row input[type="range"] {
+      flex: 1;
+      min-width: 60px;
+      accent-color: #2563eb;
+    }
+    .control-row .value-display {
+      flex: 0 0 36px;
+      font-size: 11px;
+      color: #6b7280;
+      text-align: right;
+    }
+    button {
+      padding: 10px 16px;
+      background: #2563eb;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover {
+      background: #3b82f6;
+    }
+    button.active {
+      background: #059669;
+    }
+    button.active:hover {
+      background: #10b981;
+    }
+    #stats {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    .edit-tools {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .edit-tool-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #1a2332;
+      border: 1px solid #2a3548;
+      border-radius: 6px;
+      color: #e8e6e3;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+    }
+    .edit-tool-btn:hover {
+      background: #243044;
+      border-color: #3b4a5c;
+    }
+    .edit-tool-btn.active {
+      background: #0f3d2e;
+      border-color: #059669;
+      color: #34d399;
+    }
+    .edit-tool-btn .icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(126, 184, 218, 0.2);
+      border-radius: 4px;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .edit-tool-btn.active .icon {
+      background: rgba(52, 211, 153, 0.2);
+    }
+    .edit-tool-btn.danger-mode {
+      background: rgba(127, 29, 29, 0.4);
+      border-color: #dc2626;
+      color: #fca5a5;
+    }
+    .edit-tool-btn.danger-mode .icon {
+      background: rgba(220, 38, 38, 0.3);
+    }
+    .edit-tool-btn:disabled {
+      opacity: 0.85;
+      cursor: default;
+    }
+    .edit-tool-btn .label {
+      flex: 1;
+      font-weight: 500;
+    }
+    .edit-tool-btn .hint {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+    .edit-panel-header {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .edit-panel-header::before {
+      content: '';
+      width: 4px;
+      height: 12px;
+      background: #059669;
+      border-radius: 2px;
+    }
+    .save-load-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .save-load-btns button {
+      flex: 1;
+      min-width: 0;
+    }
+    .selected-node-actions {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #2a3548;
+    }
+    .selected-node-actions button {
+      width: 100%;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="controls-save-load">
+    <div style="display: flex; gap: 8px;">
+      <button id="save-btn" style="flex: 1;">Save</button>
+      <button id="load-btn" style="flex: 1; background: #374151;">Load</button>
+    </div>
+    <div class="control-section">
+      <div class="control-section-title">Edit Map</div>
+      <button id="edit-mode-btn" style="width: 100%; margin-bottom: 8px;">Edit Mode (Off)</button>
+      <div id="edit-panel" style="display: none;">
+        <div class="control-section-title" style="margin-bottom: 8px;">Appearance</div>
+        <div class="control-row">
+          <label>Node size</label>
+          <input type="range" id="node-size" min="50" max="150" value="100" step="5">
+          <span class="value-display" id="val-node-size">100%</span>
+        </div>
+        <div class="control-row">
+          <label>Edge thickness</label>
+          <input type="range" id="edge-thickness" min="50" max="200" value="100" step="10">
+          <span class="value-display" id="val-edge-thickness">100%</span>
+        </div>
+        <div class="edit-panel-header">Tools</div>
+        <div class="edit-tools">
+          <button id="select-tool-hint" class="edit-tool-btn" disabled>
+            <span class="icon">◎</span>
+            <span>
+              <span class="label">Select island</span>
+              <div class="hint">Click to select, click again to cycle trait</div>
+            </span>
+          </button>
+          <button id="remove-route-btn" class="edit-tool-btn">
+            <span class="icon">−</span>
+            <span>
+              <span class="label">Remove route</span>
+              <div class="hint">Click routes to remove them</div>
+            </span>
+          </button>
+          <button id="add-route-btn" class="edit-tool-btn">
+            <span class="icon">+</span>
+            <span>
+              <span class="label">Add route</span>
+              <div class="hint">Click two islands to connect</div>
+            </span>
+          </button>
+          <button id="add-node-btn" class="edit-tool-btn">
+            <span class="icon">⊕</span>
+            <span>
+              <span class="label">Add island</span>
+              <div class="hint">Click on canvas to add island</div>
+            </span>
+          </button>
+        </div>
+        <div id="selected-node-panel" class="selected-node-actions" style="display: none;">
+          <div class="edit-panel-header">Island Properties</div>
+          <div class="control-row">
+            <label>ID</label>
+            <span id="node-prop-id" style="font-size: 12px; color: #9ca3af;">—</span>
+          </div>
+          <div class="control-row">
+            <label>Name</label>
+            <input type="text" id="node-prop-name" placeholder="Island name" style="flex: 1;">
+          </div>
+          <div class="control-row">
+            <label>Description</label>
+            <input type="text" id="node-prop-description" placeholder="Flavor text" style="flex: 1;">
+          </div>
+          <div class="control-row">
+            <label>X</label>
+            <input type="number" id="node-prop-x" step="0.1" style="flex: 1;">
+          </div>
+          <div class="control-row">
+            <label>Y</label>
+            <input type="number" id="node-prop-y" step="0.1" style="flex: 1;">
+          </div>
+          <div class="control-row">
+            <label>Trait</label>
+            <select id="node-prop-trait" style="flex: 1;">
+              <option value="normal">Normal</option>
+              <option value="dangerous">Dangerous</option>
+              <option value="appealing">Appealing</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Treasure</label>
+            <select id="node-prop-treasure" style="flex: 1;">
+              <option value="0">None</option>
+              <option value="1">Modest</option>
+              <option value="2">Rich</option>
+              <option value="3">Legendary</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Port</label>
+            <select id="node-prop-port" style="flex: 1;">
+              <option value="none">None</option>
+              <option value="outpost">Outpost</option>
+              <option value="harbor">Harbor</option>
+              <option value="port">Port</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Hazard</label>
+            <select id="node-prop-hazard" style="flex: 1;">
+              <option value="none">None</option>
+              <option value="reefs">Reefs</option>
+              <option value="storms">Storms</option>
+              <option value="treacherous">Treacherous</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Faction</label>
+            <select id="node-prop-faction" style="flex: 1;">
+              <option value="neutral">Neutral</option>
+              <option value="british">British</option>
+              <option value="spanish">Spanish</option>
+              <option value="french">French</option>
+              <option value="pirate">Pirate</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Rumors</label>
+            <input type="text" id="node-prop-rumors" placeholder="Quest hooks" style="flex: 1;">
+          </div>
+          <div class="control-row">
+            <label>From home</label>
+            <span id="node-prop-dist" style="font-size: 12px; color: #9ca3af;">—</span>
+          </div>
+          <div class="control-row">
+            <label>Connections</label>
+            <span id="node-prop-conn" style="font-size: 12px; color: #9ca3af;">—</span>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button id="set-home-btn" style="flex: 1;">Set as Home</button>
+            <button id="delete-node-btn" style="flex: 1; background: #dc2626;">Delete</button>
+          </div>
+          <div class="hint" style="font-size: 10px; color: #6b7280; margin-top: 4px;">Drag gizmo to move</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">Middle-drag: pan · Scroll: zoom</div>
+  </div>
+  <div id="controls">
+    <h2>YoHoH Map Generator</h2>
+
+    <div class="control-section">
+      <div class="control-section-title">Graph (planar via Delaunay)</div>
+      <div class="control-row">
+        <label>Islands</label>
+        <input type="number" id="num-islands" value="20" min="5" max="80" title="Target number of islands">
+        <span class="value-display" id="val-islands">20</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Spacing</div>
+      <div class="control-row">
+        <label>Route distance</label>
+        <input type="range" id="expansion-distance" min="15" max="50" value="30" step="1" title="Distance between connected islands">
+        <span class="value-display" id="val-expansion">30</span>
+      </div>
+      <div class="control-row">
+        <label>Min separation</label>
+        <input type="range" id="min-point-distance" min="15" max="70" value="40" step="5" title="Minimum distance between any two islands (% of route distance)">
+        <span class="value-display" id="val-min-dist">40%</span>
+      </div>
+      <div class="control-row">
+        <label>Max route length</label>
+        <input type="range" id="max-edge-length" min="100" max="250" value="150" step="10" title="Prune routes longer than this (% of route distance)">
+        <span class="value-display" id="val-max-edge">150%</span>
+      </div>
+      <div class="control-row">
+        <label>Prune chance</label>
+        <input type="range" id="prune-chance" min="0" max="60" value="0" step="5" title="Chance to remove each route (keeps graph connected)">
+        <span class="value-display" id="val-prune">0%</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Island traits</div>
+      <div class="control-row">
+        <label>Danger chance</label>
+        <input type="range" id="danger-chance" min="0" max="30" value="5" step="1" title="Probability of dangerous island (%)">
+        <span class="value-display" id="val-danger">5%</span>
+      </div>
+      <div class="control-row">
+        <label>Appealing chance</label>
+        <input type="range" id="appealing-chance" min="0" max="50" value="20" step="1" title="Probability of appealing island (%)">
+        <span class="value-display" id="val-appealing">20%</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Randomness</div>
+      <div class="control-row">
+        <label>Seed</label>
+        <input type="text" id="seed" placeholder="Random">
+      </div>
+    </div>
+
+    <button id="regenerate">Regenerate Map</button>
+    <button id="randomize" style="background: #374151; margin-top: 4px;">New Random Map</button>
+    <div id="stats"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

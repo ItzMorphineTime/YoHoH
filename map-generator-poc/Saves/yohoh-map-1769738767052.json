@@ -1,0 +1,1549 @@
+{
+  "version": 1,
+  "seed": 1,
+  "homeNodeId": 31,
+  "nodes": [
+    {
+      "id": 0,
+      "x": 0,
+      "y": 0,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Home Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "port",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 1,
+      "x": 29.99556816106924,
+      "y": 0.5156459004485039,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Friendly Bay",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 2,
+      "x": 59.78318895414415,
+      "y": -3.0477299551092005,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Cursed Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 3,
+      "x": 53.957565214820015,
+      "y": 26.381203223785054,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Rum Sands",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 4,
+      "x": 54.29940792009927,
+      "y": -32.5422742908105,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Paradise Reef",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "harbor",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 5,
+      "x": 89.76731890960765,
+      "y": -4.023409622764664,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Merchant Cove",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 6,
+      "x": 79.06036277755388,
+      "y": 19.939017735289426,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 7,
+      "x": 87.13537107977203,
+      "y": 9.275343239775388,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Cursed Sands",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 8,
+      "x": 47.25485466483547,
+      "y": 55.62284598343736,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Black Rock",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 9,
+      "x": 3.0645373005195466,
+      "y": 13.733799205207836,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 10,
+      "x": 98.80163404662974,
+      "y": -32.630771437601304,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Rum Key",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 11,
+      "x": 62.242225460318394,
+      "y": 55.21459366987479,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Safe Island",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "harbor",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 12,
+      "x": 88.72606272711131,
+      "y": -20.68245541238003,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Island",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 13,
+      "x": 34.135585370188195,
+      "y": 12.515059974728246,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 14,
+      "x": 74.87405205146291,
+      "y": 47.88702983920591,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Golden Reef",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 15,
+      "x": 82.5626982209817,
+      "y": 35.422572904303536,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Key",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 16,
+      "x": 5.2314397952306795,
+      "y": 43.65543909306182,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Cursed Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 17,
+      "x": -19.291126546560726,
+      "y": 60.93675096492038,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Dead Man's Island",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 18,
+      "x": 76.52091246462962,
+      "y": -30.940555019229805,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 19,
+      "x": 103.10683171945675,
+      "y": -44.83979591130055,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Sands",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 20,
+      "x": 49.31292709017486,
+      "y": -13.362503633825636,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Cursed Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 21,
+      "x": 125.63437247092756,
+      "y": -25.02793310916047,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 22,
+      "x": 20.355182195544923,
+      "y": -22.037843764446894,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 23,
+      "x": 106.65951075931703,
+      "y": 8.179467119694513,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Black Sands",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 24,
+      "x": 20.29823599734005,
+      "y": 69.59752174276639,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Devil's Cay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 25,
+      "x": 33.697263537938845,
+      "y": 34.184595484962685,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Black Key",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 26,
+      "x": 24.006208371306478,
+      "y": 24.67350792528627,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Calm Bay",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 27,
+      "x": 101.5083966654576,
+      "y": 61.693248980700524,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Cove",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 28,
+      "x": 38.628794813654075,
+      "y": -45.83017618233485,
+      "dangerous": true,
+      "appealing": false,
+      "name": "Treasure Island",
+      "description": "A treacherous place. Sailors speak of it in hushed tones.",
+      "treasureLevel": 2,
+      "portType": "none",
+      "hazard": "treacherous",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 29,
+      "x": 102.52505873151304,
+      "y": 35.02718810537386,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 30,
+      "x": 21.64044404397488,
+      "y": 37.29087221223591,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Treasure Rock",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 31,
+      "x": 71.16060203636482,
+      "y": 7.1966573277900885,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Rock",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 3,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 32,
+      "x": 40.78190707439678,
+      "y": -59.32430503693638,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Rum Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 33,
+      "x": 147.90701239116683,
+      "y": -4.929935423237541,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Treasure Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 34,
+      "x": -48.971950942582275,
+      "y": 56.57227354230355,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 35,
+      "x": 107.67314574403349,
+      "y": -12.592436982277789,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Sands",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 36,
+      "x": 12.264451141102361,
+      "y": 27.3785178234234,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Island",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 37,
+      "x": 38.40399579071034,
+      "y": -28.2818947028233,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Black Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 38,
+      "x": -3.5534840222982034,
+      "y": 53.57786053394405,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 39,
+      "x": 118.66848345680118,
+      "y": 4.152135263666782,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Calm Bay",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "harbor",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 40,
+      "x": 116.11325257421362,
+      "y": 16.195834877893788,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 41,
+      "x": 126.02396995963659,
+      "y": -45.238087862575235,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 42,
+      "x": 132.21051773576545,
+      "y": 41.51140428327533,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Calm Island",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 43,
+      "x": 52.10473300455229,
+      "y": 67.42054232774706,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Golden Reef",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "harbor",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 44,
+      "x": 111.77593947486464,
+      "y": -59.68012260643481,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 45,
+      "x": 13.836991618735276,
+      "y": -9.574917203020863,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 46,
+      "x": 88.69094904205278,
+      "y": 61.647056795883614,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Devil's Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 47,
+      "x": 79.20344947655437,
+      "y": -10.801903807740793,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Devil's Island",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 48,
+      "x": 82.72220802228289,
+      "y": -67.15546130653804,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 49,
+      "x": 122.80322794810616,
+      "y": 82.82450925176651,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 50,
+      "x": 32.11586911090815,
+      "y": 46.946715891947775,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Island",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 51,
+      "x": 116.218130797748,
+      "y": 34.05189733372799,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Calm Bay",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 52,
+      "x": 73.54048730846638,
+      "y": -55.55924333476922,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 53,
+      "x": 66.34963558657981,
+      "y": -22.774732450298284,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Dead Man's Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 54,
+      "x": 31.639204194926677,
+      "y": -75.00457631297333,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Dead Man's Cay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 55,
+      "x": 65.9508525990353,
+      "y": 30.517192894156338,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Merchant Sands",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 56,
+      "x": 57.75365969836011,
+      "y": 41.05830758829052,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Safe Reef",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 57,
+      "x": -29.976154390633337,
+      "y": -1.1958962952170058,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Treasure Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 58,
+      "x": 98.66152563698282,
+      "y": 19.184117488848894,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 59,
+      "x": 127.86613237146193,
+      "y": -13.040316097843524,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Sands",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 60,
+      "x": 100.81346493646129,
+      "y": 89.088715061918,
+      "dangerous": true,
+      "appealing": false,
+      "name": "Skull Key",
+      "description": "A treacherous place. Sailors speak of it in hushed tones.",
+      "treasureLevel": 3,
+      "portType": "none",
+      "hazard": "storms",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 61,
+      "x": 161.5392086145016,
+      "y": 47.822338551633656,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Port Reef",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 62,
+      "x": 151.73137763668146,
+      "y": 74.87704704075972,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Black Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 63,
+      "x": 151.0148044011884,
+      "y": -41.022734609441606,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Skull Cay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 64,
+      "x": 10.827657140664428,
+      "y": -96.61197109365497,
+      "dangerous": true,
+      "appealing": false,
+      "name": "Ghost Rock",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 3,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 65,
+      "x": -8.344460120379196,
+      "y": 38.2424615430408,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Paradise Harbor",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 66,
+      "x": 155.30650819064803,
+      "y": -29.45109508115383,
+      "dangerous": true,
+      "appealing": false,
+      "name": "Black Port",
+      "description": "A treacherous place. Sailors speak of it in hushed tones.",
+      "treasureLevel": 2,
+      "portType": "none",
+      "hazard": "storms",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 67,
+      "x": 138.87427530500858,
+      "y": 12.26086009930578,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Bay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 68,
+      "x": 168.21500281129576,
+      "y": -2.3702759164995157,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Ghost Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 69,
+      "x": 134.37752094014223,
+      "y": -79.40747709882481,
+      "dangerous": true,
+      "appealing": false,
+      "name": "Dead Man's Harbor",
+      "description": "A treacherous place. Sailors speak of it in hushed tones.",
+      "treasureLevel": 3,
+      "portType": "none",
+      "hazard": "storms",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 70,
+      "x": 98.73526185898777,
+      "y": -57.70108951537075,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Treasure Key",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 3,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 71,
+      "x": 47.19820623773845,
+      "y": 7.100569430297593,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Treasure Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "pirate",
+      "rumors": ""
+    },
+    {
+      "id": 72,
+      "x": 9.037298499608925,
+      "y": 64.51513937202422,
+      "dangerous": false,
+      "appealing": true,
+      "name": "Friendly Cove",
+      "description": "A welcoming port with fair winds and friendly faces.",
+      "treasureLevel": 0,
+      "portType": "outpost",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 73,
+      "x": 60.95246023496654,
+      "y": -68.62233373445385,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Treasure Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 74,
+      "x": -29.575692114240002,
+      "y": 89.11879686446618,
+      "dangerous": true,
+      "appealing": false,
+      "name": "Treasure Port",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 0,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 75,
+      "x": 84.47438430652899,
+      "y": -84.09478898008727,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Cursed Cay",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    },
+    {
+      "id": 76,
+      "x": 70.52905228640458,
+      "y": -42.66377301297164,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Blood Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "spanish",
+      "rumors": ""
+    },
+    {
+      "id": 77,
+      "x": 155.14478569216172,
+      "y": -52.44767114264882,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Devil's Harbor",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "french",
+      "rumors": ""
+    },
+    {
+      "id": 78,
+      "x": 42.37128752730661,
+      "y": 75.13938148256895,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Cursed Reef",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "neutral",
+      "rumors": ""
+    },
+    {
+      "id": 79,
+      "x": 81.27626081052699,
+      "y": 74.42211111375812,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Hidden Key",
+      "description": "An unremarkable stop along the trade routes.",
+      "treasureLevel": 1,
+      "portType": "none",
+      "hazard": "none",
+      "faction": "british",
+      "rumors": ""
+    }
+  ],
+  "edges": [
+    [
+      20,
+      2
+    ],
+    [
+      1,
+      20
+    ],
+    [
+      71,
+      13
+    ],
+    [
+      71,
+      31
+    ],
+    [
+      3,
+      71
+    ],
+    [
+      2,
+      31
+    ],
+    [
+      37,
+      4
+    ],
+    [
+      20,
+      37
+    ],
+    [
+      3,
+      13
+    ],
+    [
+      4,
+      53
+    ],
+    [
+      47,
+      31
+    ],
+    [
+      1,
+      22
+    ],
+    [
+      31,
+      55
+    ],
+    [
+      5,
+      31
+    ],
+    [
+      6,
+      55
+    ],
+    [
+      31,
+      6
+    ],
+    [
+      26,
+      36
+    ],
+    [
+      36,
+      9
+    ],
+    [
+      25,
+      13
+    ],
+    [
+      56,
+      3
+    ],
+    [
+      55,
+      56
+    ],
+    [
+      18,
+      47
+    ],
+    [
+      31,
+      7
+    ],
+    [
+      12,
+      47
+    ],
+    [
+      5,
+      7
+    ],
+    [
+      37,
+      28
+    ],
+    [
+      28,
+      76
+    ],
+    [
+      56,
+      25
+    ],
+    [
+      10,
+      18
+    ],
+    [
+      30,
+      26
+    ],
+    [
+      25,
+      30
+    ],
+    [
+      56,
+      50
+    ],
+    [
+      0,
+      45
+    ],
+    [
+      9,
+      0
+    ],
+    [
+      7,
+      58
+    ],
+    [
+      5,
+      23
+    ],
+    [
+      15,
+      14
+    ],
+    [
+      14,
+      55
+    ],
+    [
+      10,
+      35
+    ],
+    [
+      12,
+      10
+    ],
+    [
+      35,
+      12
+    ],
+    [
+      29,
+      15
+    ],
+    [
+      28,
+      32
+    ],
+    [
+      73,
+      76
+    ],
+    [
+      76,
+      52
+    ],
+    [
+      19,
+      76
+    ],
+    [
+      23,
+      58
+    ],
+    [
+      8,
+      50
+    ],
+    [
+      16,
+      30
+    ],
+    [
+      8,
+      43
+    ],
+    [
+      78,
+      8
+    ],
+    [
+      16,
+      36
+    ],
+    [
+      16,
+      65
+    ],
+    [
+      29,
+      46
+    ],
+    [
+      46,
+      15
+    ],
+    [
+      46,
+      14
+    ],
+    [
+      73,
+      48
+    ],
+    [
+      48,
+      52
+    ],
+    [
+      40,
+      29
+    ],
+    [
+      39,
+      23
+    ],
+    [
+      21,
+      35
+    ],
+    [
+      11,
+      43
+    ],
+    [
+      8,
+      24
+    ],
+    [
+      24,
+      50
+    ],
+    [
+      57,
+      9
+    ],
+    [
+      72,
+      50
+    ],
+    [
+      70,
+      19
+    ],
+    [
+      54,
+      73
+    ],
+    [
+      75,
+      73
+    ],
+    [
+      46,
+      79
+    ],
+    [
+      79,
+      11
+    ],
+    [
+      51,
+      27
+    ],
+    [
+      59,
+      67
+    ],
+    [
+      67,
+      39
+    ],
+    [
+      38,
+      65
+    ],
+    [
+      72,
+      16
+    ],
+    [
+      35,
+      59
+    ],
+    [
+      38,
+      17
+    ],
+    [
+      27,
+      46
+    ],
+    [
+      79,
+      78
+    ],
+    [
+      44,
+      41
+    ],
+    [
+      48,
+      75
+    ],
+    [
+      41,
+      63
+    ],
+    [
+      21,
+      41
+    ],
+    [
+      63,
+      21
+    ],
+    [
+      75,
+      44
+    ],
+    [
+      66,
+      59
+    ],
+    [
+      21,
+      66
+    ],
+    [
+      67,
+      42
+    ],
+    [
+      17,
+      34
+    ],
+    [
+      33,
+      68
+    ],
+    [
+      67,
+      33
+    ],
+    [
+      54,
+      64
+    ],
+    [
+      42,
+      49
+    ],
+    [
+      60,
+      79
+    ],
+    [
+      27,
+      60
+    ],
+    [
+      69,
+      41
+    ],
+    [
+      44,
+      69
+    ],
+    [
+      66,
+      33
+    ],
+    [
+      61,
+      67
+    ],
+    [
+      77,
+      41
+    ],
+    [
+      77,
+      66
+    ],
+    [
+      34,
+      74
+    ],
+    [
+      62,
+      61
+    ],
+    [
+      62,
+      42
+    ]
+  ]
+}

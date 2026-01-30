@@ -1,0 +1,18 @@
+{
+  "name": "yohoh-map-generator-poc",
+  "version": "0.1.0",
+  "description": "YoHoH procedural archipelago map generator - standalone proof of concept",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "d3-delaunay": "^6.0.4",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,2 @@
+pyinstaller main.spec
+pyinstaller --onefile main.py
