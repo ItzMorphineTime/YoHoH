@@ -8,7 +8,7 @@
 <p align="center">
   <img src="Images/Islands/Island_01.png" alt="The Shattered Seas" width="480">
   <img src="Images/Ships/WarBrig_01.png" alt="The Shattered Seas" width="480">
-  <img src="Images/Islands/TopDownMap_04.png" alt="The Shattered Seas" width="480">
+  <img src="Images/Maps/TopDownMap_04.jpg" alt="The Shattered Seas" width="480">
 </p>
 
 <p align="center">
