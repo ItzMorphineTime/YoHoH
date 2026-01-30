@@ -3,15 +3,19 @@
  * Phase A: Combat | Phase B: Overworld, Sailing, Save/Load
  */
 
-import { GAME_STATES, GAME, COMBAT, OVERWORLD } from './config.js';
+import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY } from './config.js';
+import { loadGoods } from './systems/EconomySystem.js';
 import { Renderer } from './Renderer.js';
 import { Input } from './Input.js';
 import { CombatScene } from './scenes/CombatScene.js';
 import { OverworldScene } from './scenes/OverworldScene.js';
+import { PortScene } from './scenes/PortScene.js';
 import { HUD } from './ui/HUD.js';
 import { Minimap } from './ui/Minimap.js';
 import { MapUI } from './ui/MapUI.js';
 import { BigMapUI } from './ui/BigMapUI.js';
+import { PortUI } from './ui/PortUI.js';
+import { hireCrew } from './systems/CrewSystem.js';
 
 export class Game {
   constructor(container) {
@@ -26,6 +30,14 @@ export class Game {
 
     this.combatScene = new CombatScene();
     this.overworldScene = new OverworldScene();
+    this.portScene = new PortScene();
+    this.portUI = new PortUI(container);
+
+    this._playerGold = GAME?.startingGold ?? 0;
+    this._crewRoster = [];
+    this._playerShipClass = GAME?.defaultShipClass ?? 'sloop';
+    this._playerShipState = null; // hull, sails, crew, bilgeWater, leaks; persisted across sailing/port
+    this._playerCargo = {}; // { goodId: quantity }; persisted across port
 
     this.lastTime = 0;
     this.running = false;
@@ -50,12 +62,26 @@ export class Game {
     this.mapUI.onLoadMap = (json) => this.overworldScene.loadMap(json);
     this.mapUI.onStartSailing = (route) => this._startSailing(route);
     this.mapUI.onDeselectRoute = () => { this._selectedRoute = null; };
+    this.mapUI.onEnterPort = () => this._enterPort();
+
+    this.portUI.init();
+    this.portUI.onLeavePort = () => this._leavePort();
+    this.portUI.onHireCrew = () => this._onPortHireCrew();
+    this.portUI.onAssignStation = (crewId, station) => this._onPortAssignStation(crewId, station);
+    this.portUI.onShipClassChange = (id) => this._onPortShipClassChange(id);
+    this.portUI.onRepairHull = () => this._onPortRepairHull();
+    this.portUI.onRepairSails = () => this._onPortRepairSails();
+    this.portUI.onRepairLeaks = () => this._onPortRepairLeaks();
+    this.portUI.onBuyGood = (goodId) => this._onPortBuyGood(goodId);
+    this.portUI.onSellGood = (goodId) => this._onPortSellGood(goodId);
+    this.portUI.onDismissCrew = (crewId) => this._onPortDismissCrew(crewId);
     this._initOverworldNavControls();
     this._initSettings();
 
     const canvas = this.renderer?.renderer?.domElement;
     canvas?.addEventListener('wheel', (e) => this._onOverworldWheel(e), { passive: false });
 
+    loadGoods().catch(() => {}); // Preload goods for Market
     this.running = true;
     this.lastTime = performance.now();
     document.body.dataset.gameState = this.state;
@@ -82,6 +108,8 @@ export class Game {
       this._updateSailing(dt);
     } else if (this.state === GAME_STATES.COMBAT) {
       this._updateCombat(dt);
+    } else if (this.state === GAME_STATES.PORT) {
+      this._updatePort(dt);
     }
   }
 
@@ -160,6 +188,9 @@ export class Game {
 
     overworldScene.update(dt, input);
 
+    const arrivedState = overworldScene.consumeLastArrivedShipState?.();
+    if (arrivedState) this._playerShipState = arrivedState;
+
     const encounterChance = COMBAT?.encounterChancePerSecond ?? 0.006;
     if (overworldScene.isTraveling() && Math.random() < encounterChance * dt) {
       this._sailingPositionBeforeCombat = { ...overworldScene.getShipPosition() };
@@ -178,6 +209,8 @@ export class Game {
       combatScene.init();
     }
     if (result === 'victory' && input.isKeyJustPressed('Escape')) {
+      const loot = combatScene.getLoot();
+      this._playerGold = (this._playerGold ?? 0) + (loot?.gold ?? 0);
       if (this.overworldScene.isTraveling()) {
         const ship = this.overworldScene.getSailingShip();
         const pos = this._sailingPositionBeforeCombat;
@@ -258,13 +291,83 @@ export class Game {
     this._overworldZoom = Math.max(0.5, Math.min(3, this._overworldZoom + delta));
   }
 
+  _enterPort() {
+    const currentIsland = this.overworldScene.getCurrentIsland();
+    if (!currentIsland) return;
+    const dockFee = ECONOMY?.dockFee ?? 0;
+    const goldAfterDock = Math.max(0, (this._playerGold ?? 0) - dockFee);
+    this.portScene.init(currentIsland, [...(this._crewRoster ?? [])], goldAfterDock, this._playerShipClass ?? 'sloop', this._playerShipState ?? null, { ...(this._playerCargo ?? {}) });
+    this.portScene.dockFeePaid = dockFee;
+    this.portUI.show(this.portScene);
+    this.state = GAME_STATES.PORT;
+  }
+
+  _leavePort() {
+    this._crewRoster = [...(this.portScene.getCrewRoster() ?? [])];
+    this._playerGold = this.portScene.getGold();
+    this._playerShipState = this.portScene.getShipState?.() ?? this._playerShipState;
+    this._playerCargo = this.portScene.getCargo?.() ?? this._playerCargo ?? {};
+    this.portUI.hide();
+    this.state = GAME_STATES.OVERWORLD;
+  }
+
+  _onPortHireCrew() {
+    const maxCrew = this.portScene.getMaxCrew?.() ?? 20;
+    const result = hireCrew(this.portScene.getCrewRoster(), this.portScene.getGold(), undefined, maxCrew);
+    if (!result) return;
+    const { crew, cost } = result;
+    this.portScene.addCrew(crew);
+    this.portScene.setGold(this.portScene.getGold() - cost);
+    this.portUI.update(this.portScene);
+  }
+
+  _onPortAssignStation(crewId, station) {
+    this.portScene.assignCrewToStation(crewId, station || null);
+    this.portUI.update(this.portScene);
+  }
+
+  _onPortShipClassChange(shipClassId) {
+    this._playerShipClass = shipClassId ?? 'sloop';
+    this.portScene.shipClassId = this._playerShipClass;
+    this.portScene.adaptShipStateToClass?.();
+    this.portUI.update(this.portScene);
+  }
+
+  _onPortRepairHull() {
+    if (this.portScene.repairHull?.()) this.portUI.update(this.portScene);
+  }
+
+  _onPortRepairSails() {
+    if (this.portScene.repairSails?.()) this.portUI.update(this.portScene);
+  }
+
+  _onPortRepairLeaks() {
+    if (this.portScene.repairLeaks?.()) this.portUI.update(this.portScene);
+  }
+
+  _onPortBuyGood(goodId) {
+    if (this.portScene.buyGood?.(goodId)) this.portUI.update(this.portScene);
+  }
+
+  _onPortSellGood(goodId) {
+    if (this.portScene.sellGood?.(goodId)) this.portUI.update(this.portScene);
+  }
+
+  _onPortDismissCrew(crewId) {
+    if (this.portScene.removeCrew?.(crewId)) this.portUI.update(this.portScene);
+  }
+
+  _updatePort(_dt) {
+    this.portUI.update(this.portScene);
+  }
+
   _startSailing(route) {
     const currentIsland = this.overworldScene.getCurrentIsland();
     if (!route || !currentIsland) return false;
     const { a, b } = route;
     const target = a === currentIsland ? b : a;
     if (!target) return false;
-    const ok = this.overworldScene.startTravel(target);
+    const ok = this.overworldScene.startTravel(target, this._crewRoster ?? [], this._playerShipClass ?? 'sloop', this._playerShipState ?? null);
     if (ok) {
       this._selectedRoute = null;
       this.state = GAME_STATES.SAILING;
@@ -279,7 +382,7 @@ export class Game {
     const x = rect.left + (this.input.mouse.x + 1) / 2 * rect.width;
     const y = rect.top + (1 - this.input.mouse.y) / 2 * rect.height;
     const el = document.elementFromPoint(x, y);
-    return el?.closest('#map-ui, #big-map-overlay, #overworld-map-controls, #settings-btn, #settings-modal, .map-route-selection-panel') != null;
+    return el?.closest('#map-ui, #big-map-overlay, #port-overlay, #overworld-map-controls, #settings-btn, #settings-modal, .map-route-selection-panel') != null;
   }
 
   _isMouseOverCanvas() {
@@ -339,6 +442,12 @@ export class Game {
           : shipPos;
         bigMapUI.update(map, chartShipPos, currentIsland, travelRoute);
       }
+    } else if (this.state === GAME_STATES.PORT) {
+      document.getElementById('hud')?.style.setProperty('display', 'none');
+      document.getElementById('minimap-wrapper')?.style.setProperty('display', 'none');
+      document.getElementById('map-ui')?.style.setProperty('display', 'none');
+      document.getElementById('overworld-map-controls')?.classList.remove('visible');
+      this.portUI.update(this.portScene);
     } else if (this.state === GAME_STATES.COMBAT) {
       const player = combatScene.getPlayer();
       const enemies = combatScene.getEnemies();

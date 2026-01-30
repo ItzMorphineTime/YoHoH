@@ -2,7 +2,32 @@
  * YoHoH — Game configuration
  * Centralized options for gameplay, rendering, and UI.
  * Tune values here for easier balancing and experimentation.
+ *
+ * Config schema (by view):
+ * - WORLD, CAMERA: shared
+ * - OVERWORLD: gameplay (map gen, click thresholds)
+ * - OVERWORLD_RENDER: overworld map display (island/route sizes)
+ * - SAILING_RENDER: sailing view (corridor, water, islands)
+ * - COMBAT, RENDER: combat arena + shared mesh colors/sizes
+ * - UI.mapColors: shared map palette (islands, routes) — used by BigMapUI, Minimap
+ * - UI.chartScreen, UI.routeSelection: Chart Screen & route panel options
  */
+
+// ─── Lore & World-Building (Shattered Seas) ───────────────────────────────────
+// See LORE.md and public/data/lore.json for full backstory and Pirate Kings.
+export const LORE = {
+  worldName: 'The Shattered Seas',
+  homePortName: 'Home Port',
+  coreMission: 'Rescue and save the last of the dragons.',
+  dragonSanctuaries: 'Hidden islands where rescued eggs can hatch and young dragons thrive.',
+  pirateKings: [
+    { id: 'jasper_barrow', name: 'Jasper Barrow', domain: 'Veilwake Sea', hazard: 'fog' },
+    { id: 'mordekai_drakon', name: 'Mordekai Drakon', domain: 'Coiled Expanse', hazard: 'serpents' },
+    { id: 'adara_thalassa', name: 'Lady Adara Thalassa', domain: 'Drowned Crown', hazard: 'coral' },
+    { id: 'nimue_tideborn', name: 'Nimue Tideborn', domain: 'Black Spiral', hazard: 'darkness' },
+    { id: 'ebon_flameheart', name: 'Captain Ebon Flameheart', domain: 'Ashen Reach', hazard: 'fire' },
+  ],
+};
 
 // ─── World & Camera ─────────────────────────────────────────────────────────
 export const WORLD = {
@@ -100,7 +125,7 @@ export const COMBAT_ROCKS = [
   { x: 70, y: -50, r: 15 },
 ];
 
-// ─── Ship (combat) ─────────────────────────────────────────────────────────
+// ─── Ship (combat) — fallback when ship class doesn't override ─────────────
 export const SHIP = {
   maxSpeed: 0.5,
   thrust: 0.125,
@@ -110,7 +135,7 @@ export const SHIP = {
   highSpeedTurnPenalty: 0.5,
 };
 
-// ─── Sailing (route travel) ────────────────────────────────────────────────
+// ─── Sailing (route travel) — fallback ───────────────────────────────────────
 export const SAILING = {
   maxSpeed: 0.1,
   thrust: 0.025,
@@ -118,6 +143,145 @@ export const SAILING = {
   turnRate: 0.015,
   brakeMult: 0.75,
   highSpeedTurnPenalty: 0.4,
+};
+
+// ─── Ship Classes — different sizes with stats and station slots ───────────
+export const SHIP_CLASSES = {
+  sloop: {
+    name: 'Sloop',
+    hullMax: 80,
+    sailMax: 80,
+    crewMax: 60,
+    bilgeWaterMax: 80,
+    maxSpeed: 0.5,
+    thrust: 0.125,
+    friction: 0.55,
+    turnRate: 0.038,
+    brakeMult: 0.7,
+    highSpeedTurnPenalty: 0.5,
+    sailingMaxSpeed: 0.1,
+    sailingThrust: 0.025,
+    sailingFriction: 0.998,
+    sailingTurnRate: 0.016,
+    sailingBrakeMult: 0.75,
+    sailingHighSpeedTurnPenalty: 0.4,
+    cannonCooldown: 1.5,
+    cargoCapacity: 20,
+    stationSlots: {
+      helmsman: 1,
+      gunner_port: 1,
+      gunner_starboard: 1,
+      carpenter: 1,
+      navigator: 1,
+      sailing: 1,
+      bilge: 1,
+      man_at_arms: 1,
+    },
+  },
+  brigantine: {
+    name: 'Brigantine',
+    hullMax: 120,
+    sailMax: 120,
+    crewMax: 100,
+    bilgeWaterMax: 120,
+    maxSpeed: 0.45,
+    thrust: 0.12,
+    friction: 0.55,
+    turnRate: 0.032,
+    brakeMult: 0.7,
+    highSpeedTurnPenalty: 0.52,
+    sailingMaxSpeed: 0.095,
+    sailingThrust: 0.023,
+    sailingFriction: 0.998,
+    sailingTurnRate: 0.014,
+    sailingBrakeMult: 0.75,
+    sailingHighSpeedTurnPenalty: 0.42,
+    cannonCooldown: 1.5,
+    cargoCapacity: 40,
+    stationSlots: {
+      helmsman: 1,
+      gunner_port: 2,
+      gunner_starboard: 2,
+      carpenter: 1,
+      navigator: 1,
+      sailing: 2,
+      bilge: 2,
+      man_at_arms: 2,
+    },
+  },
+  galleon: {
+    name: 'Galleon',
+    hullMax: 150,
+    sailMax: 150,
+    crewMax: 150,
+    bilgeWaterMax: 150,
+    maxSpeed: 0.38,
+    thrust: 0.1,
+    friction: 0.55,
+    turnRate: 0.028,
+    brakeMult: 0.7,
+    highSpeedTurnPenalty: 0.55,
+    sailingMaxSpeed: 0.085,
+    sailingThrust: 0.02,
+    sailingFriction: 0.998,
+    sailingTurnRate: 0.012,
+    sailingBrakeMult: 0.75,
+    sailingHighSpeedTurnPenalty: 0.45,
+    cannonCooldown: 1.5,
+    cargoCapacity: 60,
+    stationSlots: {
+      helmsman: 1,
+      gunner_port: 3,
+      gunner_starboard: 3,
+      carpenter: 2,
+      navigator: 2,
+      sailing: 3,
+      bilge: 3,
+      man_at_arms: 3,
+    },
+  },
+};
+
+// ─── Crew & Stations (GDD §8.4) ─────────────────────────────────────────────
+export const CREW = {
+  hireCost: 25,
+  maxCrew: 20,
+  moraleBaseline: 1,
+  stations: ['helmsman', 'gunner_port', 'gunner_starboard', 'carpenter', 'navigator', 'sailing', 'bilge', 'man_at_arms'],
+  stationEffects: {
+    helmsman: { turnRateMult: 1.15 },
+    gunner_port: { portReloadMult: 1.1 },
+    gunner_starboard: { starboardReloadMult: 1.1 },
+    carpenter: { repairMult: 1.2, leakRepairMult: 1.3 },
+    navigator: { sailSpeedMult: 1.05 },
+    sailing: { sailSpeedMult: 1.1 },
+    bilge: { bilgePumpMult: 1.5 },
+    man_at_arms: { crewMult: 1.1 },
+  },
+};
+
+// ─── Bilge & Leaks ─────────────────────────────────────────────────────────
+export const BILGE = {
+  bilgeWaterMax: 100,
+  leakWaterRate: 2,        // bilge water per leak per second
+  basePumpRate: 5,        // bilge water pumped per second (no crew)
+  leaksPerHullDamage: 0.04, // leaks gained per point of hull damage taken
+};
+
+// ─── Repair (Carpenter, Shipwright) ───────────────────────────────────────
+export const REPAIR = {
+  hullRepairPerSecond: 2,   // base hull repaired per second per carpenter
+  leakRepairPerSecond: 0.5, // base leaks repaired per second per carpenter
+  hullRepairCostPerPoint: 0.5,  // gold per hull point at shipwright
+  sailRepairCostPerPoint: 0.3,   // gold per sail point at shipwright
+  leakRepairCostPerLeak: 5,     // gold per leak fixed at shipwright
+};
+
+// ─── Economy (B.6–B.11) ───────────────────────────────────────────────────
+export const ECONOMY = {
+  priceVariance: 0.15,    // ±15% variance per island (from distanceFromHome, portType)
+  sellSpread: 0.9,       // sell price = buy price * 0.9 (10% spread)
+  dockFee: 5,            // gold paid when entering port (B.11 economy sink); 0 to disable
 };
 
 // ─── Sailing System (shared physics) ───────────────────────────────────────
@@ -131,6 +295,8 @@ export const SAILING_SYSTEM = {
 // ─── Game Loop ─────────────────────────────────────────────────────────────
 export const GAME = {
   maxDt: 0.1,
+  startingGold: 100, // For testing; set to 0 for no starting gold
+  defaultShipClass: 'sloop',
 };
 
 // ─── Rendering ─────────────────────────────────────────────────────────────
@@ -201,7 +367,25 @@ export const SHIP_GEOMETRY = {
 };
 
 // ─── UI ────────────────────────────────────────────────────────────────────
+/** Shared map palette — single source for island/route colors (BigMapUI, Minimap) */
+const MAP_COLORS = {
+  background: '#0a1628',
+  border: '#2a4a6a',
+  route: '#3a6a9a',
+  routeActive: '#6bca9a',
+  islandHome: '#4a7c59',
+  islandDanger: '#8b4444',
+  islandAppeal: '#6b9b7a',
+  islandDefault: '#5a6a5a',
+  currentIsland: '#ffcc44',
+  currentIslandStroke: '#ffdd66',
+  ship: '#44cc44',
+  shipStroke: '#88ff88',
+  text: '#e8e6e3',
+};
+
 export const UI = {
+  mapColors: MAP_COLORS,
   minimap: {
     sizeMin: 64,
     sizeMax: 160,
@@ -216,37 +400,16 @@ export const UI = {
     viewportRatio: 0.95,
   },
   minimapColors: {
-    background: '#0a1628',
-    border: '#2a4a6a',
+    ...MAP_COLORS,
     waterTint: '#1e3a5f',
     waterAlpha: 0.5,
     rock: '#4a3728',
     enemy: '#cc4444',
     player: '#44cc44',
     playerDirection: '#88ff88',
-    route: '#3a6a9a',
-    routeActive: '#6bca9a',
-    islandHome: '#4a7c59',
-    islandDanger: '#8b4444',
-    islandAppeal: '#6b9b7a',
-    islandDefault: '#5a6a5a',
-    currentIsland: '#ffcc44',
-    currentIslandStroke: '#ffdd66',
   },
   bigMapColors: {
-    background: '#0a1628',
-    border: '#2a4a6a',
-    route: '#3a6a9a',
-    routeActive: '#6bca9a',
-    islandHome: '#4a7c59',
-    islandDanger: '#8b4444',
-    islandAppeal: '#6b9b7a',
-    islandDefault: '#5a6a5a',
-    currentIsland: '#ffcc44',
-    currentIslandStroke: '#ffdd66',
-    ship: '#44cc44',
-    shipStroke: '#88ff88',
-    text: '#e8e6e3',
+    ...MAP_COLORS,
   },
   minimapDotSizes: {
     rockScale: 0.3,

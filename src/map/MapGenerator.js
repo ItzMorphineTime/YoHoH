@@ -25,8 +25,9 @@ class Vector2 {
   }
 }
 
+// Shattered Seas–themed island names (see LORE.md)
 const ISLAND_NAME_PARTS = {
-  prefix: ['Dead Man\'s', 'Skull', 'Devil\'s', 'Black', 'Blood', 'Rum', 'Treasure', 'Ghost', 'Cursed', 'Hidden'],
+  prefix: ['Dead Man\'s', 'Skull', 'Devil\'s', 'Black', 'Blood', 'Rum', 'Treasure', 'Ghost', 'Cursed', 'Hidden', 'Veilwake', 'Ashen', 'Coiled'],
   body: ['Cay', 'Island', 'Key', 'Reef', 'Harbor', 'Cove', 'Port', 'Bay', 'Sands', 'Rock'],
   safe: ['Port', 'Safe', 'Calm', 'Golden', 'Merchant', 'Trading', 'Friendly', 'Paradise'],
 };
@@ -67,9 +68,10 @@ function enrichPirateData(nodes, rng) {
       }
     }
     if (!node.description) {
-      if (node.dangerous) node.description = 'A treacherous place. Sailors speak of it in hushed tones.';
-      else if (node.appealing) node.description = 'A welcoming port with fair winds and friendly faces.';
-      else node.description = 'An unremarkable stop along the trade routes.';
+      if (node.id === 0) node.description = 'The heart of the Home Waters—where new captains begin their journey across the Shattered Seas.';
+      else if (node.dangerous) node.description = 'A treacherous place. Sailors speak of it in hushed tones—and of the Pirate Kings who rule the outer waters.';
+      else if (node.appealing) node.description = 'A welcoming port with fair winds and friendly faces. A rare haven in the Shattered Seas.';
+      else node.description = 'An unremarkable stop along the trade routes of the Shattered Seas.';
     }
     if (node.treasureLevel === 0) {
       if (node.dangerous) node.treasureLevel = Math.min(3, 1 + Math.floor(rng.next() * 2));
@@ -84,12 +86,28 @@ function enrichPirateData(nodes, rng) {
     }
     if (node.hazard === 'none') {
       if (node.dangerous && rng.next() < 0.6) {
-        node.hazard = ['reefs', 'storms', 'treacherous'][Math.floor(rng.next() * 3)];
+        // Shattered Seas hazards: some hint at Pirate King domains (LORE.md)
+        node.hazard = ['reefs', 'storms', 'treacherous', 'fog', 'serpents', 'coral', 'darkness', 'fire'][Math.floor(rng.next() * 8)];
       }
     }
     if (node.faction === 'neutral') {
       const factions = ['neutral', 'british', 'spanish', 'french', 'pirate'];
       node.faction = factions[Math.floor(rng.next() * factions.length)];
+    }
+    if (!node.rumors && rng.next() < 0.4) {
+      const loreRumors = [
+        'Sailors whisper of the Five Pirate Kings who rule the outer seas.',
+        'The Shattered Seas broke when the old empires drowned. Five crowns rose from the wreckage.',
+        'Fog routes lead to the Veilwake Sea—they say a ghost fleet drifts there.',
+        'The Coiled Expanse holds serpents beneath the waves. Crew morale drains.',
+        'Coral ruins in the Drowned Crown. The Queen of Leviathans seeks relics.',
+        'The Black Spiral absorbs light. Nimue Tideborn feeds fleets to the deep.',
+        'The Ashen Reach burns. Ebon Flameheart and his dragon rule there.',
+        'Most of the Kings hunt dragons. The Ghost Captain does not—he protects them.',
+        'Dragon eggs fetch a fortune at King strongholds. Or you could take them somewhere safe.',
+        'Volcanic islands hold dragon eggs. The Kings pay bounties—or you could rescue them.',
+      ];
+      node.rumors = loreRumors[Math.floor(rng.next() * loreRumors.length)];
     }
   }
 }

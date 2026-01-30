@@ -1,0 +1,177 @@
+[
+  {
+    "id": "jasper",
+    "name": "Jasper Barrow",
+    "title": "The Ghost Captain of the Righteous Tide",
+    "image": "Images/PirateKings/JasperBarrow.png",
+    "theme": "Curse • Justice • Ghosts • Vengeance",
+    "alignment": "Chaotic Good (Relentless, Unforgiving)",
+    "status": "Undead (Revenant / Reborn)",
+    "backstory": "Once the youngest son of a revered admiral, Jasper Barrow was raised on honor but denied the sea. When he finally earned his own command, he became a protector of the innocent rather than a conqueror. His downfall came when he uncovered his father's betrayal—selling naval secrets to pirate lords for gold.\n\nDeclared a traitor and disowned, Jasper was lured into a storm by a false distress call and sunk by his own blood. Death could not still his sense of justice. He rose as a Ghost Captain, bound to the sea until corruption is punished.\n\nNow, Jasper hunts tyrants, pirate kings, corrupt rulers, and bullies—especially those who prey on weaker crews or islands.",
+    "dragons": "Jasper does **not** hunt dragons. He sees them as fellow victims of tyranny—hunted, betrayed, driven to the brink. He has been known to aid captains who rescue dragons and has even guided lost eggs to sanctuary. An unlikely ally in your mission.",
+    "dragonStance": "protects",
+    "familiar": {
+      "name": "Gloomfeather",
+      "type": "Spectral Parrot",
+      "image": "Images/Familiars/Gloomfeather.png",
+      "abilities": [
+        "Debuffs enemies (fear, misfortune, cursed rolls)",
+        "Scouts invisibly through fog and darkness",
+        "Mimics enemy voices to sow panic"
+      ]
+    },
+    "domain": {
+      "name": "The Veilwake Sea",
+      "desc": "fog-choked waters where ghost ships drift silently",
+      "effects": [
+        "His ghost fleet can ignore blockades",
+        "Ports under his watch see reduced piracy… unless they're corrupt"
+      ]
+    },
+    "playerHooks": [
+      "Appears to aid bullied players mid-fight",
+      "May spare or reward honorable crews",
+      "Can become a powerful ally… or relentless enemy"
+    ]
+  },
+  {
+    "id": "mordekai",
+    "name": "Captain Mordekai Drakon",
+    "title": "The Sea Serpent King",
+    "image": "Images/PirateKings/Captain_Mordekai_Drakon.png",
+    "theme": "Curse • Serpents • Ancient Magic",
+    "alignment": "Lawful Evil",
+    "status": "",
+    "backstory": "Mordekai was once a cabin boy aboard a doomed merchant vessel. When the ship was attacked by a colossal sea serpent, he discovered an ancient blade sealed within the hold. Slaying the beast bound its dying spirit to him.\n\nOver time, the serpent's curse twisted Mordekai—granting power, longevity, and dominion over the deep, but slowly replacing his humanity. He now rules through fear and inevitability, believing the seas demand dominance, not mercy.",
+    "dragons": "Mordekai **hunts dragons** relentlessly. Serpents and dragons are ancient rivals—both draconic, both claiming dominion over the deep. He consumes dragon scales and bone to feed Ssyrix and extend his own power. His lieutenants raid volcanic islands and ambush migrating dragons at sea.",
+    "dragonStance": "hunts",
+    "familiar": {
+      "name": "Ssyrix",
+      "type": "The Bound Serpent Spirit",
+      "image": "Images/Familiars/Ssyrix.png",
+      "abilities": [
+        "Wraps ships, immobilizing them",
+        "Inflicts stacking curses over time",
+        "Can briefly possess Mordekai to amplify power"
+      ]
+    },
+    "domain": {
+      "name": "The Coiled Expanse",
+      "desc": "waters marked by massive serpentine shapes beneath the waves",
+      "effects": [
+        "Ships move slower",
+        "Crew morale drains over time"
+      ]
+    },
+    "playerHooks": [
+      "Hunts players who grow too powerful too quickly",
+      "May offer cursed power in exchange for loyalty",
+      "Slaying him risks releasing the serpent upon the world"
+    ]
+  },
+  {
+    "id": "adara",
+    "name": "Lady Adara Thalassa",
+    "title": "Queen of the Leviathans",
+    "image": "Images/PirateKings/Lady_Adara_Thalassa.png",
+    "theme": "Atlantis • Leviathans • Ocean Sovereignty",
+    "alignment": "Neutral (Ruthlessly Pragmatic)",
+    "status": "",
+    "backstory": "Adara was born to a sunken empire—one of the last true descendants of Atlantis. When her people fell beneath the waves, she reclaimed their legacy by stealing the **Trident of the Tides**, an artifact granting command over leviathans.\n\nShe does not raid for gold—she conquers to rebuild a lost civilization beneath the sea. Islands that swear fealty are protected. Those that resist are erased.",
+    "dragons": "Adara **hunts dragons** as obstacles to her ocean sovereignty. Dragons are ancient, powerful, and refuse to bow—they threaten her claim to rule the seas. She captures eggs for Atlantean rituals and slays adult dragons that encroach on her domain. Delivering a dragon egg to her stronghold earns rare favor—and damns the dragon.",
+    "dragonStance": "hunts",
+    "familiar": {
+      "name": "Pearl",
+      "type": "Juvenile Leviathan",
+      "image": "Images/Familiars/Pearl.png",
+      "abilities": [
+        "Shields allies with tidal barriers",
+        "Heals ships and structures",
+        "Grows stronger the longer Adara reigns"
+      ]
+    },
+    "domain": {
+      "name": "The Drowned Crown",
+      "desc": "a semi-submerged kingdom of coral and ruins",
+      "effects": [
+        "Can flood islands",
+        "Controls trade routes via sea beasts"
+      ]
+    },
+    "playerHooks": [
+      "Can become a powerful political ally",
+      "Might task players with reclaiming Atlantean relics",
+      "Open war with her reshapes the map"
+    ]
+  },
+  {
+    "id": "nimue",
+    "name": "Nimue Tideborn",
+    "title": "The Kraken Caller",
+    "image": "Images/PirateKings/Nimue_Tideborn.png",
+    "theme": "Darkness • Abyss • Madness",
+    "alignment": "Chaotic Neutral",
+    "status": "",
+    "backstory": "Once a fisher's daughter obsessed with legends, Nimue discovered an abyssal song etched into black stone. Singing it summoned not death—but a young Kraken. Instead of fleeing, she bonded with it.\n\nAs the Kraken grew, so did Nimue's power—and her distance from humanity. She no longer raids ports; she drags entire fleets into the dark to \"feed the deep.\"",
+    "dragons": "Nimue **hunts dragons** to feed the Kraken. Dragons are powerful prey—their essence sustains the deep and empowers her bond with the abyss. She sends her servants to lure dragons into the Black Spiral, where the Kraken drags them under. A dragon egg is a rare delicacy; a full-grown dragon, a feast.",
+    "dragonStance": "hunts",
+    "familiar": {
+      "name": "Inkshadow",
+      "type": "Living Shadow Octopus",
+      "image": "Images/Familiars/Inkshadow.png",
+      "abilities": [
+        "Creates zones of magical darkness",
+        "Blinds and disorients enemies",
+        "Can merge with the Kraken to empower it"
+      ]
+    },
+    "domain": {
+      "name": "The Black Spiral",
+      "desc": "waters that absorb light and sound",
+      "effects": [
+        "Visibility is severely reduced",
+        "Sanity-testing environment"
+      ]
+    },
+    "playerHooks": [
+      "May ignore players entirely… until provoked",
+      "Can be reasoned with via ancient lore",
+      "Killing the Kraken may break her mind—or free her"
+    ]
+  },
+  {
+    "id": "ebon",
+    "name": "Captain Ebon Flameheart",
+    "title": "The Dragon Marauder",
+    "image": "Images/PirateKings/Flameheart_01.png",
+    "theme": "Fire • Dragons • Conquest",
+    "alignment": "Chaotic Evil",
+    "status": "",
+    "backstory": "Ebon was once a subordinate pirate, hungry for more. During a raid on a volcanic isle, he stole a dragon egg and survived long enough to hatch it. That dragon—**Blackfang**—made him a legend.\n\nEbon believes strength is the only truth. He conquers islands not to rule them, but to burn them into submission, forging a fleet of fear and fire.",
+    "dragons": "Ebon **hunts dragons** to eliminate all rivals. He has Blackfang—the only dragon that matters. Every other dragon is a threat: another captain could hatch an egg, another King could claim a beast. He burns dragon nests, slaughters migrating dragons, and pays bounties for eggs delivered to him—so he can crush them himself. There will be only one Dragon King.",
+    "dragonStance": "protects",
+    "familiar": {
+      "name": "Ember",
+      "type": "Fire Phoenix",
+      "image": "Images/Familiars/Ember.png",
+      "abilities": [
+        "Revives after death",
+        "Ignites ships and crews",
+        "Buffs allies with flame-based rage"
+      ]
+    },
+    "domain": {
+      "name": "The Ashen Reach",
+      "desc": "scorched islands and burning seas",
+      "effects": [
+        "Constant fire hazards",
+        "Volcanic events during combat"
+      ]
+    },
+    "playerHooks": [
+      "Ultimate test of naval combat skill",
+      "Can trigger massive world events if unchecked",
+      "Slaying him may leave the dragon unbound…"
+    ]
+  }
+]

@@ -3,11 +3,11 @@
  * GDD §8.2: encounter maps with rocks/shoals
  */
 
-import { Ship } from '../entities/Ship.js';
+import { createShip } from '../entities/ships.js';
 import { Enemy, ENEMY_TYPES } from '../entities/Enemy.js';
 import { SailingSystem } from '../systems/SailingSystem.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
-import { COMBAT, COMBAT_ROCKS, SHIP } from '../config.js';
+import { COMBAT, COMBAT_ROCKS, SHIP, SHIP_CLASSES } from '../config.js';
 
 const COMBAT_RESULT = {
   NONE: 'none',
@@ -33,14 +33,15 @@ export class CombatScene {
       this.player.x = 0;
       this.player.y = -80;
       this.player.rotation = 0;
-      this.player.maxSpeed = SHIP.maxSpeed;
-      this.player.thrust = SHIP.thrust;
-      this.player.friction = SHIP.friction;
-      this.player.turnRate = SHIP.turnRate;
-      this.player.brakeMult = SHIP.brakeMult;
-      this.player.highSpeedTurnPenalty = SHIP.highSpeedTurnPenalty;
+      const cls = this.player.shipClassId && SHIP_CLASSES?.[this.player.shipClassId];
+      this.player.maxSpeed = cls?.maxSpeed ?? SHIP.maxSpeed;
+      this.player.thrust = cls?.thrust ?? SHIP.thrust;
+      this.player.friction = cls?.friction ?? SHIP.friction;
+      this.player.turnRate = cls?.turnRate ?? SHIP.turnRate;
+      this.player.brakeMult = cls?.brakeMult ?? SHIP.brakeMult;
+      this.player.highSpeedTurnPenalty = cls?.highSpeedTurnPenalty ?? SHIP.highSpeedTurnPenalty;
     } else {
-      this.player = new Ship({
+      this.player = createShip('sloop', {
         x: 0,
         y: -80,
         rotation: 0,
@@ -72,6 +73,12 @@ export class CombatScene {
 
     // Combat
     this.combatSystem.update(dt, this.player, this.enemies);
+
+    // Bilge: leaks add water, bilge station pumps it out
+    this.player.updateBilge(dt, this.player._stationEffects?.bilgePumpMult ?? 1);
+
+    // Carpenter repair: hull and leaks over time
+    this.player.repairTick(dt, this.player._stationEffects?.repairMult ?? 1, this.player._stationEffects?.leakRepairMult ?? 1);
 
     // Check victory/defeat
     if (this.player.dead) {

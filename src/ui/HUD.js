@@ -30,6 +30,15 @@ export class HUD {
           <div class="hud-bar"><div id="hud-speed-bar" class="hud-bar-fill"></div></div>
           <span id="hud-speed" class="hud-value">0</span>
         </div>
+        <div class="hud-stat hud-stat-bilge">
+          <span class="hud-label">Bilge</span>
+          <div class="hud-bar"><div id="hud-bilge-bar" class="hud-bar-fill"></div></div>
+          <span id="hud-bilge" class="hud-value">0</span>
+        </div>
+        <div class="hud-stat hud-stat-leaks">
+          <span class="hud-label">Leaks</span>
+          <span id="hud-leaks" class="hud-value">0</span>
+        </div>
       </div>
       <div class="hud-panel hud-heading">
         <span class="hud-label">Heading</span>
@@ -54,6 +63,9 @@ export class HUD {
     this.elements.sailsBar = document.getElementById('hud-sails-bar');
     this.elements.speed = document.getElementById('hud-speed');
     this.elements.speedBar = document.getElementById('hud-speed-bar');
+    this.elements.bilge = document.getElementById('hud-bilge');
+    this.elements.bilgeBar = document.getElementById('hud-bilge-bar');
+    this.elements.leaks = document.getElementById('hud-leaks');
     this.elements.compassNeedle = document.getElementById('hud-compass-needle');
     this.elements.cannonStatus = document.getElementById('hud-cannon-status');
     this.elements.mode = document.getElementById('hud-mode');
@@ -72,6 +84,12 @@ export class HUD {
     if (this.elements.sailsBar) this.elements.sailsBar.style.width = `${sailsPct}%`;
     if (this.elements.speed) this.elements.speed.textContent = Math.abs(ship.speed).toFixed(1);
     if (this.elements.speedBar) this.elements.speedBar.style.width = `${speedPct}%`;
+
+    const bilgeMax = ship.bilgeWaterMax ?? 100;
+    const bilgePct = bilgeMax > 0 ? Math.min(100, (ship.bilgeWater ?? 0) / bilgeMax * 100) : 0;
+    if (this.elements.bilge) this.elements.bilge.textContent = Math.round(ship.bilgeWater ?? 0);
+    if (this.elements.bilgeBar) this.elements.bilgeBar.style.width = `${bilgePct}%`;
+    if (this.elements.leaks) this.elements.leaks.textContent = (ship.leaks ?? 0).toFixed(1);
 
     // Heading compass — needle points up when rotation=0 (facing +Y)
     if (this.elements.compassNeedle) {

@@ -4,8 +4,9 @@
  * Uses SailingSystem for player-controlled sailing along route corridor
  */
 
-import { Ship } from '../entities/Ship.js';
+import { createShip } from '../entities/ships.js';
 import { SailingSystem } from '../systems/SailingSystem.js';
+import { getStationEffects } from '../systems/CrewSystem.js';
 import { generateMap } from '../map/MapGenerator.js';
 import { deserialize, serialize } from '../map/MapSerializer.js';
 import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER } from '../config.js';
@@ -76,10 +77,13 @@ export class OverworldScene {
         width: corridorWidth,
       };
       const arrived = SailingSystem.updateInCorridor(this.sailingShip, input, dt, corridor);
+      this.sailingShip.updateBilge(dt, this.sailingShip._stationEffects?.bilgePumpMult ?? 1);
+      this.sailingShip.repairTick(dt, this.sailingShip._stationEffects?.repairMult ?? 1, this.sailingShip._stationEffects?.leakRepairMult ?? 1);
       this.shipPosition.x = this.sailingShip.x;
       this.shipPosition.y = this.sailingShip.y;
 
       if (arrived || this.sailingShip.dead) {
+        this._lastArrivedShipState = this._extractShipState(this.sailingShip);
         this.currentIsland = dest;
         this.travelRoute = null;
         this.sailingShip = null;
@@ -104,8 +108,31 @@ export class OverworldScene {
     return !!this.travelRoute;
   }
 
+  /** Extract ship state for persistence (arrival, port, save). */
+  _extractShipState(ship) {
+    if (!ship) return null;
+    return {
+      hull: ship.hull,
+      hullMax: ship.hullMax,
+      sails: ship.sails,
+      sailMax: ship.sailMax,
+      crew: ship.crew,
+      crewMax: ship.crewMax,
+      bilgeWater: ship.bilgeWater,
+      bilgeWaterMax: ship.bilgeWaterMax,
+      leaks: ship.leaks,
+    };
+  }
+
+  /** Get last arrived ship state (for Game to persist). Clears after read. */
+  consumeLastArrivedShipState() {
+    const s = this._lastArrivedShipState ?? null;
+    this._lastArrivedShipState = null;
+    return s;
+  }
+
   /** Start travel along route from current island to target. Uses SailingSystem for player control. */
-  startTravel(targetIsland) {
+  startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null) {
     if (this.travelRoute) return false;
     if (!this.currentIsland) return false;
     const edge = this._findEdge(this.currentIsland, targetIsland);
@@ -113,18 +140,22 @@ export class OverworldScene {
     this.travelRoute = edge;
     const dx = targetIsland.position.x - this.currentIsland.position.x;
     const dy = targetIsland.position.y - this.currentIsland.position.y;
-    this.sailingShip = new Ship({
+    const stateOpts = shipState ? {
+      hull: shipState.hull,
+      sails: shipState.sails,
+      crew: shipState.crew,
+      bilgeWater: shipState.bilgeWater,
+      leaks: shipState.leaks,
+    } : {};
+    this.sailingShip = createShip(shipClassId, {
       x: this.currentIsland.position.x,
       y: this.currentIsland.position.y,
       rotation: Math.atan2(dx, dy),
       isPlayer: true,
-      maxSpeed: SAILING.maxSpeed,
-      thrust: SAILING.thrust,
-      friction: SAILING.friction,
-      turnRate: SAILING.turnRate,
-      brakeMult: SAILING.brakeMult,
-      highSpeedTurnPenalty: SAILING.highSpeedTurnPenalty,
+      useSailing: true,
+      ...stateOpts,
     });
+    this.sailingShip.setStationEffects(getStationEffects(crewRoster, shipClassId));
     return true;
   }
 

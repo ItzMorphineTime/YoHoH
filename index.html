@@ -285,6 +285,18 @@
       font-size: var(--ui-font-sm);
       color: #8a9aaa;
     }
+    .map-enter-port-btn {
+      margin-top: calc(var(--ui-space) * 0.5);
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #4a7c59;
+      border: 1px solid #5a8c69;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      font-size: var(--ui-font-base);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .map-enter-port-btn:hover { background: #5a8c69; }
     .map-onboarding-hint {
       display: flex;
       align-items: center;
@@ -704,6 +716,113 @@
     .settings-actions button.primary:hover {
       background: #5a8c69;
     }
+    /* Port overlay */
+    #port-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 90;
+      background: rgba(10, 22, 40, 0.95);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: var(--ui-space-lg);
+      pointer-events: auto;
+    }
+    #port-overlay.visible { display: flex; }
+    .port-panel-container {
+      background: rgba(10, 30, 50, 0.98);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      padding: var(--ui-space-lg);
+      max-width: min(90vw, 480px);
+      max-height: 85vh;
+      overflow: auto;
+    }
+    .port-header {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space);
+      margin-bottom: var(--ui-space);
+      flex-wrap: wrap;
+    }
+    .port-title { font-size: var(--ui-font-lg); margin: 0; flex: 1; }
+    .port-dock-fee { font-size: var(--ui-font-sm); color: #8a9aaa; margin-right: var(--ui-space); }
+    .port-gold { color: #ffcc44; font-weight: 600; }
+    .port-close-btn {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #2a4a6a;
+      border: 1px solid #3a5a7a;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      cursor: pointer;
+    }
+    .port-close-btn:hover { background: #3a5a7a; }
+    .port-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: var(--ui-space);
+    }
+    .port-tabs button {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #2a3a4a;
+      border: 1px solid #3a4a5a;
+      border-radius: var(--ui-radius);
+      color: #b8c4d0;
+      cursor: pointer;
+    }
+    .port-tabs button.active { background: #3a5a7a; border-color: #4a6a8a; color: #e8e6e3; }
+    .port-content h3 { font-size: var(--ui-font-base); margin: 0 0 var(--ui-space); }
+    .port-hire-btn {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #4a7c59;
+      border: 1px solid #5a8c69;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      cursor: pointer;
+      margin-bottom: var(--ui-space);
+    }
+    .port-hire-btn:hover:not(:disabled) { background: #5a8c69; }
+    .port-hire-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .port-crew-summary { display: flex; align-items: center; gap: var(--ui-space); margin-bottom: var(--ui-space); flex-wrap: wrap; }
+    .port-crew-summary span { font-size: var(--ui-font-sm); color: #8a9aaa; }
+    .port-station-overview { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--ui-space); padding: var(--ui-space); background: rgba(26, 42, 62, 0.5); border-radius: var(--ui-radius); }
+    .port-station-chip { font-size: var(--ui-font-sm); padding: 2px 8px; background: #2a3a4a; border-radius: 4px; color: #aaccdd; }
+    .port-station-chip.filled { background: rgba(74, 124, 89, 0.4); color: #88cc88; }
+    .port-station-chip.empty { color: #7a8a9a; }
+    .port-roster-label { font-size: var(--ui-font-sm); color: #8a9aaa; margin-bottom: 4px; }
+    .port-roster { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+    .port-roster-item { display: flex; align-items: center; gap: var(--ui-space); padding: 4px 0; }
+    .port-crew-name { flex: 1; }
+    .port-dismiss-btn { padding: 2px 8px; font-size: 11px; background: #4a3a3a; border: 1px solid #5a4a4a; border-radius: 4px; color: #cc8888; cursor: pointer; }
+    .port-dismiss-btn:hover { background: #5a4a4a; color: #e8a0a0; }
+    .port-station-select { padding: 4px 8px; background: #2a3a4a; border: 1px solid #3a4a5a; border-radius: 4px; color: #e8e6e3; min-width: 140px; }
+    .port-ship-class { display: flex; align-items: center; gap: var(--ui-space); margin-bottom: 12px; }
+    .port-ship-class label { font-size: var(--ui-font-sm); color: #8a9aaa; }
+    .port-ship-class-select { padding: 4px 8px; background: #2a3a4a; border: 1px solid #3a4a5a; border-radius: 4px; color: #e8e6e3; min-width: 120px; }
+    .port-ship-comparison { margin-bottom: 12px; overflow-x: auto; }
+    .port-ship-comparison table { width: 100%; border-collapse: collapse; font-size: var(--ui-font-sm); }
+    .port-ship-comparison th, .port-ship-comparison td { padding: 4px 8px; text-align: left; border-bottom: 1px solid rgba(42, 74, 106, 0.5); }
+    .port-ship-comparison th { color: #6a7a8a; font-weight: 600; }
+    .port-ship-comparison td { color: #aaccdd; }
+    .port-ship-comparison .ship-current { background: rgba(74, 124, 89, 0.2); }
+    .port-repairs { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .port-repair-row { display: flex; align-items: center; gap: var(--ui-space); }
+    .port-repair-label { flex: 0 0 50px; font-size: var(--ui-font-sm); color: #8a9aaa; }
+    .port-repair-value { flex: 1; font-size: var(--ui-font-sm); }
+    .port-repair-btn { padding: 4px 12px; background: #2a4a6a; border: 1px solid #3a5a7a; border-radius: 4px; color: #e8e6e3; cursor: pointer; font-size: var(--ui-font-sm); }
+    .port-repair-btn:hover:not(:disabled) { background: #3a5a8a; }
+    .port-repair-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .port-cargo-summary { font-size: var(--ui-font-sm); color: #8a9aaa; margin-bottom: 8px; }
+    .port-market-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+    .port-market-item { display: flex; align-items: center; gap: var(--ui-space); padding: 6px 8px; background: #1a2a3a; border-radius: 4px; }
+    .port-market-name { flex: 1; font-size: var(--ui-font-sm); }
+    .port-market-qty { flex: 0 0 24px; font-size: var(--ui-font-sm); color: #8a9aaa; text-align: right; }
+    .port-market-price { flex: 0 0 50px; font-size: var(--ui-font-sm); color: #aacc88; }
+    .port-market-btns { display: flex; gap: 4px; }
+    .port-market-btn { padding: 2px 8px; font-size: 11px; background: #2a4a6a; border: 1px solid #3a5a7a; border-radius: 4px; color: #e8e6e3; cursor: pointer; }
+    .port-market-btn:hover:not(:disabled) { background: #3a5a8a; }
+    .port-market-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .port-empty, .port-placeholder { color: #8a9aaa; font-style: italic; }
   </style>
 </head>
 <body>
@@ -731,6 +850,65 @@
         <button type="button" class="overworld-nav-btn overworld-zoom-out" title="Zoom out">−</button>
         <button type="button" class="overworld-nav-btn overworld-center" title="Center on map">◎</button>
         <button type="button" class="overworld-nav-btn overworld-zoom-in" title="Zoom in">+</button>
+      </div>
+      <div id="port-overlay" class="port-overlay" tabindex="0">
+        <div class="port-panel-container">
+          <div class="port-header">
+            <h2 class="port-title">Port</h2>
+            <span class="port-dock-fee" id="port-dock-fee"></span>
+            <span class="port-gold">0 gold</span>
+            <button type="button" class="port-close-btn">Leave Port</button>
+          </div>
+          <div class="port-tabs">
+            <button type="button" data-port-tab="tavern" class="active">Tavern</button>
+            <button type="button" data-port-tab="shipwright">Shipwright</button>
+            <button type="button" data-port-tab="market">Market</button>
+          </div>
+          <div class="port-content">
+            <div class="port-panel active" data-panel="tavern">
+              <h3>Crew Management</h3>
+              <div class="port-crew-summary">
+                <span>Crew: <span id="port-crew-count">0</span>/<span id="port-crew-max">0</span></span>
+                <button type="button" class="port-hire-btn">Hire Crew (25 gold)</button>
+              </div>
+              <div class="port-station-overview" id="port-station-overview"></div>
+              <div class="port-roster-label">Crew Roster</div>
+              <div class="port-roster"></div>
+            </div>
+            <div class="port-panel" data-panel="shipwright">
+              <h3>Shipwright</h3>
+              <div class="port-ship-class">
+                <label for="port-ship-class-select">Ship class</label>
+                <select id="port-ship-class-select" class="port-ship-class-select"></select>
+              </div>
+              <div class="port-ship-comparison" id="port-ship-comparison"></div>
+              <div class="port-repairs">
+                <div class="port-repair-row">
+                  <span class="port-repair-label">Hull</span>
+                  <span class="port-repair-value" id="port-hull-value">—</span>
+                  <button type="button" class="port-repair-btn" id="port-repair-hull">Repair</button>
+                </div>
+                <div class="port-repair-row">
+                  <span class="port-repair-label">Sails</span>
+                  <span class="port-repair-value" id="port-sails-value">—</span>
+                  <button type="button" class="port-repair-btn" id="port-repair-sails">Repair</button>
+                </div>
+                <div class="port-repair-row">
+                  <span class="port-repair-label">Leaks</span>
+                  <span class="port-repair-value" id="port-leaks-value">—</span>
+                  <button type="button" class="port-repair-btn" id="port-repair-leaks">Repair</button>
+                </div>
+              </div>
+            </div>
+            <div class="port-panel" data-panel="market">
+              <h3>Market</h3>
+              <div class="port-cargo-summary">
+                <span>Cargo: <span id="port-cargo-used">0</span>/<span id="port-cargo-cap">0</span></span>
+              </div>
+              <div class="port-market-list" id="port-market-list"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="big-map-overlay" tabindex="0">
         <h2 class="chart-screen-title">Chart Screen</h2>

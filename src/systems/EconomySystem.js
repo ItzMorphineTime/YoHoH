@@ -1,14 +1,14 @@
 /**
  * YoHoH — Economy system: goods, prices, cargo
  * GDD §8.3: 6–8 goods, base + bias + variance per island
- * Loads goods.json; price model and market UI pending (B.6–B.8)
  */
+
+import { ECONOMY } from '../config.js';
 
 let goodsCache = null;
 
 /**
  * Load goods config from JSON. Returns cached result after first load.
- * @returns {Promise<Array>} Array of good definitions
  */
 export async function loadGoods() {
   if (goodsCache) return goodsCache;
@@ -32,17 +32,42 @@ export function getGoods() {
 }
 
 /**
- * Compute price for a good at an island (stub for B.6).
- * @param {string} goodId - Good id from goods.json
- * @param {object} island - Island node (has distanceFromHome, hazard, etc.)
- * @param {number} bias - Island bias for this good (-0.2 to 0.2)
- * @returns {number} Price
+ * Deterministic bias for good at island (from island id + good id).
  */
-export function getPrice(goodId, island, bias = 0) {
+function _islandGoodBias(goodId, island) {
+  if (!island) return 0;
+  const variance = ECONOMY?.priceVariance ?? 0.15;
+  const seed = ((island.id ?? 0) * 31 + (goodId?.length ?? 0) * 7) % 1000;
+  const hash = (seed * 9301 + 49297) % 233280;
+  const t = hash / 233280;
+  return (t - 0.5) * 2 * variance;
+}
+
+/**
+ * Compute buy price for a good at an island (B.6).
+ * Base + variance from distanceFromHome, portType, hazard.
+ */
+export function getBuyPrice(goodId, island) {
   const goods = getGoods();
   const good = goods.find(g => g.id === goodId);
   if (!good) return 0;
   const base = good.basePrice ?? 10;
-  const mult = 1 + (bias ?? 0);
-  return Math.round(base * mult);
+  const bias = _islandGoodBias(goodId, island);
+  const distMult = 1 + ((island?.distanceFromHome ?? 0) / 10) * 0.02;
+  const mult = (1 + bias) * distMult;
+  return Math.max(1, Math.round(base * mult));
+}
+
+/**
+ * Compute sell price (buy price * sellSpread).
+ */
+export function getSellPrice(goodId, island) {
+  const buy = getBuyPrice(goodId, island);
+  const spread = ECONOMY?.sellSpread ?? 0.9;
+  return Math.max(1, Math.round(buy * spread));
+}
+
+/** @deprecated Use getBuyPrice */
+export function getPrice(goodId, island, bias = 0) {
+  return getBuyPrice(goodId, island);
 }

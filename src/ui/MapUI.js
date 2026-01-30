@@ -13,6 +13,7 @@ export class MapUI {
     this.elements = {};
     this.onSaveMap = null;
     this.onLoadMap = null;
+    this.onEnterPort = null;
     this._hintDismissed = false;
     this._lastTravelRoute = null;
   }
@@ -28,6 +29,7 @@ export class MapUI {
             <span class="map-ui-island-label">Docked at</span>
             <span id="map-current-island" class="map-ui-island-name">Home Port</span>
           </div>
+          <button type="button" id="map-enter-port-btn" class="map-enter-port-btn" style="display:none">Enter Port</button>
           <span id="map-travel-status" class="map-ui-status">Click a route from your island to sail</span>
           <div id="map-onboarding-hint" class="map-onboarding-hint" style="display:none">
             <span>First time? Click a route from your island to sail.</span>
@@ -96,6 +98,8 @@ export class MapUI {
     this.elements.saveBtn?.addEventListener('click', () => this._onSave());
     this.elements.loadInput?.addEventListener('change', (e) => this._onLoad(e));
     this.elements.startSailingBtn?.addEventListener('click', () => this._onStartSailing());
+    this.elements.enterPortBtn = document.getElementById('map-enter-port-btn');
+    this.elements.enterPortBtn?.addEventListener('click', () => this.onEnterPort?.());
     this.elements.deselectRouteBtn?.addEventListener('click', () => this._onDeselectRoute());
     this.elements.routeSelection?.querySelector('.map-route-deselect')?.addEventListener('click', () => this._onDeselectRoute());
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
@@ -207,6 +211,9 @@ export class MapUI {
     }
     if (this.elements.currentIsland && currentIsland) {
       this.elements.currentIsland.textContent = currentIsland.name || `Island ${currentIsland.id}`;
+    }
+    if (this.elements.enterPortBtn) {
+      this.elements.enterPortBtn.style.display = (!isTraveling && currentIsland) ? 'block' : 'none';
     }
     if (this.elements.onboardingHint && !this._hintDismissed) {
       const show = !isTraveling;
