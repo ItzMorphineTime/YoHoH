@@ -132,24 +132,26 @@ Demo/
 
 ---
 
-## 4. Phase 0: Foundation
+## 4. Phase 0: Foundation ✓
 
 **Goal:** Runnable project with Three.js, basic scene, and game loop.
 
+**Status:** Implemented. Main game shell at `Demo/` root.
+
 ### 4.1 Tasks
-| # | Task | Details |
-|---|------|---------|
-| 0.1 | Project init | `npm init`, add Three.js, Vite |
-| 0.2 | HTML shell | `index.html` with canvas + UI container |
-| 0.3 | Renderer setup | `Renderer.js`: scene, orthographic camera, lights, render loop |
-| 0.4 | Game loop | `Game.js`: requestAnimationFrame, delta time, state machine (MENU, OVERWORLD, COMBAT, PORT) |
-| 0.5 | Input handler | `Input.js`: keyboard (WASD, space), mouse (click, position) |
-| 0.6 | Basic placeholder | Single colored plane as "water", one box as "ship" |
+| # | Task | Status |
+|---|------|--------|
+| 0.1 | Project init | ✓ `package.json`, Three.js, Vite |
+| 0.2 | HTML shell | ✓ `index.html` with canvas + HUD |
+| 0.3 | Renderer setup | ✓ `Renderer.js`: orthographic camera, water plane, ship box |
+| 0.4 | Game loop | ✓ `Game.js`: requestAnimationFrame, state machine (OVERWORLD) |
+| 0.5 | Input handler | ✓ `Input.js`: keyboard (WASD), mouse |
+| 0.6 | Basic placeholder | ✓ Water plane + ship box; WASD moves ship |
 
 ### 4.2 Deliverables
-- [ ] `npm run dev` starts local server
-- [ ] Orthographic top-down view of water + ship placeholder
-- [ ] WASD moves ship (or camera) for smoke test
+- [x] `npm run dev` starts local server (from `Demo/` root)
+- [x] Orthographic top-down view of water + ship placeholder
+- [x] WASD moves ship (momentum + turning)
 
 ### 4.3 Config Defaults
 ```js
@@ -234,39 +236,41 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 ---
 
-## 6. Phase A: Fun First Combat (Milestone A)
+## 6. Phase A: Fun First Combat (Milestone A) ✓
 
 **Goal:** Ship handling, shooting, 2 enemy types, basic loot. *(GDD §8.1, §8.2, §10.1)*
 
+**Status:** Implemented. Combat arena with player ship, enemies, projectiles, cannon arcs.
+
 ### 5.1 Sailing & Handling (§8.1)
-| # | Task | Details |
-|---|------|---------|
-| A.1 | Ship entity | `Ship.js`: position, rotation, velocity, momentum model |
-| A.2 | Movement model | Forward thrust, braking, drift; turning slows at high speed |
-| A.3 | Cannon arcs | Port/starboard arcs; visual preview (cone or arc mesh) |
-| A.4 | HUD | Heading arrow, speed bar, cannon arc preview |
+| # | Task | Status |
+|---|------|--------|
+| A.1 | Ship entity | ✓ `Ship.js`: position, rotation, velocity, momentum model |
+| A.2 | Movement model | ✓ Forward thrust, braking, drift; turning slows at high speed |
+| A.3 | Cannon arcs | ✓ Port/starboard arcs; visual preview (cone mesh) |
+| A.4 | HUD | ✓ Hull, sails, speed, cannon keys |
 
 ### 5.2 Naval Combat (§8.2)
-| # | Task | Details |
-|---|------|---------|
-| A.5 | Broadside firing | Port/starboard keys (Q/E or mouse buttons); cooldown |
-| A.6 | Projectiles | `Projectile.js`: ray or simple mesh; hit detection |
-| A.7 | Damage model | Hull HP, Sails (speed mult), Crew effectiveness |
-| A.8 | Combat arena | Bounded sea with rocks/shoals; `CombatScene.js` |
+| # | Task | Status |
+|---|------|--------|
+| A.5 | Broadside firing | ✓ Aim-then-fire (Q/E: first press = aim arrow, second = fire); cooldown |
+| A.6 | Projectiles | ✓ `Projectile.js`: sphere mesh; hit detection |
+| A.7 | Damage model | ✓ Hull HP, Sails (speed mult), Crew effectiveness |
+| A.8 | Combat arena | ✓ Bounded sea with rocks; `CombatScene.js` |
 
 ### 5.3 Enemies (§10.1)
-| # | Task | Details |
-|---|------|---------|
-| A.9 | Enemy base | `Enemy.js`: extends Ship-like behavior |
-| A.10 | Trader AI | Flees, light defenses |
-| A.11 | Raider AI | Rush grapple, aggressive |
-| A.12 | Basic loot | On victory: gold + salvage (simple reward screen) |
+| # | Task | Status |
+|---|------|--------|
+| A.9 | Enemy base | ✓ `Enemy.js`: extends Ship-like behavior |
+| A.10 | Trader AI | ✓ Flees, light defenses |
+| A.11 | Raider AI | ✓ Rush, aggressive |
+| A.12 | Basic loot | ✓ On victory: gold + salvage; R to restart |
 
 ### 5.4 Deliverables
-- [ ] Player ship moves with momentum + turning
-- [ ] Cannons fire port/starboard with arc preview
-- [ ] 2 enemy types (Trader, Raider) with distinct AI
-- [ ] Victory/defeat screen with basic loot display
+- [x] Player ship moves with momentum + turning
+- [x] Cannons fire port/starboard with arc preview
+- [x] 2 enemy types (Trader, Raider) with distinct AI
+- [x] Victory/defeat screen with basic loot display
 
 ---
 
@@ -376,13 +380,25 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 ## 10. Polish & Stretch Goals
 
-### 9.1 Polish (Post–Phase D)
+### 10.1 Effects & Particles (Rendering Polish)
+| # | Task | Details |
+|---|------|---------|
+| P.1 | Cannon muzzle flash | Brief flash/smoke at ship when firing |
+| P.2 | Impact splash | Water splash + debris when projectile hits ship |
+| P.3 | Hull damage VFX | Sparks, smoke, or debris on hit |
+| P.4 | Wake / wake trail | Ship wake or foam trail when moving |
+| P.5 | Water surface | Ripples, wave animation, or foam |
+| P.6 | Projectile trail | Subtle trail or smoke behind cannonballs |
+| P.7 | Particle pool | Reusable particle system for performance |
+
+### 10.2 Polish (Post–Phase D)
+- **Effects & particles:** muzzle flash, impact splash, damage VFX, wake trails, water ripples (see §10.1)
 - Boarding resolution (§8.2.4): grapple → "Plunder Deep" / "Secure & Sail"
 - Fast travel (ferries)
 - Accessibility: rebindable controls, UI scaling
 - Audio: cannons, ambience, music stings
 
-### 9.2 Stretch
+### 10.3 Stretch
 - Procedural encounter modifiers
 - Ship tier 3 (Frigate)
 - Stronghold boss (multi-phase)
@@ -415,17 +431,17 @@ Each island has pirate-themed fields for map generation and gameplay:
 - [x] `map-generator-poc/src/MapEditor.js` (addNode, removeNode, addEdge, removeEdge)
 - [x] `map-generator-poc/src/MapSerializer.js` (Save/Load JSON)
 
-### Phase 0
-- [ ] `index.html`
-- [ ] `package.json`, `vite.config.js`
-- [ ] `src/main.js`, `src/config.js`
-- [ ] `src/Game.js`, `src/Renderer.js`, `src/Input.js`
+### Phase 0 ✓
+- [x] `index.html`
+- [x] `package.json`, `vite.config.js`
+- [x] `src/main.js`, `src/config.js`
+- [x] `src/Game.js`, `src/Renderer.js`, `src/Input.js`
 
-### Phase A
-- [ ] `src/entities/Ship.js`, `Enemy.js`, `Projectile.js`
-- [ ] `src/systems/SailingSystem.js`, `CombatSystem.js`
-- [ ] `src/scenes/CombatScene.js`
-- [ ] `src/ui/HUD.js`
+### Phase A ✓
+- [x] `src/entities/Ship.js`, `Enemy.js`, `Projectile.js`
+- [x] `src/systems/SailingSystem.js`, `CombatSystem.js`
+- [x] `src/scenes/CombatScene.js`
+- [x] `src/ui/HUD.js`
 
 ### Phase B
 - [ ] `public/data/islands.json`, `goods.json`
