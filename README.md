@@ -11,6 +11,10 @@
   <img src="https://img.shields.io/badge/Vite-5.x-646CFF" alt="Vite">
 </p>
 
+<p align="center">
+  <strong><a href="https://itzmorphinetime.github.io/YoHoH/">View Presentation GDD →</a></strong>
+</p>
+
 ---
 
 ## Overview
@@ -18,8 +22,8 @@
 **YoHoH** is a small indie prototype for a pirate adventure game set in **The Shattered Seas**—a fractured archipelago where old empires drowned and five Pirate Kings rose from the wreckage. Sail a procedurally generated archipelago, trade goods between islands, fight naval battles, and manage your crew. Built with **Three.js** for top-down 2.5D rendering in the browser.
 
 > *See [LORE.md](LORE.md) for the full world backstory and the Five Pirate Kings.*  
-> *See [PRESENTATION_GDD.html](PRESENTATION_GDD.html) for a visual presentation GDD (open in browser).*  
-> *See [STORYBOOK.html](STORYBOOK.html) for in-depth lore on each Pirate King (click to open modals).*  
+> *See the [Presentation GDD](https://itzmorphinetime.github.io/YoHoH/) for a visual presentation (GitHub Pages).*  
+> *See [docs/STORYBOOK.html](docs/STORYBOOK.html) for in-depth lore on each Pirate King (click to open modals).*  
 > *Presentation King cards have a 📖 button to view lore. Run `npm run extract-lore` after updating LORE.md to refresh presentation data.*
 
 - **Procedural map** — Center-out planar graph; islands and routes generated from a seed

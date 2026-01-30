@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Extract Pirate Kings lore from LORE.md and output JSON + inject into PRESENTATION_GDD.html
+ * Extract Pirate Kings lore from LORE.md and output JSON + inject into docs/index.html
  * Run: node scripts/extract-lore.js
  * Or: npm run extract-lore
  *
  * When LORE.md is updated, run this script to regenerate the presentation data.
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -15,7 +15,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const lorePath = join(root, 'LORE.md');
 const jsonPath = join(root, 'public', 'data', 'pirate-kings-lore.json');
-const presentationPath = join(root, 'PRESENTATION_GDD.html');
+const docsJsonPath = join(root, 'docs', 'data', 'pirate-kings-lore.json');
+const presentationPath = join(root, 'docs', 'index.html');
 
 const IMAGE_MAP = {
   jasper: { image: 'Images/PirateKings/JasperBarrow.png', familiar: 'Images/Familiars/Gloomfeather.png' },
@@ -159,6 +160,11 @@ const kings = extractWithRegex(loreContent);
 
 writeFileSync(jsonPath, JSON.stringify(kings, null, 2), 'utf-8');
 console.log(`Wrote ${jsonPath}`);
+// Also write to docs/data for GitHub Pages fetch fallback
+const docsDataDir = join(root, 'docs', 'data');
+try { mkdirSync(docsDataDir, { recursive: true }); } catch (_) {}
+writeFileSync(docsJsonPath, JSON.stringify(kings, null, 2), 'utf-8');
+console.log(`Wrote ${docsJsonPath}`);
 
 const presentationContent = readFileSync(presentationPath, 'utf-8');
 const placeholder = '<!-- PIRATE_KINGS_LORE_DATA -->';
@@ -173,8 +179,8 @@ if (presentationContent.includes(placeholder)) {
 } else if (existingScriptRegex.test(presentationContent)) {
   newContent = presentationContent.replace(existingScriptRegex, injectedScript);
 } else {
-  console.warn('Placeholder <!-- PIRATE_KINGS_LORE_DATA --> or existing script not found in PRESENTATION_GDD.html.');
+  console.warn('Placeholder <!-- PIRATE_KINGS_LORE_DATA --> or existing script not found in docs/index.html.');
   process.exit(1);
 }
 writeFileSync(presentationPath, newContent, 'utf-8');
-console.log('Injected lore data into PRESENTATION_GDD.html');
+console.log('Injected lore data into docs/index.html');
