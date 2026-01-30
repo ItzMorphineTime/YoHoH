@@ -1,0 +1,127 @@
+{
+  "world": {
+    "name": "The Shattered Seas",
+    "tagline": "The old empires drowned. The seas broke. Five crowns rose from the wreckage.",
+    "homeWaters": "The inner archipelago—where new captains earn their stripes.",
+    "outerSeas": "Beyond the safe routes, the Five Pirate Kings hold dominion."
+  },
+  "dragons": {
+    "coreMission": "Rescue and save the last of the dragons.",
+    "playerRole": "Find eggs before hunters do, free captured dragons from strongholds, ferry them to sanctuaries.",
+    "whyKingsHunt": ["Dragon eggs hatch loyal beasts that dominate the seas.", "Scales and bone fuel ancient magic and artifacts.", "A living dragon is the ultimate symbol of dominance—or the ultimate rival to eliminate."],
+    "sanctuaries": "Hidden islands and secret coves where rescued eggs can hatch and young dragons can thrive in peace.",
+    "allies": ["Jasper Barrow does not hunt dragons and may aid those who rescue them."]
+  },
+  "pirateKings": [
+    {
+      "id": "jasper_barrow",
+      "name": "Jasper Barrow",
+      "title": "The Ghost Captain of the Righteous Tide",
+      "domain": "Veilwake Sea",
+      "domainHazard": "fog",
+      "familiar": "Gloomfeather",
+      "familiarType": "Spectral Parrot",
+      "shortDesc": "A revenant who hunts tyrants and corrupt rulers.",
+      "dragonStance": "protects",
+      "dragonNote": "Does not hunt dragons. Aids captains who rescue them.",
+      "rumors": [
+        "They say a ghost fleet drifts through the fog—ships that answer to no living captain.",
+        "Jasper Barrow still hunts. They say he appears when the innocent are threatened.",
+        "Ports under his watch see less piracy—unless they're corrupt. Then they see nothing at all.",
+        "Jasper doesn't hunt dragons. They say he guides rescued eggs to sanctuary."
+      ]
+    },
+    {
+      "id": "mordekai_drakon",
+      "name": "Mordekai Drakon",
+      "title": "The Sea Serpent King",
+      "domain": "Coiled Expanse",
+      "domainHazard": "serpents",
+      "familiar": "Ssyrix",
+      "familiarType": "Bound Serpent Spirit",
+      "shortDesc": "Rules through fear and inevitability. The seas demand dominance, not mercy.",
+      "dragonStance": "hunts",
+      "dragonNote": "Hunts dragons as ancient rivals. Consumes scales and bone to feed Ssyrix.",
+      "rumors": [
+        "Massive shapes move beneath the waves in the Coiled Expanse. Sailors who linger lose their nerve.",
+        "Mordekai offers power—cursed power. They say he hunts captains who grow too strong too fast.",
+        "Slaying the Serpent King might release something worse upon the world.",
+        "Mordekai's lieutenants raid volcanic islands for dragon scales. He feeds them to Ssyrix."
+      ]
+    },
+    {
+      "id": "adara_thalassa",
+      "name": "Lady Adara Thalassa",
+      "title": "Queen of the Leviathans",
+      "domain": "Drowned Crown",
+      "domainHazard": "coral",
+      "familiar": "Pearl",
+      "familiarType": "Juvenile Leviathan",
+      "shortDesc": "Conquers to rebuild a lost civilization beneath the sea.",
+      "dragonStance": "hunts",
+      "dragonNote": "Hunts dragons as obstacles to ocean sovereignty. Captures eggs for Atlantean rituals.",
+      "rumors": [
+        "The Drowned Crown—coral ruins and semi-submerged kingdoms. She can flood islands that resist.",
+        "Swear fealty to Adara and she protects you. Refuse and she erases you.",
+        "She seeks Atlantean relics. Some say she'll pay handsomely for them.",
+        "Adara captures dragon eggs for Atlantean rituals. Deliver one and earn favor—or damn the dragon."
+      ]
+    },
+    {
+      "id": "nimue_tideborn",
+      "name": "Nimue Tideborn",
+      "title": "The Kraken Caller",
+      "domain": "Black Spiral",
+      "domainHazard": "darkness",
+      "familiar": "Inkshadow",
+      "familiarType": "Living Shadow Octopus",
+      "shortDesc": "Drags entire fleets into the dark to feed the deep.",
+      "dragonStance": "hunts",
+      "dragonNote": "Hunts dragons to feed the Kraken. Their essence sustains the abyss.",
+      "rumors": [
+        "The Black Spiral absorbs light and sound. Sailors who enter rarely return sane.",
+        "Nimue may ignore you entirely—until you provoke her. Then she feeds you to the Kraken.",
+        "They say ancient lore can reason with her. Or maybe it just delays the inevitable.",
+        "Nimue feeds dragons to the Kraken. Their essence sustains the deep."
+      ]
+    },
+    {
+      "id": "ebon_flameheart",
+      "name": "Captain Ebon Flameheart",
+      "title": "The Dragon Marauder",
+      "domain": "Ashen Reach",
+      "domainHazard": "fire",
+      "familiar": "Ember",
+      "familiarType": "Fire Phoenix",
+      "shortDesc": "Burns islands into submission. Strength is the only truth.",
+      "dragonStance": "hunts",
+      "dragonNote": "Hunts all dragons except Blackfang. Eliminates rivals so there is only one Dragon King.",
+      "rumors": [
+        "The Ashen Reach—scorched islands, burning seas. Volcanic vents erupt during combat.",
+        "Ebon Flameheart is the ultimate test. Slay him and his dragon may go unbound.",
+        "He conquers not to rule, but to burn. His fleet runs on fear and fire.",
+        "Ebon hunts every dragon except Blackfang. There will be only one Dragon King."
+      ]
+    }
+  ],
+  "tavernRumors": [
+    "Powder sells high at distant ports—if you can reach them.",
+    "A lieutenant of the Ghost Captain was spotted near the fog routes.",
+    "Merchants whisper of coral ruins in the outer seas. Relics fetch a fortune.",
+    "Sailors avoid the dark waters. Something drags ships under.",
+    "Volcanic islands in the Ashen Reach hold rare ore—and dragon eggs. The Kings pay bounties.",
+    "The Five Kings don't fight each other. They carve the seas between them.",
+    "Home Port is safe. The outer routes? That's where legends are made—or ended.",
+    "They say the Ghost Captain aids those who rescue dragons. The others hunt them to extinction.",
+    "Dragon eggs fetch a fortune at King strongholds. Or you could take them somewhere safe.",
+    "Mordekai's lieutenants raid volcanic islands for dragon scales. Adara captures eggs for her rituals.",
+    "Nimue feeds dragons to the Kraken. Ebon burns every nest he finds. There will be only one."
+  ],
+  "domainHazards": {
+    "fog": "Veilwake Sea",
+    "serpents": "Coiled Expanse",
+    "coral": "Drowned Crown",
+    "darkness": "Black Spiral",
+    "fire": "Ashen Reach"
+  }
+}
