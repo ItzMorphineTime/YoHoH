@@ -13,6 +13,10 @@ export class Minimap {
     this.ctx = null;
     this.size = UI_MINIMAP.sizeDefault;
     this.padding = UI_MINIMAP.sizeDefault * UI_MINIMAP.paddingRatio;
+    this._lastOverworldTransform = null;
+    this._lastOverworldNodes = null;
+    this._minimapTooltip = null;
+    this._isOverworldView = false;
   }
 
   _resize() {
@@ -52,6 +56,17 @@ export class Minimap {
     this._loadCustomSize();
     this._resize();
     window.addEventListener('resize', () => this._resize());
+
+    // N.2: Island tooltip on hover
+    this._minimapTooltip = document.createElement('div');
+    this._minimapTooltip.className = 'minimap-tooltip';
+    this._minimapTooltip.setAttribute('aria-hidden', 'true');
+    this._minimapTooltip.style.display = 'none';
+    wrapper.appendChild(this._minimapTooltip);
+    this._boundMinimapMouseMove = (e) => this._onMinimapMouseMove(e);
+    this._boundMinimapMouseLeave = () => this._hideMinimapTooltip();
+    this.canvas.addEventListener('mousemove', this._boundMinimapMouseMove);
+    this.canvas.addEventListener('mouseleave', this._boundMinimapMouseLeave);
   }
 
   _loadCustomSize() {
@@ -219,6 +234,7 @@ export class Minimap {
   /** Overworld/sailing minimap: islands, routes, ship position. Press M for big map. */
   updateOverworld(map, shipPosition, currentIsland, travelRoute) {
     if (!this.ctx || !this.canvas || !map) return;
+    this._isOverworldView = true;
     this._resize();
 
     const { islandRadius } = OVERWORLD;
@@ -330,5 +346,47 @@ export class Minimap {
     this.ctx.textBaseline = 'middle';
     this.ctx.fillStyle = '#b8c4d0';
     this.ctx.fillText('N', compX, compY - compSize / 4);
+
+    // Store for tooltip hit detection (N.2)
+    this._lastOverworldTransform = { cx, cy, midX, midY, scale };
+    this._lastOverworldNodes = nodes;
+    this._lastOverworldIslandRadius = islandRadius;
+  }
+
+  _onMinimapMouseMove(e) {
+    if (!this._lastOverworldNodes || !this._lastOverworldTransform || !this.canvas || !this._minimapTooltip) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const { cx, cy, midX, midY, scale } = this._lastOverworldTransform;
+    const worldX = midX + (px - cx) / scale;
+    const worldY = midY - (py - cy) / scale;
+    const rMult = 1.5;
+    const hitRadius = this._lastOverworldIslandRadius * scale * (UI.minimapDotSizes?.islandScale ?? 0.3) * rMult;
+    let nearest = null;
+    let nearestDist = hitRadius;
+    for (const node of this._lastOverworldNodes) {
+      const dx = node.position.x - worldX;
+      const dy = node.position.y - worldY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const nodeScreenR = Math.max(2, this._lastOverworldIslandRadius * scale * (UI.minimapDotSizes?.islandScale ?? 0.3));
+      if (dist * scale < nodeScreenR * 2 && dist < nearestDist) {
+        nearestDist = dist;
+        nearest = node;
+      }
+    }
+    if (nearest) {
+      const name = nearest.name || `Island ${nearest.id}`;
+      this._minimapTooltip.textContent = name;
+      this._minimapTooltip.style.display = 'block';
+      this._minimapTooltip.style.left = `${e.clientX + 12}px`;
+      this._minimapTooltip.style.top = `${e.clientY + 8}px`;
+    } else {
+      this._hideMinimapTooltip();
+    }
+  }
+
+  _hideMinimapTooltip() {
+    if (this._minimapTooltip) this._minimapTooltip.style.display = 'none';
   }
 }

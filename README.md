@@ -7,6 +7,8 @@
 
 <p align="center">
   <img src="Images/Islands/Island_01.png" alt="The Shattered Seas" width="480">
+  <img src="Images/Ships/WarBrig_01.png" alt="The Shattered Seas" width="480">
+  <img src="Images/Islands/TopDownMap_04.png" alt="The Shattered Seas" width="480">
 </p>
 
 <p align="center">
@@ -41,18 +43,20 @@
 ## Features
 
 ### World & Navigation
-- **Procedurally generated archipelago** — Delaunay-based planar graph; no edge crossings
+- **Procedurally generated archipelago** — Delaunay-based planar graph; 8–12 islands (configurable)
 - **Overworld map** — Click routes to sail; hover for destination info (distance, danger, port type)
 - **Chart Screen (M)** — Strategic map overlay with pan, zoom, island labels, legend, compass rose
 - **Minimap** — North indicator, sailing progress bar, route context
 - **Save/Load maps** — Ctrl+S / Ctrl+O; export/import JSON
 - **Onboarding hints** — First-time tips; dismissible, persisted
+- **UI scaling** — Settings modal: 75%–150% slider; persisted via localStorage
 
 ### Sailing
 - **3D sailing corridor** — Ship constrained to route; origin/destination markers
 - **WASD control** — Thrust, brake, turn; momentum and drift
 - **Random encounters** — Combat can trigger while sailing
 - **Damage persistence** — Hull, sails, bilge, leaks carry over
+- **Arrival feedback** — Toast "Arrived at [Island]!" when reaching destination
 
 ### Naval Combat
 - **Broadside cannons** — Q (port) / E (starboard); aim-then-fire with arc preview
@@ -64,17 +68,20 @@
 - **Market** — Buy/sell 8 goods (Rum, Timber, Cloth, Iron, Powder, Cannon Parts, Spices, Pearls)
 - **Island-specific prices** — Base + bias + variance; distance from Home affects prices
 - **Cargo system** — Capacity per ship class; unit sizes per good
-- **Shipwright** — Repair hull, sails, leaks for gold; change ship class
+- **Dock fees** — Gold deducted on port entry (configurable economy sink)
+- **Shipwright** — Repair hull, sails, leaks for gold; change ship class; ship comparison table
 - **Tavern (Crew Management)** — Hire crew; station overview (fill status); assign/dismiss; roster with station dropdown
 
 ### Ships & Crew
 - **3 ship classes** — Sloop (agile, 20 cargo), Brigantine (balanced, 40 cargo), Galleon (tough, 60 cargo)
+- **Ship comparison** — Side-by-side stats table in Shipwright (Hull, Sails, Crew, Cargo, Turn rate, Speed, Slots)
 - **Station slots** — Variable per class; e.g. Galleon has 3 gunner slots, 2 carpenter slots
 - **Station effects** — Turn rate, reload speed, sail speed, bilge pump, hull repair
 - **Carpenter repair** — Assigned carpenters repair hull and stop leaks over time (sailing/combat)
 
 <p align="center">
   <img src="Images/Ships/Sloop_01.png" alt="Sloop" width="140">
+  <img src="Images/Ships/Merchant_01.png" alt="Merchant" width="140">
   <img src="Images/Ships/WarBrig_01.png" alt="Brigantine" width="140">
   <img src="Images/Ships/Galleon_01.png" alt="Galleon" width="140">
 </p>
@@ -99,15 +106,28 @@ Sail the fractured archipelago where five Pirate Kings hold dominion. Your missi
 
 <p align="center">
   <img src="Images/Dragons/Blaze.png" alt="Blaze" width="80">
-  <img src="Images/Dragons/Icey.png" alt="Icey" width="80">
   <img src="Images/Dragons/Speedy.png" alt="Speedy" width="80">
+  <img src="Images/Dragons/Icey.png" alt="Icey" width="80">
   <img src="Images/Dragons/Elder.png" alt="Elder" width="80">
+  <img src="Images/Dragons/Blackfang.png" alt="Blackfang" width="80">
 </p>
 
 <p align="center">
   <em>Rescue the dragons. Defy the Kings.</em>
 </p>
 
+
+<p align="center">
+  <img src="Images/Familiars/Gloomfeather.png" alt="Blaze" width="80">
+  <img src="Images/Familiars/Ssyrix.png" alt="Blaze" width="80">
+  <img src="Images/Familiars/Pearl.png" alt="Blaze" width="80">
+  <img src="Images/Familiars/Inkshadow.png" alt="Blaze" width="80">
+  <img src="Images/Familiars/Ember.png" alt="Blaze" width="80">
+</p>
+
+<p align="center">
+  <em>Find Familiars / Pets along the way.</em>
+</p>
 ---
 
 ## Controls
@@ -145,6 +165,11 @@ Sail the fractured archipelago where five Pirate Kings hold dominion. Your missi
 |-------|--------|
 | **Click tabs** | Tavern, Shipwright, Market |
 | **Escape** | Leave port |
+
+### Settings
+| Input | Action |
+|-------|--------|
+| **⚙ button** | Open Settings modal (UI scale 75%–150%) |
 
 ---
 
@@ -184,10 +209,10 @@ npm run dev
 | **0** | ✅ Done | Foundation — project, renderer, game loop |
 | **1** | ✅ Done | Map Generator POC — procedural archipelago, editor |
 | **A** | ✅ Done | Fun First Combat — ship handling, cannons, 2 enemy types, loot |
-| **B** | ✅ Done | Trading Loop — overworld, travel, Chart Screen, market, repairs |
-| **B.5** | 🔄 In progress | Core gameplay polish — sailing feel, rendering, UI scaling |
-| **C** | 🔄 Partial | Crew + Upgrades — hire/assign ✓, ship classes ✓; upgrades, Infamy gates pending |
-| **D** | ⏳ Planned | Vertical Slice — 8–12 islands, contracts, Lieutenant boss, save/load |
+| **B** | ✅ Done | Trading Loop — overworld, travel, Chart Screen, market, repairs, dock fees |
+| **B.5** | 🔄 In progress | Core gameplay polish — sailing feel, arrival toast, UI scaling ✓ |
+| **C** | 🔄 Partial | Crew + Upgrades — hire/assign ✓, ship classes ✓, comparison UI ✓; upgrades, Infamy gates pending |
+| **D** | 🔄 Partial | Vertical Slice — 8–12 islands ✓; contracts, Lieutenant boss, save/load pending |
 | **Polish** | ⏳ Planned | Effects, particles, audio, accessibility |
 
 ### Upcoming

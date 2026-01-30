@@ -369,8 +369,15 @@ export class Game {
     const { a, b } = route;
     const target = a === currentIsland ? b : a;
     if (!target) return false;
+    const suppliesCost = ECONOMY?.suppliesCost ?? 0;
+    const gold = this._playerGold ?? 0;
+    if (suppliesCost > 0 && gold < suppliesCost) {
+      this.mapUI.showToast(`Need ${suppliesCost} gold for supplies!`, 'error');
+      return false;
+    }
     const ok = this.overworldScene.startTravel(target, this._crewRoster ?? [], this._playerShipClass ?? 'sloop', this._playerShipState ?? null);
     if (ok) {
+      if (suppliesCost > 0) this._playerGold = Math.max(0, gold - suppliesCost);
       this._selectedRoute = null;
       this.state = GAME_STATES.SAILING;
     }
@@ -410,7 +417,7 @@ export class Game {
       renderer.updateOverworld(map, shipPos, currentIsland, displayRoute, !!selectedRoute, this._overworldPan, this._overworldZoom);
       mapUI.show();
       const connectedRoutes = overworldScene.getConnectedRoutes?.() ?? [];
-      mapUI.update(currentIsland, false, null, displayRoute ? overworldScene.getRouteInfo(displayRoute) : null, hoveredRoute, selectedRoute, connectedRoutes);
+      mapUI.update(currentIsland, false, null, displayRoute ? overworldScene.getRouteInfo(displayRoute) : null, hoveredRoute, selectedRoute, connectedRoutes, this._playerGold ?? 0);
       document.getElementById('hud')?.style.setProperty('display', 'none');
       document.getElementById('minimap-wrapper')?.style.setProperty('display', 'none');
       document.getElementById('minimap-wrapper')?.removeAttribute('data-context');

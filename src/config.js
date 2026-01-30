@@ -282,6 +282,7 @@ export const ECONOMY = {
   priceVariance: 0.15,    // ±15% variance per island (from distanceFromHome, portType)
   sellSpread: 0.9,       // sell price = buy price * 0.9 (10% spread)
   dockFee: 5,            // gold paid when entering port (B.11 economy sink); 0 to disable
+  suppliesCost: 3,       // gold paid when setting sail (B.11 economy sink); 0 to disable
 };
 
 // ─── Sailing System (shared physics) ───────────────────────────────────────

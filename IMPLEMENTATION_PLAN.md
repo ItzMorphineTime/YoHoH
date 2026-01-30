@@ -1,6 +1,6 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
-**Document status:** Draft v0.8  
+**Document status:** Draft v1.0  
 **Last updated:** 2026-01-29  
 **Target:** Small indie prototype — PC web browser  
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js  
@@ -323,7 +323,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.9 | Port hub | ✓ PortScene, PortUI: Market, Shipwright, Tavern (Crew Management: hire, assign, dismiss) |
 | B.10 | Repairs | ✓ Pay gold to restore hull/sails at Shipwright (§9.0.6 I.2) |
 | B.10a | Leak repair at port | ✓ Pay gold to repair leaks at Shipwright (§9.0.6 I.10) |
-| B.11 | Economy sinks | ✓ Repairs (gold); ✓ dock fees (ECONOMY.dockFee); supplies pending |
+| B.11 | Economy sinks | ✓ Repairs (gold); ✓ dock fees (ECONOMY.dockFee); ✓ supplies (ECONOMY.suppliesCost on voyage start) |
 
 ### 6.4 Deliverables
 - [x] Overworld map with procedurally generated islands, click-to-travel
@@ -332,6 +332,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 - [x] Leak repair at port (§9.0.6 I.10)
 - [x] Price variance between islands (B.6: base + bias + distanceFromHome)
 - [x] Dock fees (B.11): gold deducted on port entry; config ECONOMY.dockFee
+- [x] Supplies (B.11): gold deducted when setting sail; config ECONOMY.suppliesCost; Start Sailing disabled if can't afford
 
 ---
 
@@ -339,7 +340,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Goal:** Improve core gameplay feel, sailing experience, and rendering quality before expanding content. Focus on making the sailing loop satisfying and the visuals readable at all display sizes.
 
-**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) largely complete. Economy (B.6–B.8) complete. B.11 dock fees implemented. S.6 arrival toast implemented. Next: supplies (B.11), graphical bugs (§8.3a), sailing polish.
+**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) largely complete. Economy (B.6–B.8) complete. B.11 economy sinks complete (dock fees, supplies). S.6 arrival toast implemented. Next: graphical bugs (§8.3a), sailing polish.
 
 ### 8.1 Sailing Experience
 | # | Task | Details |
@@ -425,7 +426,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | # | Task | Details |
 |---|------|---------|
 | N.1 | North indicator | ✓ Small compass N; consistent with Chart Screen |
-| N.2 | Island labels (optional) | — Tooltip on hover for island name |
+| N.2 | Island labels (optional) | ✓ Tooltip on hover for island name during sailing |
 | N.3 | Sailing progress | ✓ Progress bar at bottom when sailing; shows distance remaining |
 | N.4 | Visual consistency | ✓ Align color scheme with BigMap; same island/route semantics |
 
@@ -495,6 +496,7 @@ SAILING_RENDER: {
 - [x] Chart Screen config (UI.chartScreen): showIslandLabels, showLegend, showCompass, islandScale, routeWidth, etc.
 - [x] Route selection panel: "Docked at" current island, connected routes list, destination details; UI.routeSelection config
 - [x] Sailing rendering: SAILING_RENDER.islandRadius for island circles; corridor width aligned with movement boundary
+- [x] Minimap island tooltip (N.2): hover over island during sailing to see name
 - [ ] Sailing experience polish (wake, corridor feedback)
 - [x] Arrival feel (S.6): toast on arrival at destination
 - [ ] Rendering improvements (water, ship, islands)
@@ -651,10 +653,12 @@ GAME.defaultShipClass: 'sloop'
 
 **Goal:** 8–12 islands, contracts, 1 lieutenant boss, tuned economy. *(GDD §9–11)*
 
+**Status:** D.1 island count complete (12 islands). Contracts, boss, save/load pending.
+
 ### 10.1 Content
 | # | Task | Details |
 |---|------|---------|
-| D.1 | Island count | Expand to 8–12 islands |
+| D.1 | Island count | ✓ OVERWORLD.numIslands 12; configurable 8–12 islands |
 | D.2 | Rumors | "Powder high at Port X" — simple text |
 | D.3 | Contracts | Delivery, Smuggling, Salvage (1–2 each) |
 | D.4 | Contract UI | Accept at tavern; track in HUD |
@@ -677,7 +681,7 @@ GAME.defaultShipClass: 'sloop'
 | D.10 | Main menu | New game, Continue, Settings |
 
 ### 10.4 Deliverables
-- [ ] 8–12 islands with full routes
+- [x] 8–12 islands with full routes (OVERWORLD.numIslands)
 - [ ] Contracts: delivery, smuggling, salvage
 - [ ] Ship naming (§9.0.6 I.8)
 - [ ] Enemy ship classes (Raider/Trader Sloop vs Brigantine) (§9.0.6 I.7)
@@ -893,6 +897,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `src/scenes/OverworldScene.js`
 - [x] `src/ui/MapUI.js` (route selection panel: connected routes, destination details; UI.routeSelection config)
 - [x] `src/ui/BigMapUI.js` (Chart Screen: pan, zoom, M/Esc close; UI.chartScreen config)
+- [x] `src/ui/Minimap.js` (N.2 island tooltip on hover during sailing)
 - [x] `public/data/goods.json` (8 goods: staples, military, luxury)
 - [x] `src/scenes/PortScene.js`
 - [x] `src/systems/EconomySystem.js` (loads goods.json; getBuyPrice/getSellPrice; B.6 price model)

@@ -2,7 +2,7 @@
  * YoHoH — Map UI: overworld HUD, island info, settings (save/load maps)
  */
 
-import { UI } from '../config.js';
+import { UI, ECONOMY } from '../config.js';
 
 const ONBOARDING_KEY = 'yohoh-onboarding-hint';
 const { routeSelection: ROUTE_SELECTION } = UI;
@@ -208,7 +208,7 @@ export class MapUI {
     if (this.onDeselectRoute) this.onDeselectRoute();
   }
 
-  update(currentIsland, isTraveling, travelRoute, routeInfo, hoveredRoute, selectedRoute, connectedRoutes = []) {
+  update(currentIsland, isTraveling, travelRoute, routeInfo, hoveredRoute, selectedRoute, connectedRoutes = [], gold = null) {
     const panel = this.elements.currentIsland?.closest('.map-ui-panel');
     if (panel) {
       const state = isTraveling ? 'sailing' : (hoveredRoute ? 'selecting' : 'docked');
@@ -274,6 +274,12 @@ export class MapUI {
         this.elements.routeSelectionDestInfo.textContent = destRows.length ? destRows.join(' · ') : '';
         this.elements.routeSelectionDestInfo.style.display = destRows.length ? 'block' : 'none';
 
+        const suppliesCost = ECONOMY?.suppliesCost ?? 0;
+        const canAffordSupplies = suppliesCost <= 0 || (gold != null && gold >= suppliesCost);
+        if (this.elements.startSailingBtn) {
+          this.elements.startSailingBtn.disabled = !canAffordSupplies;
+          this.elements.startSailingBtn.title = suppliesCost > 0 ? `Supplies: ${suppliesCost} gold` : '';
+        }
         if (cfg.showConnectedRoutes !== false && this.elements.routeSelectionConnected && connectedRoutes.length > 0) {
           const maxRoutes = cfg.connectedRoutesMax ?? 8;
           const routesToShow = connectedRoutes.slice(0, maxRoutes);
