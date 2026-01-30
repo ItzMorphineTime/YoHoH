@@ -12,9 +12,9 @@ export const WORLD = {
 
 export const CAMERA = {
   zoom: 4.5,
-  combatZoom: 1.0,
-  overworldZoom: 0.25,
-  sailingZoom: 1.5,
+  combatZoom: 2.5,
+  overworldZoom: 0.5,
+  sailingZoom: 2.5,
   near: 0.1,
   far: 1000,
   positionZ: 100,
@@ -24,15 +24,36 @@ export const CAMERA = {
 export const OVERWORLD = {
   mapScale: 1,
   worldScale: 10,
-  islandRadius: 12,
-  routeWidth: 8,
-  sailingCorridorWidth: 8,
+  islandRadius: 32,
+  routeWidth: 16,
+  sailingCorridorWidth: 16,
   expansionDistance: 85,
   arrivalRadius: 4,
   numIslands: 12,
   seedMax: 100000,
   islandClickThreshold: 22,
   routeClickThreshold: 22,
+};
+
+// ─── Overworld & Sailing Rendering ─────────────────────────────────────────
+export const OVERWORLD_RENDER = {
+  worldScale: 10,
+  islandRadius: 12,
+  routeWidth: 8,
+  sailingCorridorWidth: 8,
+};
+
+// ─── Sailing Screen Options ───────────────────────────────────────────────
+export const SAILING_RENDER = {
+  islandRadius: 128, // in sailing view units (graph * worldScale); matches OVERWORLD.islandRadius * 10
+  routeWidth: 25,
+  corridorWidth: 25,
+  waterPlaneScale: 4,
+  waterGradient: true,
+  corridorColor: 0x2a4a6a,
+  corridorOpacity: 0.35,
+  destMarkerRadius: 25,
+  destMarkerOpacity: 0.8,
 };
 
 // ─── Game States ───────────────────────────────────────────────────────────
@@ -142,14 +163,22 @@ export const RENDER = {
   islandDangerColor: 0x8b4444,
   islandAppealColor: 0x6b9b7a,
   islandDefaultColor: 0x5a6a5a,
+  islandCurrentColor: 0xffcc44,
+  islandCurrentRadiusMult: 1.4,
+  islandCurrentRingColor: 0xffdd66,
+  islandCurrentRingWidth: 3,
   routeColor: 0x3a6a9a,
   routeHoverColor: 0x5a8aba,
   routeHoverWidthMult: 1.3,
   sailingPathRefLength: 500,
+  sailingCorridorColor: 0x2a4a6a,
+  sailingCorridorOpacity: 0.35,
+  sailingWaterGradient: true,
   sailingDestColor: 0x4a7c59,
   sailingDestOpacity: 0.8,
   sailingDestRadius: 25,
   sailingDestSegments: 16,
+  sailingWaterPlaneScale: 4,
   overworldShipRadius: 4,
   overworldShipHeight: 12,
   overworldShipSegments: 6,
@@ -177,13 +206,14 @@ export const UI = {
     sizeMin: 64,
     sizeMax: 160,
     sizeDefault: 100,
+    sizeMaxCustom: 320,
     paddingRatio: 1 / 12,
     paddingMin: 3,
   },
   bigMap: {
-    sizeMin: 450,
-    sizeMax: 900,
-    viewportRatio: 0.88,
+    sizeMin: 600,
+    sizeMax: 1200,
+    viewportRatio: 0.95,
   },
   minimapColors: {
     background: '#0a1628',
@@ -200,6 +230,8 @@ export const UI = {
     islandDanger: '#8b4444',
     islandAppeal: '#6b9b7a',
     islandDefault: '#5a6a5a',
+    currentIsland: '#ffcc44',
+    currentIslandStroke: '#ffdd66',
   },
   bigMapColors: {
     background: '#0a1628',
@@ -210,6 +242,8 @@ export const UI = {
     islandDanger: '#8b4444',
     islandAppeal: '#6b9b7a',
     islandDefault: '#5a6a5a',
+    currentIsland: '#ffcc44',
+    currentIslandStroke: '#ffdd66',
     ship: '#44cc44',
     shipStroke: '#88ff88',
     text: '#e8e6e3',
@@ -227,8 +261,35 @@ export const UI = {
     compassRose: true,
     routeClickFeedback: true,
   },
+  // ─── Chart Screen (M key) rendering options ─────────────────────────────
+  chartScreen: {
+    showIslandLabels: true,
+    showLegend: true,
+    showCompass: true,
+    showHelpText: true,
+    islandScale: 0.3,
+    currentIslandRadiusMult: 1.3,
+    routeWidth: 3,
+    routeActiveWidth: 5,
+    labelFontSize: 10,
+    labelMaxLength: 12,
+    legendEntries: ['docked', 'home', 'danger', 'safe', 'other'],
+  },
+  // ─── Route Selection panel (overworld) rendering options ─────────────────
+  routeSelection: {
+    showCurrentIsland: true,
+    showConnectedRoutes: true,
+    showDestinationDetails: true,
+    showDescription: true,
+    showTreasureLevel: true,
+    showHazard: true,
+    showFaction: true,
+    showPortType: true,
+    connectedRoutesMax: 8,
+  },
   bigMapSizes: {
     padding: 36,
+    currentIslandRadiusMult: 1.3,
     shipRadius: 8,
     islandMinRadius: 6,
     islandScale: 0.3,
@@ -239,5 +300,7 @@ export const UI = {
     textBottomOffset: 24,
     legendHeight: 48,
     compassSize: 32,
+    centerOffsetX: 24,
+    centerOffsetY: 24,
   },
 };

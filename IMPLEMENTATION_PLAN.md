@@ -1,6 +1,6 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
-**Document status:** Draft v0.3  
+**Document status:** Draft v0.4  
 **Last updated:** 2026-01-29  
 **Target:** Small indie prototype — PC web browser  
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js  
@@ -296,12 +296,13 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.3g | Sailing feel | ✓ SAILING config; reduced speed (0.22 max), gentler thrust; distinct from combat |
 | B.3h | Route length | ✓ expansionDistance 85 (longer routes); island/route click thresholds adjusted |
 | B.3i | Chart Screen | ✓ M key opens/closes; pan (drag), zoom (scroll +/−), Center on Ship; alignment/scale fixes |
+| B.3j | Sailing rendering | ✓ SAILING_RENDER.islandRadius for origin/dest island circles; corridor width aligned with movement boundary |
 | B.4 | Route modifiers | — Stormy, patrolled, shoals (derived from `distanceFromHome` and `hazard`) |
 
 ### 6.2 Economy (§8.3)
 | # | Task | Details |
 |---|------|---------|
-| B.5 | Goods config | `goods.json`: 6–8 goods (Rum, Timber, Cloth, Iron, Powder, Spices, etc.) |
+| B.5 | Goods config | ✓ `goods.json`: 8 goods (Rum, Timber, Cloth, Iron, Powder, Cannon Parts, Spices, Pearls) |
 | B.6 | Price model | Base + Bias + Variance per island |
 | B.7 | Market UI | `PortUI.js`: buy/sell list, cargo hold, profit hints |
 | B.8 | Cargo system | Ship cargo capacity; load/unload at port |
@@ -314,7 +315,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.11 | Economy sinks | Repairs, supplies, dock fees |
 
 ### 6.4 Deliverables
-- [ ] Overworld map with procedurally generated islands (8–12+), click-to-travel
+- [x] Overworld map with procedurally generated islands, click-to-travel
 - [ ] Market UI: buy/sell goods, see profit hints
 - [ ] Repairs at shipwright
 - [ ] Price variance between islands
@@ -325,7 +326,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Goal:** Improve core gameplay feel, sailing experience, and rendering quality before expanding content. Focus on making the sailing loop satisfying and the visuals readable at all display sizes.
 
-**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Next: Map UI UX/UI (§8.6), graphical bugs (§8.3a), sailing polish.
+**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) largely complete. Next: Economy (B.6–B.8), Port (B.9–B.11), graphical bugs (§8.3a), sailing polish.
 
 ### 8.1 Sailing Experience
 | # | Task | Details |
@@ -385,13 +386,14 @@ Each island has pirate-themed fields for map generation and gameplay:
 #### 8.6.1 MapUI Panel (Main Overworld HUD)
 | # | Task | Details |
 |---|------|---------|
-| P.1 | Visual hierarchy | Structured layout: current island prominent; status text secondary; route info in dedicated card |
-| P.2 | Route info layout | Replace single-line details with structured rows: destination (bold), distance, danger/port icons, travel cost hint |
-| P.3 | Icons & affordances | Add icons for danger (⚠), safe port (✓), port type (anchor/harbor); improve settings gear visibility |
-| P.4 | Status differentiation | Distinct styling for states: docked (calm), selecting route (interactive), sailing (active) |
-| P.5 | Settings panel polish | Smooth open/close transition; loading state during Load; success/error toast for Save/Load |
-| P.6 | Keyboard shortcuts | Optional: Ctrl+S Save, Ctrl+O Load; document in tooltip |
-| P.7 | Save/Load feedback | Brief toast or inline message on success/failure; clear file input after load |
+| P.1 | Visual hierarchy | ✓ Structured layout: current island prominent; status text secondary; route info in dedicated card |
+| P.2 | Route info layout | ✓ Structured rows: destination (bold), distance, danger/port icons |
+| P.3 | Icons & affordances | ✓ Icons for danger (⚠), safe port (✓), port type (⚓) |
+| P.4 | Status differentiation | ✓ data-state: docked (calm), selecting (interactive border), sailing (active green border) |
+| P.5 | Settings panel polish | ✓ Smooth open/close transition; loading state during Load; toast |
+| P.6 | Keyboard shortcuts | ✓ Ctrl+S Save, Ctrl+O Load; tooltips on buttons |
+| P.7 | Save/Load feedback | ✓ Toast on success/failure; clear file input after load |
+| P.8 | Route selection panel | ✓ "Docked at" current island; connected routes list (island names, distances); destination details (description, treasure, hazard, faction); config-driven via UI.routeSelection |
 
 #### 8.6.2 BigMapUI (Chart Screen — Strategic Map Overlay)
 | # | Task | Details |
@@ -402,23 +404,24 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.4 | Destination marker | ✓ When sailing: highlight destination island with dashed ring |
 | B.5 | Nautical styling | ✓ Compass rose (N indicator); chart-style border |
 | B.6 | M key close | ✓ Document + overlay keydown; M and Escape reliably close Chart Screen |
-| B.7 | Accessibility | — Colorblind-friendly palette option; high-contrast mode; ensure legend explains colors |
+| B.7 | Config-driven | ✓ UI.chartScreen: showIslandLabels, showLegend, showCompass, showHelpText, islandScale, routeWidth, labelFontSize, legendEntries, etc. |
+| B.8 | Accessibility | — Colorblind-friendly palette option; high-contrast mode; ensure legend explains colors |
 
 #### 8.6.3 Minimap
 | # | Task | Details |
 |---|------|---------|
 | N.1 | North indicator | ✓ Small compass N; consistent with Chart Screen |
-| N.2 | Island labels (optional) | Tooltip on hover for island name; or tiny labels when zoomed |
-| N.3 | Sailing progress | When sailing: distance remaining or progress bar; ETA if calculable |
-| N.4 | Visual consistency | Align color scheme with BigMap; same island/route semantics |
+| N.2 | Island labels (optional) | — Tooltip on hover for island name |
+| N.3 | Sailing progress | ✓ Progress bar at bottom when sailing; shows distance remaining |
+| N.4 | Visual consistency | ✓ Align color scheme with BigMap; same island/route semantics |
 
 #### 8.6.4 General Map UX
 | # | Task | Details |
 |---|------|---------|
 | X.1 | Onboarding hints | ✓ First-time: "Click a route from your island to sail"; dismissible; persisted via localStorage |
-| X.2 | Click feedback | Visual/audio feedback on route click (highlight pulse, subtle sound) |
-| X.3 | Responsive layout | MapUI, minimap, BigMap adapt to ultrawide/4K; safe zones respected |
-| X.4 | Config-driven | Move map-ui colors, sizes, toggles to `config.js` UI section |
+| X.2 | Click feedback | ✓ Toast "Setting sail to X!" when route clicked; visual confirmation |
+| X.3 | Responsive layout | ✓ MapUI, minimap, BigMap adapt; CSS clamp(), viewport units |
+| X.4 | Config-driven | ✓ mapUI, chartScreen, routeSelection config in `config.js`; colors/sizes in UI section |
 
 #### 8.6.5 Config Additions (Map UI)
 ```js
@@ -429,6 +432,42 @@ mapUI: {
   compassRose: true,
   routeClickFeedback: true,
 }
+
+// UI.chartScreen — Chart Screen (M key) rendering options
+chartScreen: {
+  showIslandLabels: true,
+  showLegend: true,
+  showCompass: true,
+  showHelpText: true,
+  islandScale: 0.3,
+  currentIslandRadiusMult: 1.3,
+  routeWidth: 3,
+  routeActiveWidth: 5,
+  labelFontSize: 10,
+  labelMaxLength: 12,
+  legendEntries: ['docked', 'home', 'danger', 'safe', 'other'],
+}
+
+// UI.routeSelection — Route selection panel (overworld) rendering options
+routeSelection: {
+  showCurrentIsland: true,
+  showConnectedRoutes: true,
+  showDestinationDetails: true,
+  showDescription: true,
+  showTreasureLevel: true,
+  showHazard: true,
+  showFaction: true,
+  showPortType: true,
+  connectedRoutesMax: 8,
+}
+
+// SAILING_RENDER — Sailing view: island radius, corridor width (rendering + movement boundary)
+SAILING_RENDER: {
+  islandRadius: 320,
+  corridorWidth: 50,
+  // ... destMarkerRadius, corridorColor, etc.
+}
+
 // Onboarding hint: persisted via localStorage key 'yohoh-onboarding-hint'
 ```
 
@@ -438,10 +477,13 @@ mapUI: {
 - [x] Centralized config; magic numbers moved to `config.js`
 - [x] Combat zoom fixed — arena visible for sailing/maneuvering (§8.3a R.7)
 - [x] Chart Screen (BigMapUI): pan, zoom, M/Esc close, Center on Ship, alignment/scale (§8.6.2)
+- [x] Map UI UX/UI (§8.6): Ctrl+S/O shortcuts, Save/Load toast, status differentiation, sailing progress bar, click feedback
+- [x] Chart Screen config (UI.chartScreen): showIslandLabels, showLegend, showCompass, islandScale, routeWidth, etc.
+- [x] Route selection panel: "Docked at" current island, connected routes list, destination details; UI.routeSelection config
+- [x] Sailing rendering: SAILING_RENDER.islandRadius for island circles; corridor width aligned with movement boundary
 - [ ] Sailing experience polish (wake, arrival, corridor feedback)
 - [ ] Rendering improvements (water, ship, islands)
 - [ ] Optional UI scaling setting
-- [ ] Map UI UX/UI improvements (§8.6): panel hierarchy, minimap North indicator, onboarding hints
 - [ ] Graphical bugs investigation (§8.3a R.8)
 
 ---
@@ -449,6 +491,29 @@ mapUI: {
 ## 9. Phase C: Crew + Upgrades (Milestone C)
 
 **Goal:** Hire crew, stations, 6–8 upgrades, ship tier 2. *(GDD §8.4, §8.5)*
+
+**Status:** Not started. Begin with §9.0 Rendering Refactor (prerequisite).
+
+### 9.0 Rendering Refactor (Prerequisite) ★ First Step
+
+**Goal:** Improve and refactor the rendering logic for a more maintainable and scalable codebase with better configuration. Prepare the renderer for Phase C content (crew, upgrades, ship tiers) and future expansion.
+
+**Status:** Not started.
+
+| # | Task | Details |
+|---|------|---------|
+| R.1 | Extract scene-specific logic | Split Renderer into smaller modules or methods; combat, overworld, sailing as distinct update paths |
+| R.2 | Centralize config usage | Reduce duplication across Renderer, BigMapUI, Minimap; single source of truth for colors, sizes, scales |
+| R.3 | Improve separation of concerns | Clear boundaries between scene setup, update, and teardown; shared mesh pools where appropriate |
+| R.4 | Config schema & validation | Document config structure; optional runtime validation at startup for missing/typo keys |
+| R.5 | Scalable config layout | Group config by view (COMBAT_RENDER, OVERWORLD_RENDER, SAILING_RENDER, UI); easy to add new scenes |
+| R.6 | View layer abstraction | Consider lightweight abstraction for scene swapping; simplify adding new view modes (e.g. Port) |
+
+**Deliverables:**
+- [ ] Renderer refactored; scene-specific code isolated
+- [ ] Config usage consolidated; no scattered literals
+- [ ] Config layout documented; ready for new scenes (Port, etc.)
+- [ ] No regression in visual output or performance
 
 ### 9.1 Crew System (§8.4)
 | # | Task | Details |
@@ -459,7 +524,7 @@ mapUI: {
 | C.4 | Station effects | Apply bonuses to ship/combat stats |
 | C.5 | Morale (light) | Shifts from pay, victories, voyage length |
 
-### 7.2 Ship Upgrades (§8.5)
+### 9.2 Ship Upgrades (§8.5)
 | # | Task | Details |
 |---|------|---------|
 | C.6 | Upgrade slots | Hull, Sails, Cannons, Cargo, Utility, Boarding |
@@ -473,6 +538,7 @@ mapUI: {
 | C.10 | Infamy | Earn from profit, victories; unlock tiers |
 
 ### 9.4 Deliverables
+- [ ] **9.0 Rendering refactor:** Scene-specific logic extracted; config consolidated; scalable layout
 - [ ] Tavern: hire crew, assign stations
 - [ ] Crew affects ship stats (turn rate, reload, etc.)
 - [ ] Shipwright: 6–8 upgrades across slots
@@ -583,11 +649,11 @@ mapUI: {
 ### Phase B (in progress)
 - [x] `src/map/MapGenerator.js`, `SeededRNG.js`
 - [x] `src/scenes/OverworldScene.js`
-- [x] `src/ui/MapUI.js`
-- [x] `src/ui/BigMapUI.js` (Chart Screen: pan, zoom, M/Esc close)
-- [ ] `public/data/goods.json`
+- [x] `src/ui/MapUI.js` (route selection panel: connected routes, destination details; UI.routeSelection config)
+- [x] `src/ui/BigMapUI.js` (Chart Screen: pan, zoom, M/Esc close; UI.chartScreen config)
+- [x] `public/data/goods.json` (8 goods: staples, military, luxury)
 - [ ] `src/scenes/PortScene.js`
-- [ ] `src/systems/EconomySystem.js`
+- [x] `src/systems/EconomySystem.js` (loads goods.json; price model stub for B.6)
 - [ ] `src/ui/PortUI.js`
 
 ### Phase C

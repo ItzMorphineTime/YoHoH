@@ -4,7 +4,7 @@
 
 import { OVERWORLD, UI } from '../config.js';
 
-const { bigMap: UI_BIGMAP } = UI;
+const { bigMap: UI_BIGMAP, chartScreen: CHART_SCREEN } = UI;
 
 export class BigMapUI {
   constructor() {
@@ -12,6 +12,7 @@ export class BigMapUI {
     this.ctx = null;
     this.visible = false;
     this.size = UI_BIGMAP.sizeMin;
+    this._dpr = 1;
     this.panX = 0;
     this.panY = 0;
     this.zoomLevel = 1;
@@ -24,12 +25,15 @@ export class BigMapUI {
     if (!this.canvas) return;
     const v = Math.min(window.innerWidth, window.innerHeight) * UI_BIGMAP.viewportRatio;
     const s = Math.min(UI_BIGMAP.sizeMax, Math.max(UI_BIGMAP.sizeMin, v | 0));
-    if (s !== this.size) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const bufferSize = (s * dpr) | 0;
+    if (bufferSize !== this.canvas.width || s !== this.size) {
       this.size = s;
-      this.canvas.width = this.size;
-      this.canvas.height = this.size;
-      this.canvas.style.width = `${this.size}px`;
-      this.canvas.style.height = `${this.size}px`;
+      this._dpr = dpr;
+      this.canvas.width = bufferSize;
+      this.canvas.height = bufferSize;
+      this.canvas.style.width = `${s}px`;
+      this.canvas.style.height = `${s}px`;
     }
   }
 
@@ -75,13 +79,18 @@ export class BigMapUI {
 
   _onDragStart(e) {
     if (e.button !== 0) return;
-    this._dragStart = { x: e.clientX + this.panX, y: e.clientY + this.panY };
+    this._dragStart = {
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startPanX: this.panX,
+      startPanY: this.panY,
+    };
   }
 
   _onDragMove(e) {
     if (!this._dragStart) return;
-    this.panX = this._dragStart.x - e.clientX;
-    this.panY = this._dragStart.y - e.clientY;
+    this.panX = this._dragStart.startPanX + (e.clientX - this._dragStart.startClientX);
+    this.panY = this._dragStart.startPanY + (e.clientY - this._dragStart.startClientY);
   }
 
   _onDragEnd() {
@@ -136,6 +145,7 @@ export class BigMapUI {
     const { islandRadius } = OVERWORLD;
     const c = UI.bigMapColors;
     const s = UI.bigMapSizes;
+    const chart = CHART_SCREEN ?? {};
     const padding = s.padding;
     const nodes = map.nodes;
     const edges = map.edges;
@@ -150,12 +160,19 @@ export class BigMapUI {
     const rangeY = Math.max(maxY - minY, 1);
     const mapW = this.size - padding * 2;
     const mapH = this.size - padding * 2 - (s.legendHeight || 0);
-    const baseScale = Math.min(mapW / rangeX, mapH / rangeY) * this.zoomLevel;
+    const dpr = this._dpr ?? 1;
+    const baseScale = Math.min(mapW / rangeX, mapH / rangeY) * this.zoomLevel * dpr;
     const scale = baseScale;
-    const cx = this.size / 2 + this.panX;
-    const cy = (this.size - (s.legendHeight || 0)) / 2 + this.panY;
-    const midX = travelRoute ? shipPosition.x : (minX + maxX) / 2;
-    const midY = travelRoute ? shipPosition.y : (minY + maxY) / 2;
+
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const ox = (s.centerOffsetX ?? 0) * dpr;
+    const oy = (s.centerOffsetY ?? 0) * dpr;
+    const cx = w / 2 + this.panX * dpr + ox;
+    const cy = h / 2 + this.panY * dpr + oy;
+
+    const midX = Number(shipPosition?.x ?? 0);
+    const midY = Number(shipPosition?.y ?? 0);
 
     const toScreen = (x, y) => ({
       px: cx + (x - midX) * scale,
@@ -163,14 +180,14 @@ export class BigMapUI {
     });
 
     this.ctx.fillStyle = c.background;
-    this.ctx.fillRect(0, 0, this.size, this.size);
+    this.ctx.fillRect(0, 0, w, h);
 
     this.ctx.strokeStyle = c.border;
     this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(2, 2, this.size - 4, this.size - 4);
+    this.ctx.strokeRect(2, 2, w - 4, h - 4);
     this.ctx.strokeStyle = 'rgba(42, 74, 106, 0.5)';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(4, 4, this.size - 8, this.size - 8);
+    this.ctx.strokeRect(4, 4, w - 8, h - 8);
 
     for (const edge of edges) {
       const { a, b } = edge;
@@ -181,7 +198,7 @@ export class BigMapUI {
         (edge.a === travelRoute.b && edge.b === travelRoute.a)
       );
       this.ctx.strokeStyle = isActiveRoute ? c.routeActive : c.route;
-      this.ctx.lineWidth = isActiveRoute ? s.routeActiveWidth : s.routeWidth;
+      this.ctx.lineWidth = isActiveRoute ? (chart.routeActiveWidth ?? s.routeActiveWidth) : (chart.routeWidth ?? s.routeWidth);
       this.ctx.beginPath();
       this.ctx.moveTo(pa.px, pa.py);
       this.ctx.lineTo(pb.px, pb.py);
@@ -192,18 +209,30 @@ export class BigMapUI {
 
     for (const node of nodes) {
       const { px, py } = toScreen(node.position.x, node.position.y);
-      const r = Math.max(s.islandMinRadius, islandRadius * scale * s.islandScale);
+      const isCurrent = node === currentIsland;
+      const rMult = isCurrent ? (chart.currentIslandRadiusMult ?? s.currentIslandRadiusMult ?? 1.3) : 1;
+      const islandScale = chart.islandScale ?? s.islandScale ?? 0.3;
+      const r = Math.max(s.islandMinRadius, islandRadius * scale * islandScale * rMult);
       const isDest = node === destNode;
-      this.ctx.fillStyle = node === map.homeNode ? c.islandHome
+      this.ctx.fillStyle = isCurrent ? (c.currentIsland ?? '#ffcc44')
+        : node === map.homeNode ? c.islandHome
         : node.dangerous ? c.islandDanger
         : node.appealing ? c.islandAppeal : c.islandDefault;
       this.ctx.beginPath();
       this.ctx.arc(px, py, r, 0, Math.PI * 2);
       this.ctx.fill();
-      this.ctx.strokeStyle = isDest ? c.shipStroke : c.border;
-      this.ctx.lineWidth = isDest ? 2 : 1;
+      this.ctx.strokeStyle = isCurrent ? (c.currentIslandStroke ?? '#ffdd66') : (isDest ? c.shipStroke : c.border);
+      this.ctx.lineWidth = isCurrent ? 3 : (isDest ? 2 : 1);
       this.ctx.stroke();
-      if (isDest) {
+      if (isCurrent) {
+        this.ctx.beginPath();
+        this.ctx.arc(px, py, r + 4, 0, Math.PI * 2);
+        this.ctx.strokeStyle = c.currentIslandStroke ?? '#ffdd66';
+        this.ctx.lineWidth = 2;
+        this.ctx.setLineDash([3, 3]);
+        this.ctx.stroke();
+        this.ctx.setLineDash([]);
+      } else if (isDest) {
         this.ctx.beginPath();
         this.ctx.arc(px, py, r + 4, 0, Math.PI * 2);
         this.ctx.strokeStyle = c.routeActive;
@@ -223,60 +252,75 @@ export class BigMapUI {
     this.ctx.lineWidth = 2;
     this.ctx.stroke();
 
-    const labelFont = `${s.labelFontSize || 10}px sans-serif`;
+    const labelFontSize = chart.labelFontSize ?? s.labelFontSize ?? 10;
+    const labelMaxLen = chart.labelMaxLength ?? 12;
+    const labelFont = `${labelFontSize}px sans-serif`;
     this.ctx.font = labelFont;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    for (const node of nodes) {
-      const { px, py } = toScreen(node.position.x, node.position.y);
-      const r = Math.max(s.islandMinRadius, islandRadius * scale * s.islandScale);
-      const name = (node.name || `Island ${node.id}`).slice(0, 12);
-      this.ctx.fillStyle = c.text;
-      this.ctx.fillText(name, px, py - r - 6);
+    if (chart.showIslandLabels !== false) {
+      for (const node of nodes) {
+        const { px, py } = toScreen(node.position.x, node.position.y);
+        const islandScale = chart.islandScale ?? s.islandScale ?? 0.3;
+        const r = Math.max(s.islandMinRadius, islandRadius * scale * islandScale);
+        const name = (node.name || `Island ${node.id}`).slice(0, labelMaxLen);
+        this.ctx.fillStyle = c.text;
+        this.ctx.fillText(name, px, py - r - 6);
+      }
     }
 
-    const compSize = s.compassSize || 28;
-    const compX = this.size - compSize - 12;
-    const compY = compSize + 12;
-    this.ctx.strokeStyle = c.border;
-    this.ctx.lineWidth = 1;
-    this.ctx.beginPath();
-    this.ctx.arc(compX, compY, compSize / 2, 0, Math.PI * 2);
-    this.ctx.stroke();
-    this.ctx.fillStyle = c.text;
-    this.ctx.font = `${Math.round(compSize * 0.35)}px sans-serif`;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText('N', compX, compY - compSize / 4);
-
-    const legY = this.size - s.textBottomOffset - 8;
-    const legX = 12;
-    this.ctx.font = `${s.fontSize - 2}px sans-serif`;
-    this.ctx.textAlign = 'left';
-    this.ctx.textBaseline = 'middle';
-    const legends = [
-      { color: c.islandHome, label: 'Home' },
-      { color: c.islandDanger, label: 'Danger' },
-      { color: c.islandAppeal, label: 'Safe' },
-      { color: c.islandDefault, label: 'Other' },
-    ];
-    let lx = legX;
-    for (const leg of legends) {
-      this.ctx.fillStyle = leg.color;
-      this.ctx.beginPath();
-      this.ctx.arc(lx + 6, legY, 4, 0, Math.PI * 2);
-      this.ctx.fill();
+    if (chart.showCompass !== false) {
+      const compSize = s.compassSize || 28;
+      const compX = w - compSize - 12;
+      const compY = compSize + 12;
       this.ctx.strokeStyle = c.border;
       this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.arc(compX, compY, compSize / 2, 0, Math.PI * 2);
       this.ctx.stroke();
       this.ctx.fillStyle = c.text;
-      this.ctx.fillText(leg.label, lx + 14, legY);
-      lx += 52;
+      this.ctx.font = `${Math.round(compSize * 0.35)}px sans-serif`;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText('N', compX, compY - compSize / 4);
     }
 
-    this.ctx.fillStyle = c.text;
-    this.ctx.font = `${s.fontSize}px sans-serif`;
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText('Drag to pan · Scroll or +/- to zoom · M or Esc to close', this.size / 2, this.size - 10);
+    const legY = h - s.textBottomOffset - 8;
+    const legX = 12;
+    const legendEntries = chart.legendEntries ?? ['docked', 'home', 'danger', 'safe', 'other'];
+    const legendMap = {
+      docked: { color: c.currentIsland ?? '#ffcc44', label: 'Docked' },
+      home: { color: c.islandHome, label: 'Home' },
+      danger: { color: c.islandDanger, label: 'Danger' },
+      safe: { color: c.islandAppeal, label: 'Safe' },
+      other: { color: c.islandDefault, label: 'Other' },
+    };
+    if (chart.showLegend !== false && legendEntries.length > 0) {
+      this.ctx.font = `${s.fontSize - 2}px sans-serif`;
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'middle';
+      let lx = legX;
+      for (const key of legendEntries) {
+        const leg = legendMap[key];
+        if (!leg) continue;
+        this.ctx.fillStyle = leg.color;
+        this.ctx.beginPath();
+        this.ctx.arc(lx + 6, legY, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = c.border;
+        this.ctx.lineWidth = 1;
+        this.ctx.stroke();
+        this.ctx.fillStyle = c.text;
+        this.ctx.fillText(leg.label, lx + 14, legY);
+        lx += 52;
+      }
+    }
+
+    if (chart.showHelpText !== false) {
+      this.ctx.fillStyle = c.text;
+      this.ctx.font = `${s.fontSize}px sans-serif`;
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('Drag to pan · Scroll or +/- to zoom · M or Esc to close', w / 2, h - 10);
+    }
   }
 }

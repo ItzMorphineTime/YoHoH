@@ -34,6 +34,7 @@ export class HUD {
       <div class="hud-panel hud-heading">
         <span class="hud-label">Heading</span>
         <div class="hud-compass">
+          <span class="hud-compass-north" aria-hidden="true">N</span>
           <div id="hud-compass-needle"></div>
         </div>
       </div>
@@ -74,7 +75,7 @@ export class HUD {
 
     // Heading compass — needle points up when rotation=0 (facing +Y)
     if (this.elements.compassNeedle) {
-      const deg = -ship.rotation * 180 / Math.PI;
+      const deg = ship.rotation * 180 / Math.PI;
       this.elements.compassNeedle.style.transform = `rotate(${deg}deg)`;
     }
 

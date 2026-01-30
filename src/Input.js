@@ -6,18 +6,43 @@ export class Input {
   constructor() {
     this.keys = {};
     this.prevKeys = {};
-    this.mouse = { x: 0, y: 0, down: false, prevDown: false };
+    this.mouse = {
+      x: 0, y: 0,
+      leftDown: false, middleDown: false,
+      leftPrevDown: false, middlePrevDown: false,
+    };
     this._boundHandlers = false;
   }
 
   /** Call at end of frame */
   endFrame() {
     this.prevKeys = { ...this.keys };
-    this.mouse.prevDown = this.mouse.down;
+    this.mouse.leftPrevDown = this.mouse.leftDown;
+    this.mouse.middlePrevDown = this.mouse.middleDown;
   }
 
   isMouseJustPressed() {
-    return this.mouse.down && !this.mouse.prevDown;
+    return this.mouse.leftDown && !this.mouse.leftPrevDown;
+  }
+
+  /** Left button (0) just pressed — for route selection */
+  isLeftMouseJustPressed() {
+    return this.mouse.leftDown && !this.mouse.leftPrevDown;
+  }
+
+  /** Middle button (1) just pressed — for pan start */
+  isMiddleMouseJustPressed() {
+    return this.mouse.middleDown && !this.mouse.middlePrevDown;
+  }
+
+  /** Left button down */
+  isLeftMouseDown() {
+    return this.mouse.leftDown;
+  }
+
+  /** Middle button down */
+  isMiddleMouseDown() {
+    return this.mouse.middleDown;
   }
 
   /** True if key transitioned from up to down this frame (ignores key repeat) */
@@ -45,9 +70,25 @@ export class Input {
     };
     canvas.addEventListener('mousemove', updateMouse);
     document.addEventListener('mousemove', updateMouse);
-    canvas.addEventListener('mousedown', () => { this.mouse.down = true; });
-    canvas.addEventListener('mouseup', () => { this.mouse.down = false; });
-    canvas.addEventListener('mouseleave', () => { this.mouse.down = false; });
+    const onMouseDown = (e) => {
+      if (e.button === 0) this.mouse.leftDown = true;
+      if (e.button === 1) {
+        this.mouse.middleDown = true;
+        e.preventDefault();
+      }
+    };
+    const onMouseUp = (e) => {
+      if (e.button === 0) this.mouse.leftDown = false;
+      if (e.button === 1) this.mouse.middleDown = false;
+    };
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('mouseleave', () => {
+      this.mouse.leftDown = false;
+      this.mouse.middleDown = false;
+    });
 
     this._boundHandlers = true;
   }
@@ -61,6 +102,6 @@ export class Input {
   }
 
   isMouseDown() {
-    return this.mouse.down;
+    return this.mouse.leftDown || this.mouse.middleDown;
   }
 }

@@ -20,7 +20,7 @@ export class Minimap {
     if (!wrapper || !this.canvas) return;
     const w = wrapper.clientWidth || this.size;
     const h = wrapper.clientHeight || this.size;
-    const s = Math.min(w, h, UI_MINIMAP.sizeMax);
+    const s = Math.min(w, h, UI_MINIMAP.sizeMaxCustom ?? 320);
     if (s !== this.size) {
       this.size = Math.max(UI_MINIMAP.sizeMin, s);
       this.padding = Math.max(UI_MINIMAP.paddingMin, this.size * UI_MINIMAP.paddingRatio);
@@ -39,9 +39,110 @@ export class Minimap {
     this.canvas.style.height = '100%';
     wrapper.innerHTML = '';
     wrapper.appendChild(this.canvas);
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'minimap-resize-handle';
+    resizeHandle.title = 'Drag to resize minimap';
+    resizeHandle.setAttribute('aria-label', 'Resize minimap');
+    resizeHandle.addEventListener('mousedown', (e) => this._onResizeStart(e));
+    wrapper.appendChild(resizeHandle);
+
     this.ctx = this.canvas.getContext('2d');
+    this._resizeDrag = null;
+    this._loadCustomSize();
     this._resize();
     window.addEventListener('resize', () => this._resize());
+  }
+
+  _loadCustomSize() {
+    try {
+      const saved = localStorage.getItem('yohoh-minimap-size');
+      if (saved) {
+        const size = parseInt(saved, 10);
+        if (!isNaN(size) && size >= UI_MINIMAP.sizeMin && size <= (UI_MINIMAP.sizeMaxCustom ?? 320)) {
+          const wrapper = document.getElementById('minimap-wrapper');
+          if (wrapper) {
+            wrapper.style.width = `${size}px`;
+            wrapper.style.height = `${size}px`;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  _saveCustomSize(size) {
+    try {
+      localStorage.setItem('yohoh-minimap-size', String(size));
+    } catch (_) {}
+  }
+
+  _onResizeStart(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const wrapper = document.getElementById('minimap-wrapper');
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    this._resizeDrag = {
+      cornerX: rect.right,
+      cornerY: rect.top,
+      grabOffsetX: e.clientX - rect.left,
+      grabOffsetY: e.clientY - rect.bottom,
+      pendingClientX: e.clientX,
+      pendingClientY: e.clientY,
+      rafId: null,
+    };
+    wrapper.classList.add('resizing');
+    document.body.classList.add('minimap-resizing');
+    this._boundResizeMove = (ev) => this._onResizeMove(ev);
+    this._boundResizeEnd = () => this._onResizeEnd();
+    document.addEventListener('mousemove', this._boundResizeMove);
+    document.addEventListener('mouseup', this._boundResizeEnd);
+  }
+
+  _onResizeMove(e) {
+    if (!this._resizeDrag) return;
+    this._resizeDrag.pendingClientX = e.clientX;
+    this._resizeDrag.pendingClientY = e.clientY;
+    if (this._resizeDrag.rafId == null) {
+      this._resizeDrag.rafId = requestAnimationFrame(() => this._applyResize());
+    }
+  }
+
+  _applyResize() {
+    const drag = this._resizeDrag;
+    if (!drag || drag.rafId == null) return;
+    drag.rafId = null;
+
+    const wrapper = document.getElementById('minimap-wrapper');
+    if (!wrapper) return;
+
+    const { cornerX, cornerY, grabOffsetX, grabOffsetY, pendingClientX, pendingClientY } = drag;
+    const virtualLeft = pendingClientX - grabOffsetX;
+    const virtualBottom = pendingClientY - grabOffsetY;
+    const newWidth = cornerX - virtualLeft;
+    const newHeight = virtualBottom - cornerY;
+    const minSize = UI_MINIMAP.sizeMin;
+    const maxSize = UI_MINIMAP.sizeMaxCustom ?? 320;
+    const newSize = Math.max(minSize, Math.min(maxSize, Math.min(newWidth, newHeight)));
+
+    wrapper.style.width = `${newSize}px`;
+    wrapper.style.height = `${newSize}px`;
+    this._resize();
+  }
+
+  _onResizeEnd() {
+    if (this._resizeDrag?.rafId != null) {
+      cancelAnimationFrame(this._resizeDrag.rafId);
+    }
+    const wrapper = document.getElementById('minimap-wrapper');
+    if (wrapper) {
+      wrapper.classList.remove('resizing');
+      if (this._resizeDrag) this._saveCustomSize(Math.round(wrapper.offsetWidth));
+    }
+    document.body.classList.remove('minimap-resizing');
+    this._resizeDrag = null;
+    document.removeEventListener('mousemove', this._boundResizeMove);
+    document.removeEventListener('mouseup', this._boundResizeEnd);
   }
 
   update(player, enemies, rocks, bounds) {
@@ -171,12 +272,20 @@ export class Minimap {
 
     for (const node of nodes) {
       const { px, py } = toScreen(node.position.x, node.position.y);
-      const r = Math.max(2, islandRadius * scale * UI.minimapDotSizes.islandScale);
-      this.ctx.fillStyle = node === map.homeNode ? c.islandHome
+      const isCurrent = node === currentIsland;
+      const rMult = isCurrent ? 1.4 : 1;
+      const r = Math.max(2, islandRadius * scale * UI.minimapDotSizes.islandScale * rMult);
+      this.ctx.fillStyle = isCurrent ? (c.currentIsland ?? '#ffcc44')
+        : node === map.homeNode ? c.islandHome
         : node.dangerous ? c.islandDanger : node.appealing ? c.islandAppeal : c.islandDefault;
       this.ctx.beginPath();
       this.ctx.arc(px, py, r, 0, Math.PI * 2);
       this.ctx.fill();
+      if (isCurrent) {
+        this.ctx.strokeStyle = c.currentIslandStroke ?? '#ffdd66';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      }
     }
 
     const { px, py } = toScreen(shipPosition.x, shipPosition.y);
@@ -184,6 +293,27 @@ export class Minimap {
     this.ctx.beginPath();
     this.ctx.arc(px, py, UI.minimapDotSizes.player, 0, Math.PI * 2);
     this.ctx.fill();
+
+    // Sailing progress bar (when traveling)
+    if (travelRoute && currentIsland) {
+      const origin = travelRoute.a === currentIsland ? travelRoute.a : travelRoute.b;
+      const dest = travelRoute.a === currentIsland ? travelRoute.b : travelRoute.a;
+      const ax = origin.position.x;
+      const ay = origin.position.y;
+      const bx = dest.position.x;
+      const by = dest.position.y;
+      const totalDist = Math.sqrt((bx - ax) ** 2 + (by - ay) ** 2);
+      const remainDist = Math.sqrt((bx - shipPosition.x) ** 2 + (by - shipPosition.y) ** 2);
+      const progress = totalDist > 0 ? Math.max(0, 1 - remainDist / totalDist) : 1;
+      const barW = this.size - padding * 2;
+      const barH = 4;
+      const barX = padding;
+      const barY = this.size - padding - barH - 2;
+      this.ctx.fillStyle = c.border;
+      this.ctx.fillRect(barX, barY, barW, barH);
+      this.ctx.fillStyle = c.routeActive;
+      this.ctx.fillRect(barX, barY, barW * progress, barH);
+    }
 
     // North indicator (consistent with Chart Screen compass)
     const compSize = 14;

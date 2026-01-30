@@ -28,10 +28,10 @@ export class SailingSystem {
     const actualTurnRate = turnRate * Math.max(minPenalty, turnPenalty);
 
     if (input.isKeyDown('KeyA')) {
-      ship.rotation += actualTurnRate;
+      ship.rotation -= actualTurnRate;
     }
     if (input.isKeyDown('KeyD')) {
-      ship.rotation -= actualTurnRate;
+      ship.rotation += actualTurnRate;
     }
 
     // Friction / drift
@@ -76,10 +76,10 @@ export class SailingSystem {
     const actualTurnRate = turnRate * Math.max(minPenalty, turnPenalty);
 
     if (input.isKeyDown('KeyA')) {
-      ship.rotation += actualTurnRate;
+      ship.rotation -= actualTurnRate;
     }
     if (input.isKeyDown('KeyD')) {
-      ship.rotation -= actualTurnRate;
+      ship.rotation += actualTurnRate;
     }
 
     ship.speed *= friction;

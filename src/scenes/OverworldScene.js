@@ -8,7 +8,7 @@ import { Ship } from '../entities/Ship.js';
 import { SailingSystem } from '../systems/SailingSystem.js';
 import { generateMap } from '../map/MapGenerator.js';
 import { deserialize, serialize } from '../map/MapSerializer.js';
-import { OVERWORLD, SAILING } from '../config.js';
+import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER } from '../config.js';
 
 export class OverworldScene {
   constructor() {
@@ -67,17 +67,20 @@ export class OverworldScene {
   update(dt, input) {
     if (this.travelRoute && this.sailingShip) {
       const { a, b } = this.travelRoute;
+      const origin = a === this.currentIsland ? a : b;
+      const dest = a === this.currentIsland ? b : a;
+      const corridorWidth = SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER?.sailingCorridorWidth ?? OVERWORLD.sailingCorridorWidth;
       const corridor = {
-        a: { x: a.position.x, y: a.position.y },
-        b: { x: b.position.x, y: b.position.y },
-        width: OVERWORLD.sailingCorridorWidth,
+        a: { x: origin.position.x, y: origin.position.y },
+        b: { x: dest.position.x, y: dest.position.y },
+        width: corridorWidth,
       };
       const arrived = SailingSystem.updateInCorridor(this.sailingShip, input, dt, corridor);
       this.shipPosition.x = this.sailingShip.x;
       this.shipPosition.y = this.sailingShip.y;
 
       if (arrived || this.sailingShip.dead) {
-        this.currentIsland = this.travelRoute.b;
+        this.currentIsland = dest;
         this.travelRoute = null;
         this.sailingShip = null;
         this._updateShipPosition();
@@ -108,8 +111,8 @@ export class OverworldScene {
     const edge = this._findEdge(this.currentIsland, targetIsland);
     if (!edge) return false;
     this.travelRoute = edge;
-    const dx = edge.b.position.x - edge.a.position.x;
-    const dy = edge.b.position.y - edge.a.position.y;
+    const dx = targetIsland.position.x - this.currentIsland.position.x;
+    const dy = targetIsland.position.y - this.currentIsland.position.y;
     this.sailingShip = new Ship({
       x: this.currentIsland.position.x,
       y: this.currentIsland.position.y,
@@ -199,7 +202,9 @@ export class OverworldScene {
   }
 
   getDestinationIsland() {
-    return this.travelRoute ? this.travelRoute.b : null;
+    if (!this.travelRoute) return null;
+    const { a, b } = this.travelRoute;
+    return a === this.currentIsland ? b : a;
   }
 
   getSailingShip() {

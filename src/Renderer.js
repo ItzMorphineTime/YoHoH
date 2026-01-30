@@ -4,18 +4,12 @@
  */
 
 import * as THREE from 'three';
-import { CAMERA, COMBAT, OVERWORLD as OVERWORLD_CONFIG, RENDER, SHIP_GEOMETRY } from './config.js';
-
-const OVERWORLD_RENDER = {
-  worldScale: OVERWORLD_CONFIG?.worldScale ?? 10,
-  islandRadius: OVERWORLD_CONFIG?.islandRadius ?? 12,
-  routeWidth: OVERWORLD_CONFIG?.routeWidth ?? 8,
-  sailingCorridorWidth: OVERWORLD_CONFIG?.sailingCorridorWidth ?? 6,
-};
+import { CAMERA, COMBAT, OVERWORLD, OVERWORLD_RENDER, RENDER, SAILING_RENDER, SHIP_GEOMETRY } from './config.js';
 
 export class Renderer {
   constructor(container) {
     this.container = container;
+    this.lastOverworldZoom = CAMERA.overworldZoom ?? 0.25;
     this.scene = new THREE.Scene();
     this.camera = null;
     this.renderer = null;
@@ -34,6 +28,9 @@ export class Renderer {
     this.sailingShipMesh = null;
     this.sailingPathMesh = null;
     this.sailingDestMesh = null;
+    this.sailingOriginIslandMesh = null;
+    this.sailingDestIslandMesh = null;
+    this._sailingWaterMat = null;
   }
 
   init() {
@@ -53,7 +50,8 @@ export class Renderer {
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setClearColor(RENDER.clearColor);
-    this.container.appendChild(this.renderer.domElement);
+    const canvasLayer = this.container.querySelector('#game-canvas-layer') || this.container;
+    canvasLayer.appendChild(this.renderer.domElement);
 
     this._createCombatArena();
     this._createShip();
@@ -75,6 +73,7 @@ export class Renderer {
     });
     this.waterPlane = new THREE.Mesh(geometry, material);
     this.waterPlane.position.z = 0;
+    this._combatWaterMat = material;
     this.scene.add(this.waterPlane);
 
     // Arena border (wireframe) — only visible in combat
@@ -192,14 +191,42 @@ export class Renderer {
     this.overworldGroup.add(this.overworldShipMesh);
   }
 
+  _createSailingWaterMaterial() {
+    if (this._sailingWaterMat) return this._sailingWaterMat;
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, '#2a4a6a');
+    gradient.addColorStop(0.5, '#1e3a5f');
+    gradient.addColorStop(1, '#0f2840');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(4, 4);
+    this._sailingWaterMat = new THREE.MeshBasicMaterial({
+      map: tex,
+      side: THREE.DoubleSide,
+    });
+    return this._sailingWaterMat;
+  }
+
   _createSailingView() {
     this.sailingGroup = new THREE.Group();
     this.sailingGroup.visible = false;
     this.scene.add(this.sailingGroup);
 
-    const pathWidth = OVERWORLD_RENDER.sailingCorridorWidth * OVERWORLD_RENDER.worldScale;
-    const pathGeo = new THREE.PlaneGeometry(RENDER.sailingPathRefLength, pathWidth);
-    const pathMat = new THREE.MeshBasicMaterial({ color: RENDER.waterColor, side: THREE.DoubleSide });
+    const corridorW = (SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER.sailingCorridorWidth) * OVERWORLD_RENDER.worldScale;
+    const pathGeo = new THREE.PlaneGeometry(RENDER.sailingPathRefLength, corridorW);
+    const pathMat = new THREE.MeshBasicMaterial({
+      color: SAILING_RENDER?.corridorColor ?? RENDER.sailingCorridorColor ?? 0x2a4a6a,
+      transparent: true,
+      opacity: SAILING_RENDER?.corridorOpacity ?? RENDER.sailingCorridorOpacity ?? 0.35,
+      side: THREE.DoubleSide,
+    });
     this.sailingPathMesh = new THREE.Mesh(pathGeo, pathMat);
     this.sailingPathMesh.position.z = 0;
     this.sailingGroup.add(this.sailingPathMesh);
@@ -210,11 +237,35 @@ export class Renderer {
     this.sailingShipMesh.position.z = 1;
     this.sailingGroup.add(this.sailingShipMesh);
 
-    const destGeo = new THREE.CircleGeometry(RENDER.sailingDestRadius, RENDER.sailingDestSegments);
-    const destMat = new THREE.MeshBasicMaterial({ color: RENDER.sailingDestColor, transparent: true, opacity: RENDER.sailingDestOpacity });
+    const destR = SAILING_RENDER?.destMarkerRadius ?? RENDER.sailingDestRadius;
+    const destGeo = new THREE.CircleGeometry(destR, RENDER.sailingDestSegments);
+    const destMat = new THREE.MeshBasicMaterial({
+      color: RENDER.sailingDestColor,
+      transparent: true,
+      opacity: SAILING_RENDER?.destMarkerOpacity ?? RENDER.sailingDestOpacity,
+    });
     this.sailingDestMesh = new THREE.Mesh(destGeo, destMat);
     this.sailingDestMesh.position.z = 0.5;
     this.sailingGroup.add(this.sailingDestMesh);
+
+    const islandR = SAILING_RENDER?.islandRadius ?? (OVERWORLD_RENDER.worldScale * (OVERWORLD?.islandRadius ?? 32));
+    const islandGeo = new THREE.CircleGeometry(islandR, 24);
+    const originMat = new THREE.MeshBasicMaterial({
+      color: RENDER.sailingDestColor,
+      transparent: true,
+      opacity: (SAILING_RENDER?.destMarkerOpacity ?? RENDER.sailingDestOpacity) * 0.7,
+    });
+    this.sailingOriginIslandMesh = new THREE.Mesh(islandGeo.clone(), originMat);
+    this.sailingOriginIslandMesh.position.z = 0.1;
+    this.sailingGroup.add(this.sailingOriginIslandMesh);
+    const destIslandMat = new THREE.MeshBasicMaterial({
+      color: RENDER.sailingDestColor,
+      transparent: true,
+      opacity: (SAILING_RENDER?.destMarkerOpacity ?? RENDER.sailingDestOpacity) * 0.7,
+    });
+    this.sailingDestIslandMesh = new THREE.Mesh(islandGeo.clone(), destIslandMat);
+    this.sailingDestIslandMesh.position.z = 0.1;
+    this.sailingGroup.add(this.sailingDestIslandMesh);
   }
 
   _getOrCreateEnemyMesh(id) {
@@ -263,6 +314,9 @@ export class Renderer {
   updateCombat(player, enemies, projectiles, rocks, aimingSide) {
     this.overworldGroup.visible = false;
     this.waterPlane.visible = true;
+    this.waterPlane.scale.set(1, 1, 1);
+    this.waterPlane.position.set(0, 0, 0);
+    if (this.waterPlane && this._combatWaterMat) this.waterPlane.material = this._combatWaterMat;
     if (this.arenaBorder) this.arenaBorder.visible = true;
     this.camera.zoom = CAMERA.combatZoom ?? CAMERA.zoom;
     this.camera.updateProjectionMatrix();
@@ -346,6 +400,13 @@ export class Renderer {
   updateSailing(sailingShip, shipPosition, travelRoute) {
     this.overworldGroup.visible = false;
     this.waterPlane.visible = true;
+    const sailWaterScale = SAILING_RENDER?.waterPlaneScale ?? RENDER.sailingWaterPlaneScale ?? 4;
+    this.waterPlane.scale.set(sailWaterScale, sailWaterScale, 1);
+    this.waterPlane.position.set(shipPosition.x * OVERWORLD_RENDER.worldScale, shipPosition.y * OVERWORLD_RENDER.worldScale, 0);
+    const useGradient = SAILING_RENDER?.waterGradient ?? RENDER.sailingWaterGradient;
+    if (useGradient && this.waterPlane && this._combatWaterMat) {
+      this.waterPlane.material = this._createSailingWaterMaterial();
+    }
     if (this.arenaBorder) this.arenaBorder.visible = false;
     if (this.portArcMesh) this.portArcMesh.visible = false;
     if (this.starboardArcMesh) this.starboardArcMesh.visible = false;
@@ -389,15 +450,26 @@ export class Renderer {
       const midX = (ax + bx) / 2;
       const midY = (ay + by) / 2;
       this.sailingPathMesh.position.set(midX, midY, 0);
-      this.sailingPathMesh.rotation.z = -angle;
+      this.sailingPathMesh.rotation.z = angle;
       this.sailingPathMesh.scale.set(len / RENDER.sailingPathRefLength, 1, 1);
       this.sailingPathMesh.visible = true;
 
       this.sailingDestMesh.position.set(bx, by, 0.5);
       this.sailingDestMesh.visible = true;
+
+      if (this.sailingOriginIslandMesh) {
+        this.sailingOriginIslandMesh.position.set(ax, ay, 0.1);
+        this.sailingOriginIslandMesh.visible = true;
+      }
+      if (this.sailingDestIslandMesh) {
+        this.sailingDestIslandMesh.position.set(bx, by, 0.1);
+        this.sailingDestIslandMesh.visible = true;
+      }
     } else {
       this.sailingPathMesh.visible = false;
       this.sailingDestMesh.visible = false;
+      if (this.sailingOriginIslandMesh) this.sailingOriginIslandMesh.visible = false;
+      if (this.sailingDestIslandMesh) this.sailingDestIslandMesh.visible = false;
     }
 
     if (this.sailingShipMesh) this.sailingShipMesh.visible = !sailingShip;
@@ -408,9 +480,10 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
   }
 
-  updateOverworld(map, shipPosition, currentIsland, hoveredRoute = null) {
+  updateOverworld(map, shipPosition, currentIsland, displayRoute = null, isSelected = false, pan = { x: 0, y: 0 }, zoomLevel = 1) {
     this.sailingGroup.visible = false;
     this.waterPlane.visible = true;
+    if (this.waterPlane && this._combatWaterMat) this.waterPlane.material = this._combatWaterMat;
     if (this.arenaBorder) this.arenaBorder.visible = false;
     if (this.shipMesh) this.shipMesh.visible = false;
     if (this.portArcMesh) this.portArcMesh.visible = false;
@@ -439,13 +512,30 @@ export class Renderer {
       const dx = bx - ax;
       const dy = by - ay;
       const len = Math.sqrt(dx * dx + dy * dy);
-      const isHovered = hoveredRoute && (
-        (edge.a === hoveredRoute.a && edge.b === hoveredRoute.b) ||
-        (edge.a === hoveredRoute.b && edge.b === hoveredRoute.a)
+      const isDisplayed = displayRoute && (
+        (edge.a === displayRoute.a && edge.b === displayRoute.b) ||
+        (edge.a === displayRoute.b && edge.b === displayRoute.a)
       );
-      const geo = new THREE.PlaneGeometry(len, isHovered ? routeWidth * RENDER.routeHoverWidthMult : routeWidth);
+      const isThisSelected = isSelected && isDisplayed;
+      const widthMult = isThisSelected ? (RENDER.routeSelectedWidthMult ?? 2.5) : (isDisplayed ? RENDER.routeHoverWidthMult : 1);
+      const color = isThisSelected ? (RENDER.routeSelectedColor ?? RENDER.sailingDestColor ?? 0x7bdc9a) : (isDisplayed ? RENDER.routeHoverColor : RENDER.routeColor);
+
+      if (isThisSelected && (RENDER.routeSelectedOutlineWidth ?? 0) > 0) {
+        const outlineW = routeWidth * widthMult + (RENDER.routeSelectedOutlineWidth ?? 2) * 2;
+        const outlineGeo = new THREE.PlaneGeometry(len, outlineW);
+        const outlineMat = new THREE.MeshBasicMaterial({
+          color: RENDER.routeSelectedOutlineColor ?? 0xffffff,
+          side: THREE.DoubleSide,
+        });
+        const outlineMesh = new THREE.Mesh(outlineGeo, outlineMat);
+        outlineMesh.position.set((ax + bx) / 2, (ay + by) / 2, 0.05);
+        outlineMesh.rotation.z = Math.atan2(dy, dx);
+        this.overworldGroup.add(outlineMesh);
+      }
+
+      const geo = new THREE.PlaneGeometry(len, routeWidth * widthMult);
       const mat = new THREE.MeshBasicMaterial({
-        color: isHovered ? RENDER.routeHoverColor : RENDER.routeColor,
+        color,
         side: THREE.DoubleSide,
       });
       const mesh = new THREE.Mesh(geo, mat);
@@ -455,23 +545,57 @@ export class Renderer {
     }
 
     for (const node of map.nodes) {
-      const geo = new THREE.CircleGeometry(islandRadius, 20);
+      const isCurrent = node === currentIsland;
+      const radiusMult = isCurrent ? (RENDER.islandCurrentRadiusMult ?? 1.4) : 1;
+      const r = islandRadius * radiusMult;
+      const geo = new THREE.CircleGeometry(r, 20);
+      const baseColor = node === map.homeNode ? RENDER.islandHomeColor : node.dangerous ? RENDER.islandDangerColor : node.appealing ? RENDER.islandAppealColor : RENDER.islandDefaultColor;
+      const color = isCurrent ? (RENDER.islandCurrentColor ?? 0xffcc44) : baseColor;
       const mat = new THREE.MeshBasicMaterial({
-        color: node === map.homeNode ? RENDER.islandHomeColor : node.dangerous ? RENDER.islandDangerColor : node.appealing ? RENDER.islandAppealColor : RENDER.islandDefaultColor,
+        color,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(node.position.x * worldScale, node.position.y * worldScale, 0.2);
       this.overworldGroup.add(mesh);
+
+      if (isCurrent && (RENDER.islandCurrentRingWidth ?? 0) > 0) {
+        const ringGeo = new THREE.RingGeometry(r, r + (RENDER.islandCurrentRingWidth ?? 3), 24);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: RENDER.islandCurrentRingColor ?? 0xffdd66,
+          side: THREE.DoubleSide,
+        });
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.position.set(node.position.x * worldScale, node.position.y * worldScale, 0.21);
+        this.overworldGroup.add(ringMesh);
+      }
     }
 
     this.overworldShipMesh.position.set(shipPosition.x * worldScale, shipPosition.y * worldScale, 1);
     this.overworldShipMesh.visible = true;
 
-    this.camera.zoom = CAMERA.overworldZoom;
-    const sx = shipPosition.x * worldScale;
-    const sy = shipPosition.y * worldScale;
-    this.camera.position.set(sx, sy, CAMERA.positionZ);
-    this.camera.lookAt(sx, sy, 0);
+    const xs = map.nodes.map(n => n.position.x * worldScale);
+    const ys = map.nodes.map(n => n.position.y * worldScale);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    const rangeX = Math.max(maxX - minX, 100);
+    const rangeY = Math.max(maxY - minY, 100);
+    const baseCx = (minX + maxX) / 2;
+    const baseCy = (minY + maxY) / 2;
+    const padding = 1.15;
+    const halfW = (this.camera.right - this.camera.left) / 2;
+    const halfH = (this.camera.top - this.camera.bottom) / 2;
+    const zoomX = halfW / (rangeX * padding / 2);
+    const zoomY = halfH / (rangeY * padding / 2);
+    const baseZoom = Math.min(zoomX, zoomY, CAMERA.overworldZoom ?? 0.25);
+    const zoom = baseZoom * (zoomLevel ?? 1);
+    this.lastOverworldZoom = zoom;
+    const cx = baseCx + (pan?.x ?? 0);
+    const cy = baseCy + (pan?.y ?? 0);
+    this.camera.zoom = zoom;
+    this.camera.position.set(cx, cy, CAMERA.positionZ);
+    this.camera.lookAt(cx, cy, 0);
     this.camera.updateProjectionMatrix();
   }
 
@@ -503,21 +627,19 @@ export class Renderer {
 
   /**
    * Convert NDC to world XY for overworld hit testing.
-   * Uses overworld camera params explicitly (not current camera state) so hit test
-   * works correctly regardless of when update vs render runs.
-   * NDC: x=-1 left, x=1 right; y=1 top, y=-1 bottom (WebGL convention).
-   * World: Y-up, camera looks down -Z; top of screen = +Y.
+   * Uses current camera position/zoom (set by updateOverworld) so hit test
+   * matches displayed map. Returns world coords (Three.js units); Game divides
+   * by worldScale for graph coords.
    */
-  ndcToWorldOverworld(ndcX, ndcY, shipPosition) {
-    const { worldScale } = OVERWORLD_RENDER;
-    const zoom = CAMERA.overworldZoom;
+  ndcToWorldOverworld(ndcX, ndcY, _shipPosition) {
+    const zoom = this.camera.zoom || CAMERA.overworldZoom;
     const halfW = (this.camera.right - this.camera.left) / 2;
     const halfH = (this.camera.top - this.camera.bottom) / 2;
-    const sx = shipPosition.x * worldScale;
-    const sy = shipPosition.y * worldScale;
+    const cx = this.camera.position.x;
+    const cy = this.camera.position.y;
     return {
-      x: sx + ndcX * halfW / zoom,
-      y: sy + ndcY * halfH / zoom,
+      x: cx + ndcX * halfW / zoom,
+      y: cy + ndcY * halfH / zoom,
     };
   }
 

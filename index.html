@@ -8,6 +8,7 @@
     :root {
       /* Safe areas for notched displays */
       --safe-top: env(safe-area-inset-top, 0px);
+      --ui-scale: 1;
       --safe-right: env(safe-area-inset-right, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       --safe-left: env(safe-area-inset-left, 0px);
@@ -33,28 +34,57 @@
       }
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+    }
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
       background: #0a0e17;
       color: #e8e6e3;
-      overflow: hidden;
     }
     #game-container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
+      isolation: isolate;
     }
-    #game-container canvas {
+    body[data-game-state="OVERWORLD"] #game-container {
+      box-shadow: inset 0 0 0 2px rgba(42, 74, 106, 0.6);
+    }
+    /* Canvas layer: fills container, never shifts when UI resizes */
+    #game-canvas-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: auto;
+    }
+    #game-canvas-layer canvas {
+      position: absolute;
+      inset: 0;
       display: block;
       width: 100%;
       height: 100%;
+    }
+    #ui-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+    }
+    #ui-layer > * {
+      pointer-events: auto;
     }
     #hud {
       position: absolute;
       bottom: calc(var(--ui-space-lg) + var(--safe-bottom));
       left: calc(var(--ui-space-lg) + var(--safe-left));
       z-index: 10;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: left bottom;
       font-size: var(--ui-font-base);
       color: #b8c4d0;
       display: flex;
@@ -106,13 +136,26 @@
       align-items: center;
       justify-content: center;
     }
+    .hud-compass-north {
+      position: absolute;
+      top: 1px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(6px, 0.6vmin, 10px);
+      font-weight: 700;
+      color: #6a8a9a;
+      pointer-events: none;
+    }
     #hud-compass-needle {
-      width: 1px;
-      height: clamp(6px, 0.7vmin, 12px);
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      width: 2px;
+      height: 45%;
+      margin-left: -1px;
       background: #88cc88;
       border-radius: 1px;
-      transform-origin: center center;
-      margin-top: clamp(-5px, -0.5vmin, -8px);
+      transform-origin: center 100%;
       box-shadow: 0 0 2px #88cc88;
     }
     .hud-controls { gap: var(--ui-space); }
@@ -131,6 +174,8 @@
       top: calc(var(--ui-space-lg) + var(--safe-top));
       right: calc(var(--ui-space-lg) + var(--safe-right));
       z-index: 10;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: right top;
       background: rgba(10, 22, 40, 0.9);
       border: 1px solid #2a4a6a;
       border-radius: var(--ui-radius);
@@ -138,6 +183,44 @@
       pointer-events: none;
       width: var(--ui-minimap-size);
       height: var(--ui-minimap-size);
+      transition: width 0.2s ease, height 0.2s ease;
+    }
+    #minimap-wrapper.resizing {
+      transition: none;
+    }
+    body.minimap-resizing {
+      user-select: none;
+      cursor: nwse-resize;
+    }
+    #minimap-wrapper[data-context="sailing"] {
+      pointer-events: auto;
+    }
+    .minimap-resize-handle {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 20px;
+      height: 20px;
+      cursor: nwse-resize;
+      display: none;
+      align-items: flex-end;
+      justify-content: flex-start;
+      z-index: 2;
+      padding: 2px;
+    }
+    .minimap-resize-handle::after {
+      content: '';
+      width: 10px;
+      height: 10px;
+      border-left: 2px solid rgba(184, 196, 208, 0.6);
+      border-bottom: 2px solid rgba(184, 196, 208, 0.6);
+      border-radius: 0 0 0 3px;
+    }
+    #minimap-wrapper[data-context="sailing"] .minimap-resize-handle {
+      display: flex;
+    }
+    .minimap-resize-handle:hover::after {
+      border-color: rgba(232, 230, 227, 0.9);
     }
     .minimap-canvas {
       display: block;
@@ -149,6 +232,8 @@
       left: calc(var(--ui-space-lg) + var(--safe-left));
       z-index: 10;
       pointer-events: auto;
+      transform: scale(var(--ui-scale, 1));
+      transform-origin: left top;
       display: flex;
       align-items: flex-start;
       gap: var(--ui-space);
@@ -170,6 +255,15 @@
       color: #b8c4d0;
       min-width: clamp(100px, 10vmin, 180px);
       max-width: min(35vw, 200px);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .map-ui-panel[data-state="selecting"] {
+      border-color: #3a5a7a;
+      box-shadow: 0 0 0 1px rgba(90, 140, 180, 0.3);
+    }
+    .map-ui-panel[data-state="sailing"] {
+      border-color: #4a7c59;
+      box-shadow: 0 0 0 1px rgba(74, 124, 89, 0.3);
     }
     .map-ui-current {
       display: flex;
@@ -248,6 +342,104 @@
     .map-route-icon {
       opacity: 0.9;
     }
+    .map-route-selection-panel {
+      margin-top: var(--ui-space);
+      padding: var(--ui-space);
+      background: rgba(42, 74, 106, 0.5);
+      border: 1px solid #3a5a7a;
+      border-radius: var(--ui-radius);
+      display: flex;
+      flex-direction: column;
+      gap: calc(var(--ui-space) * 0.6);
+    }
+    .map-route-selection-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .map-route-selection-header .map-route-deselect {
+      background: transparent;
+      border: none;
+      color: #8a9aaa;
+      font-size: 1.2em;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+    .map-route-selection-header .map-route-deselect:hover { color: #e8e6e3; }
+    .map-route-current-island {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding-bottom: calc(var(--ui-space) * 0.5);
+      border-bottom: 1px solid rgba(42, 74, 106, 0.5);
+    }
+    .map-route-current-island .map-route-current-name {
+      font-weight: 700;
+      font-size: var(--ui-font-lg);
+      color: #c8dce8;
+    }
+    .map-route-connected-routes {
+      margin-top: calc(var(--ui-space) * 0.5);
+      padding-top: calc(var(--ui-space) * 0.5);
+      border-top: 1px solid rgba(42, 74, 106, 0.5);
+    }
+    .map-route-connected-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .map-route-connected-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 8px;
+      background: rgba(26, 42, 62, 0.5);
+      border-radius: calc(var(--ui-radius) * 0.6);
+      font-size: var(--ui-font-sm);
+      color: #aaccdd;
+    }
+    .map-route-connected-item.map-route-connected-selected {
+      background: rgba(74, 124, 89, 0.4);
+      border: 1px solid #4a7c59;
+    }
+    .map-route-connected-name { font-weight: 600; }
+    .map-route-connected-dist { color: #8a9aaa; font-size: var(--ui-font-sm); }
+    .map-route-dest-info {
+      font-size: var(--ui-font-sm);
+      color: #8a9aaa;
+      font-style: italic;
+    }
+    .map-route-selection-actions {
+      display: flex;
+      gap: var(--ui-space);
+      margin-top: calc(var(--ui-space) * 0.5);
+    }
+    .map-start-sailing-btn {
+      flex: 1;
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #4a7c59;
+      border: 1px solid #5a8c69;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      font-size: var(--ui-font-base);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .map-start-sailing-btn:hover { background: #5a8c69; }
+    .map-deselect-btn {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #2a3a4a;
+      border: 1px solid #3a4a5a;
+      border-radius: var(--ui-radius);
+      color: #b8c4d0;
+      font-size: var(--ui-font-base);
+      cursor: pointer;
+    }
+    .map-deselect-btn:hover { background: #3a4a5a; }
     .map-ui-settings {
       position: relative;
     }
@@ -282,6 +474,17 @@
       flex-direction: column;
       gap: calc(var(--ui-space) * 0.5);
       min-width: clamp(80px, 8vmin, 130px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateY(-4px);
+      transition: opacity 0.15s ease, visibility 0.15s ease, transform 0.15s ease;
+    }
+    .map-settings-panel[data-open="true"] {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateY(0);
     }
     .map-settings-panel button,
     .map-load-label {
@@ -299,6 +502,23 @@
       background: #3a4a5a;
     }
     .map-load-label { display: block; }
+    #map-ui { position: relative; }
+    .map-toast {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: var(--ui-space);
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: rgba(10, 22, 40, 0.98);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      font-size: var(--ui-font-base);
+      color: #aaccdd;
+      display: none;
+      animation: map-toast-in 0.2s ease;
+    }
+    .map-toast-error { border-color: #8b4444; color: #cc8888; }
+    @keyframes map-toast-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     #big-map-overlay {
       position: absolute;
       inset: 0;
@@ -352,21 +572,175 @@
     .chart-screen-controls button:hover {
       background: #3a5a7a;
     }
+    /* Overworld map navigation: floats on top of canvas */
+    #overworld-map-controls {
+      position: absolute;
+      bottom: calc(var(--ui-space-lg) + var(--safe-bottom));
+      right: calc(var(--ui-space-lg) + var(--safe-right));
+      z-index: 15;
+      display: none;
+      flex-direction: row;
+      gap: calc(var(--ui-space) * 0.5);
+      align-items: center;
+      pointer-events: auto;
+    }
+    #overworld-map-controls.visible { display: flex; }
+    .overworld-nav-btn {
+      width: clamp(28px, 2.5vmin, 36px);
+      height: clamp(28px, 2.5vmin, 36px);
+      background: rgba(10, 22, 40, 0.9);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      color: #b8c4d0;
+      font-size: var(--ui-font-lg);
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overworld-nav-btn:hover {
+      background: rgba(42, 74, 106, 0.6);
+      border-color: #3a5a7a;
+      color: #e8e6e3;
+    }
+    .overworld-nav-btn[title*="Center"] {
+      font-size: var(--ui-font-base);
+    }
+    /* Settings button and modal */
+    #settings-btn {
+      position: absolute;
+      bottom: calc(var(--ui-space-lg) + var(--safe-bottom));
+      right: calc(var(--ui-space-lg) + var(--safe-right));
+      z-index: 20;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      background: rgba(10, 22, 40, 0.9);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      color: #b8c4d0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    #settings-btn:hover {
+      background: rgba(42, 74, 106, 0.6);
+      border-color: #3a5a7a;
+      color: #e8e6e3;
+    }
+    #settings-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: var(--ui-space-lg);
+    }
+    #settings-modal.visible {
+      display: flex;
+    }
+    .settings-panel {
+      background: rgba(10, 22, 40, 0.98);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      padding: var(--ui-space-lg);
+      min-width: 280px;
+      max-width: 90vw;
+    }
+    .settings-panel h2 {
+      margin: 0 0 var(--ui-space-lg);
+      font-size: var(--ui-font-lg);
+      color: #c8dce8;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--ui-space);
+      margin-bottom: var(--ui-space);
+    }
+    .settings-row label {
+      font-size: var(--ui-font-base);
+      color: #b8c4d0;
+    }
+    .settings-row input[type="range"] {
+      width: 120px;
+      accent-color: #4a7c59;
+    }
+    .settings-scale-value {
+      min-width: 36px;
+      font-size: var(--ui-font-sm);
+      color: #8a9aaa;
+      text-align: right;
+    }
+    .settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--ui-space);
+      margin-top: var(--ui-space-lg);
+    }
+    .settings-actions button {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #2a4a6a;
+      border: 1px solid #3a5a7a;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      font-size: var(--ui-font-base);
+      cursor: pointer;
+    }
+    .settings-actions button:hover {
+      background: #3a5a7a;
+    }
+    .settings-actions button.primary {
+      background: #4a7c59;
+      border-color: #5a8c69;
+    }
+    .settings-actions button.primary:hover {
+      background: #5a8c69;
+    }
   </style>
 </head>
 <body>
   <div id="game-container">
-    <div id="hud">WASD — Sail | Q Port | E Starboard</div>
-    <div id="minimap-wrapper"></div>
-    <div id="map-ui" style="display:none"></div>
-    <div id="big-map-overlay" tabindex="0">
-      <h2 class="chart-screen-title">Chart Screen</h2>
-      <canvas id="big-map-canvas"></canvas>
-      <div class="chart-screen-controls">
-        <button class="chart-zoom-out" title="Zoom out">−</button>
-        <button class="chart-center-btn">Center on Ship</button>
-        <button class="chart-zoom-in" title="Zoom in">+</button>
-        <button class="big-map-close">Close (M or Esc)</button>
+    <div id="game-canvas-layer"></div>
+    <div id="ui-layer">
+      <button type="button" id="settings-btn" title="Settings">⚙</button>
+      <div id="settings-modal" tabindex="-1">
+        <div class="settings-panel">
+          <h2>Settings</h2>
+          <div class="settings-row">
+            <label for="settings-ui-scale">Sailing HUD Scale</label>
+            <input type="range" id="settings-ui-scale" min="0.75" max="1.5" step="0.25" value="1">
+            <span class="settings-scale-value" id="settings-scale-value">100%</span>
+          </div>
+          <div class="settings-actions">
+            <button type="button" id="settings-close">Close</button>
+          </div>
+        </div>
+      </div>
+      <div id="hud">WASD — Sail | Q Port | E Starboard</div>
+      <div id="minimap-wrapper"></div>
+      <div id="map-ui" style="display:none"></div>
+      <div id="overworld-map-controls" class="overworld-map-controls">
+        <button type="button" class="overworld-nav-btn overworld-zoom-out" title="Zoom out">−</button>
+        <button type="button" class="overworld-nav-btn overworld-center" title="Center on map">◎</button>
+        <button type="button" class="overworld-nav-btn overworld-zoom-in" title="Zoom in">+</button>
+      </div>
+      <div id="big-map-overlay" tabindex="0">
+        <h2 class="chart-screen-title">Chart Screen</h2>
+        <canvas id="big-map-canvas"></canvas>
+        <div class="chart-screen-controls">
+          <button class="chart-zoom-out" title="Zoom out">−</button>
+          <button class="chart-center-btn">Center on Ship</button>
+          <button class="chart-zoom-in" title="Zoom in">+</button>
+          <button class="big-map-close">Close (M or Esc)</button>
+        </div>
       </div>
     </div>
   </div>

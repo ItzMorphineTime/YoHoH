@@ -1,0 +1,68 @@
+{
+  "goods": [
+    {
+      "id": "rum",
+      "name": "Rum",
+      "category": "staples",
+      "basePrice": 12,
+      "unitSize": 1,
+      "description": "Ship's staple. Every port trades it."
+    },
+    {
+      "id": "timber",
+      "name": "Timber",
+      "category": "staples",
+      "basePrice": 8,
+      "unitSize": 2,
+      "description": "Ship repairs and construction."
+    },
+    {
+      "id": "cloth",
+      "name": "Cloth",
+      "category": "staples",
+      "basePrice": 15,
+      "unitSize": 1,
+      "description": "Sails and rigging. High demand."
+    },
+    {
+      "id": "iron",
+      "name": "Iron",
+      "category": "staples",
+      "basePrice": 20,
+      "unitSize": 2,
+      "description": "Cannon parts and hull plating."
+    },
+    {
+      "id": "powder",
+      "name": "Powder",
+      "category": "military",
+      "basePrice": 35,
+      "unitSize": 1,
+      "description": "Gunpowder. High demand near conflict."
+    },
+    {
+      "id": "cannon_parts",
+      "name": "Cannon Parts",
+      "category": "military",
+      "basePrice": 50,
+      "unitSize": 3,
+      "description": "Spare parts for naval guns."
+    },
+    {
+      "id": "spices",
+      "name": "Spices",
+      "category": "luxury",
+      "basePrice": 45,
+      "unitSize": 1,
+      "description": "Low volume, high margin."
+    },
+    {
+      "id": "pearls",
+      "name": "Pearls",
+      "category": "luxury",
+      "basePrice": 80,
+      "unitSize": 1,
+      "description": "Rare luxury. Best margins."
+    }
+  ]
+}
