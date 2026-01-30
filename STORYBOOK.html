@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YoHoH — Pirate Kings Storybook | The Shattered Seas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #080d18;
+      --bg-panel: #0e1628;
+      --bg-card: #121d32;
+      --accent-gold: #c9a227;
+      --accent-gold-dim: #a88620;
+      --accent-sea: #1e4d6b;
+      --accent-sea-light: #2a6b8a;
+      --text-primary: #e8e8e6;
+      --text-secondary: #b8c4d0;
+      --text-muted: #7a8a9a;
+      --border: #1e3a52;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Crimson Pro', Georgia, serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      line-height: 1.6;
+      font-size: 1.05rem;
+      min-height: 100vh;
+    }
+    .page-header {
+      text-align: center;
+      padding: 3rem 2rem;
+      background: radial-gradient(ellipse 100% 80% at 50% 0%, rgba(30, 77, 107, 0.2) 0%, transparent 60%), var(--bg-dark);
+      border-bottom: 1px solid var(--border);
+    }
+    .page-title {
+      font-family: 'Cinzel', serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    .page-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .page-tagline {
+      margin-top: 1rem;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      max-width: 32rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .kings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      padding: 3rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .king-tile {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .king-tile:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent-gold-dim);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .king-tile img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+    }
+    .king-tile .tile-info {
+      padding: 1rem;
+    }
+    .king-tile .tile-name {
+      font-family: 'Cinzel', serif;
+      font-size: 1rem;
+      color: var(--accent-gold);
+      margin-bottom: 0.25rem;
+    }
+    .king-tile .tile-title {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .king-tile .tile-domain {
+      font-size: 0.8rem;
+      color: var(--accent-sea-light);
+      margin-top: 0.5rem;
+    }
+    .king-tile .tile-dragon {
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      background: rgba(42,107,138,0.2);
+      border-radius: 4px;
+    }
+    .king-tile .tile-dragon.protects {
+      background: rgba(74,124,89,0.2);
+    }
+    /* Modal */
+    .lore-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: rgba(0, 0, 0, 0.9);
+      overflow-y: auto;
+    }
+    .lore-modal.open {
+      display: flex;
+    }
+    .lore-modal-content {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 700px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .lore-modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      background: rgba(30, 60, 90, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      color: var(--text-primary);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 10000;
+      transition: background 0.2s;
+    }
+    .lore-modal-close:hover {
+      background: rgba(42, 107, 138, 0.8);
+    }
+    .lore-header {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .lore-header img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .lore-meta .lore-name {
+      font-family: 'Cinzel', serif;
+      font-size: 1.5rem;
+      color: var(--accent-gold);
+      margin-bottom: 0.25rem;
+    }
+    .lore-meta .lore-title {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+    .lore-meta .lore-theme {
+      font-size: 0.85rem;
+      color: var(--accent-sea-light);
+    }
+    .lore-meta .lore-alignment {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    .lore-body {
+      padding: 1.5rem;
+    }
+    .lore-section {
+      margin-bottom: 1.5rem;
+    }
+    .lore-section h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 0.9rem;
+      color: var(--accent-gold);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .lore-section p {
+      font-size: 0.95rem;
+      margin-bottom: 0.5rem;
+    }
+    .lore-section ul {
+      padding-left: 1.25rem;
+      margin: 0.5rem 0;
+    }
+    .lore-section li {
+      margin: 0.25rem 0;
+    }
+    .lore-dragon {
+      padding: 0.75rem;
+      border-radius: 6px;
+      border-left: 3px solid var(--accent-sea-light);
+      background: rgba(42,107,138,0.15);
+      font-size: 0.95rem;
+    }
+    .lore-dragon.protects {
+      border-left-color: #4a7c59;
+      background: rgba(74,124,89,0.15);
+    }
+    .lore-familiar {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-top: 0.5rem;
+    }
+    .lore-familiar img {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .lore-familiar-text strong {
+      color: var(--accent-gold);
+    }
+    .back-link {
+      display: inline-block;
+      margin: 2rem;
+      padding: 0.5rem 1rem;
+      color: var(--accent-sea-light);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+    .back-link:hover {
+      color: var(--accent-gold);
+    }
+    @media (max-width: 600px) {
+      .lore-header { grid-template-columns: 1fr; }
+      .kings-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1 class="page-title">Pirate Kings Storybook</h1>
+  <p class="page-subtitle">The Five Pirate Kings of the Shattered Seas</p>
+  <p class="page-tagline">"The old empires drowned. The seas broke. Five crowns rose from the wreckage—and none of them bow to any king on land."</p>
+</div>
+
+<div class="kings-grid" id="kings-grid">
+  <!-- Populated by JS -->
+</div>
+
+<a href="PRESENTATION_GDD.html" class="back-link">← Back to Presentation</a>
+
+<div class="lore-modal" id="lore-modal" aria-hidden="true">
+  <button type="button" class="lore-modal-close" id="modal-close" aria-label="Close">&times;</button>
+  <div class="lore-modal-content" id="lore-content">
+    <!-- Populated by JS -->
+  </div>
+</div>
+
+<script>
+const KINGS = [
+  {
+    id: 'jasper',
+    name: 'Jasper Barrow',
+    title: 'The Ghost Captain of the Righteous Tide',
+    image: 'Images/PirateKings/JasperBarrow.png',
+    theme: 'Curse • Justice • Ghosts • Vengeance',
+    alignment: 'Chaotic Good (Relentless, Unforgiving)',
+    status: 'Undead (Revenant / Reborn)',
+    backstory: `Once the youngest son of a revered admiral, Jasper Barrow was raised on honor but denied the sea. When he finally earned his own command, he became a protector of the innocent rather than a conqueror. His downfall came when he uncovered his father's betrayal—selling naval secrets to pirate lords for gold.
+
+Declared a traitor and disowned, Jasper was lured into a storm by a false distress call and sunk by his own blood. Death could not still his sense of justice. He rose as a Ghost Captain, bound to the sea until corruption is punished.
+
+Now, Jasper hunts tyrants, pirate kings, corrupt rulers, and bullies—especially those who prey on weaker crews or islands.`,
+    dragons: 'Jasper does **not** hunt dragons. He sees them as fellow victims of tyranny—hunted, betrayed, driven to the brink. He has been known to aid captains who rescue dragons and has even guided lost eggs to sanctuary. An unlikely ally in your mission.',
+    dragonStance: 'protects',
+    familiar: { name: 'Gloomfeather', type: 'Spectral Parrot', image: 'Images/Familiars/Gloomfeather.png', abilities: ['Debuffs enemies (fear, misfortune, cursed rolls)', 'Scouts invisibly through fog and darkness', 'Mimics enemy voices to sow panic'] },
+    domain: { name: 'The Veilwake Sea', desc: 'fog-choked waters where ghost ships drift silently', effects: ['His ghost fleet can ignore blockades', "Ports under his watch see reduced piracy… unless they're corrupt"] },
+    playerHooks: ['Appears to aid bullied players mid-fight', 'May spare or reward honorable crews', 'Can become a powerful ally… or relentless enemy']
+  },
+  {
+    id: 'mordekai',
+    name: 'Captain Mordekai Drakon',
+    title: 'The Sea Serpent King',
+    image: 'Images/PirateKings/Captain_Mordekai_Drakon.png',
+    theme: 'Curse • Serpents • Ancient Magic',
+    alignment: 'Lawful Evil',
+    status: '',
+    backstory: `Mordekai was once a cabin boy aboard a doomed merchant vessel. When the ship was attacked by a colossal sea serpent, he discovered an ancient blade sealed within the hold. Slaying the beast bound its dying spirit to him.
+
+Over time, the serpent's curse twisted Mordekai—granting power, longevity, and dominion over the deep, but slowly replacing his humanity. He now rules through fear and inevitability, believing the seas demand dominance, not mercy.`,
+    dragons: 'Mordekai **hunts dragons** relentlessly. Serpents and dragons are ancient rivals—both draconic, both claiming dominion over the deep. He consumes dragon scales and bone to feed Ssyrix and extend his own power. His lieutenants raid volcanic islands and ambush migrating dragons at sea.',
+    dragonStance: 'hunts',
+    familiar: { name: 'Ssyrix', type: 'The Bound Serpent Spirit', image: 'Images/Familiars/Ssyrix.png', abilities: ['Wraps ships, immobilizing them', 'Inflicts stacking curses over time', 'Can briefly possess Mordekai to amplify power'] },
+    domain: { name: 'The Coiled Expanse', desc: 'waters marked by massive serpentine shapes beneath the waves', effects: ['Ships move slower', 'Crew morale drains over time'] },
+    playerHooks: ['Hunts players who grow too powerful too quickly', 'May offer cursed power in exchange for loyalty', 'Slaying him risks releasing the serpent upon the world']
+  },
+  {
+    id: 'adara',
+    name: 'Lady Adara Thalassa',
+    title: 'Queen of the Leviathans',
+    image: 'Images/PirateKings/Lady_Adara_Thalassa.png',
+    theme: 'Atlantis • Leviathans • Ocean Sovereignty',
+    alignment: 'Neutral (Ruthlessly Pragmatic)',
+    status: '',
+    backstory: `Adara was born to a sunken empire—one of the last true descendants of Atlantis. When her people fell beneath the waves, she reclaimed their legacy by stealing the **Trident of the Tides**, an artifact granting command over leviathans.
+
+She does not raid for gold—she conquers to rebuild a lost civilization beneath the sea. Islands that swear fealty are protected. Those that resist are erased.`,
+    dragons: 'Adara **hunts dragons** as obstacles to her ocean sovereignty. Dragons are ancient, powerful, and refuse to bow—they threaten her claim to rule the seas. She captures eggs for Atlantean rituals and slays adult dragons that encroach on her domain. Delivering a dragon egg to her stronghold earns rare favor—and damns the dragon.',
+    dragonStance: 'hunts',
+    familiar: { name: 'Pearl', type: 'Juvenile Leviathan', image: 'Images/Familiars/Pearl.png', abilities: ['Shields allies with tidal barriers', 'Heals ships and structures', 'Grows stronger the longer Adara reigns'] },
+    domain: { name: 'The Drowned Crown', desc: 'a semi-submerged kingdom of coral and ruins', effects: ['Can flood islands', 'Controls trade routes via sea beasts'] },
+    playerHooks: ['Can become a powerful political ally', 'Might task players with reclaiming Atlantean relics', 'Open war with her reshapes the map']
+  },
+  {
+    id: 'nimue',
+    name: 'Nimue Tideborn',
+    title: 'The Kraken Caller',
+    image: 'Images/PirateKings/Nimue_Tideborn.png',
+    theme: 'Darkness • Abyss • Madness',
+    alignment: 'Chaotic Neutral',
+    status: '',
+    backstory: `Once a fisher's daughter obsessed with legends, Nimue discovered an abyssal song etched into black stone. Singing it summoned not death—but a young Kraken. Instead of fleeing, she bonded with it.
+
+As the Kraken grew, so did Nimue's power—and her distance from humanity. She no longer raids ports; she drags entire fleets into the dark to "feed the deep."`,
+    dragons: 'Nimue **hunts dragons** to feed the Kraken. Dragons are powerful prey—their essence sustains the deep and empowers her bond with the abyss. She sends her servants to lure dragons into the Black Spiral, where the Kraken drags them under. A dragon egg is a rare delicacy; a full-grown dragon, a feast.',
+    dragonStance: 'hunts',
+    familiar: { name: 'Inkshadow', type: 'Living Shadow Octopus', image: 'Images/Familiars/Inkshadow.png', abilities: ['Creates zones of magical darkness', 'Blinds and disorients enemies', 'Can merge with the Kraken to empower it'] },
+    domain: { name: 'The Black Spiral', desc: 'waters that absorb light and sound', effects: ['Visibility is severely reduced', 'Sanity-testing environment'] },
+    playerHooks: ['May ignore players entirely… until provoked', 'Can be reasoned with via ancient lore', 'Killing the Kraken may break her mind—or free her']
+  },
+  {
+    id: 'ebon',
+    name: 'Captain Ebon Flameheart',
+    title: 'The Dragon Marauder',
+    image: 'Images/PirateKings/Flameheart_01.png',
+    theme: 'Fire • Dragons • Conquest',
+    alignment: 'Chaotic Evil',
+    status: '',
+    backstory: `Ebon was once a subordinate pirate, hungry for more. During a raid on a volcanic isle, he stole a dragon egg and survived long enough to hatch it. That dragon—**Blackfang**—made him a legend.
+
+Ebon believes strength is the only truth. He conquers islands not to rule them, but to burn them into submission, forging a fleet of fear and fire.`,
+    dragons: 'Ebon **hunts dragons** to eliminate all rivals. He has Blackfang—the only dragon that matters. Every other dragon is a threat: another captain could hatch an egg, another King could claim a beast. He burns dragon nests, slaughters migrating dragons, and pays bounties for eggs delivered to him—so he can crush them himself. There will be only one Dragon King.',
+    dragonStance: 'hunts',
+    familiar: { name: 'Ember', type: 'Fire Phoenix', image: 'Images/Familiars/Ember.png', abilities: ['Revives after death', 'Ignites ships and crews', 'Buffs allies with flame-based rage'] },
+    domain: { name: 'The Ashen Reach', desc: 'scorched islands and burning seas', effects: ['Constant fire hazards', 'Volcanic events during combat'] },
+    playerHooks: ['Ultimate test of naval combat skill', 'Can trigger massive world events if unchecked', 'Slaying him may leave the dragon unbound…']
+  }
+];
+
+function formatText(text) {
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+function renderTile(king) {
+  return `
+    <div class="king-tile" data-king-id="${king.id}">
+      <img src="${king.image}" alt="${king.name}">
+      <div class="tile-info">
+        <div class="tile-name">${king.name}</div>
+        <div class="tile-title">${king.title}</div>
+        <div class="tile-domain">${king.domain.name}</div>
+        <div class="tile-dragon ${king.dragonStance}">${king.dragonStance === 'protects' ? 'Protects dragons' : 'Hunts dragons'}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderModal(king) {
+  const f = king.familiar;
+  return `
+    <div class="lore-header">
+      <img src="${king.image}" alt="${king.name}">
+      <div class="lore-meta">
+        <div class="lore-name">${king.name}</div>
+        <div class="lore-title">${king.title}</div>
+        <div class="lore-theme">${king.theme}</div>
+        <div class="lore-alignment">${king.alignment}${king.status ? ' • ' + king.status : ''}</div>
+      </div>
+    </div>
+    <div class="lore-body">
+      <div class="lore-section">
+        <h3>Backstory</h3>
+        ${formatText(king.backstory).split(/\n\n+/).map(p => `<p>${p.replace(/\n/g, ' ')}</p>`).join('')}
+      </div>
+      <div class="lore-section">
+        <h3>Dragons</h3>
+        <div class="lore-dragon ${king.dragonStance}">${formatText(king.dragons)}</div>
+      </div>
+      <div class="lore-section">
+        <h3>Familiar — ${f.name}</h3>
+        <div class="lore-familiar">
+          <img src="${f.image}" alt="${f.name}">
+          <div class="lore-familiar-text">
+            <strong>${f.name}</strong> — ${f.type}
+            <ul>
+              ${f.abilities.map(a => `<li>${a}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="lore-section">
+        <h3>Domain — ${king.domain.name}</h3>
+        <p><em>${king.domain.desc}</em></p>
+        <ul>
+          ${king.domain.effects.map(e => `<li>${e}</li>`).join('')}
+        </ul>
+      </div>
+      <div class="lore-section">
+        <h3>Player Hooks</h3>
+        <ul>
+          ${king.playerHooks.map(h => `<li>${h}</li>`).join('')}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+const grid = document.getElementById('kings-grid');
+const modal = document.getElementById('lore-modal');
+const content = document.getElementById('lore-content');
+const closeBtn = document.getElementById('modal-close');
+
+grid.innerHTML = KINGS.map(renderTile).join('');
+
+grid.querySelectorAll('.king-tile').forEach(tile => {
+  tile.addEventListener('click', () => {
+    const id = tile.dataset.kingId;
+    const king = KINGS.find(k => k.id === id);
+    if (king) {
+      content.innerHTML = renderModal(king);
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+  });
+});
+
+function closeModal() {
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+
+closeBtn.addEventListener('click', closeModal);
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.classList.contains('open')) closeModal(); });
+</script>
+
+</body>
+</html>

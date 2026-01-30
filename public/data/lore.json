@@ -10,7 +10,20 @@
     "playerRole": "Find eggs before hunters do, free captured dragons from strongholds, ferry them to sanctuaries.",
     "whyKingsHunt": ["Dragon eggs hatch loyal beasts that dominate the seas.", "Scales and bone fuel ancient magic and artifacts.", "A living dragon is the ultimate symbol of dominance—or the ultimate rival to eliminate."],
     "sanctuaries": "Hidden islands and secret coves where rescued eggs can hatch and young dragons can thrive in peace.",
-    "allies": ["Jasper Barrow does not hunt dragons and may aid those who rescue them."]
+    "allies": ["Jasper Barrow does not hunt dragons and may aid those who rescue them."],
+    "knownDragons": [
+      { "id": "blackfang", "name": "Blackfang", "trait": "Fire • Conquest", "where": "Bound to Ebon Flameheart" },
+      { "id": "blaze", "name": "Blaze", "trait": "Fire • Volcanic", "where": "Volcanic islands of the Ashen Reach" },
+      { "id": "icey", "name": "Icey", "trait": "Frost • Northern", "where": "Frozen straits and iceberg caves" },
+      { "id": "speedy", "name": "Speedy", "trait": "Wind • Swift", "where": "Coastal cliffs and storm-wracked isles" },
+      { "id": "elder", "name": "Elder", "trait": "Ancient • Wisdom", "where": "Ruins and sunken temples" }
+    ],
+    "youngDragons": [
+      { "id": "baby_blaze", "name": "Baby Blaze", "breed": "Fire hatchling" },
+      { "id": "baby_icey", "name": "Baby Icey", "breed": "Frost hatchling" },
+      { "id": "baby_speedy", "name": "Baby Speedy", "breed": "Wind hatchling" },
+      { "id": "baby_elder", "name": "Baby Elder", "breed": "Ancient hatchling" }
+    ]
   },
   "pirateKings": [
     {

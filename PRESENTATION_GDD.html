@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YoHoH — The Shattered Seas | Presentation GDD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #080d18;
+      --bg-panel: #0e1628;
+      --bg-card: #121d32;
+      --accent-gold: #c9a227;
+      --accent-gold-dim: #a88620;
+      --accent-sea: #1e4d6b;
+      --accent-sea-light: #2a6b8a;
+      --accent-coral: #c45c4a;
+      --text-primary: #e8e8e6;
+      --text-secondary: #b8c4d0;
+      --text-muted: #7a8a9a;
+      --border: #1e3a52;
+      --border-gold: rgba(201, 162, 39, 0.4);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Crimson Pro', Georgia, serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      line-height: 1.6;
+      font-size: 1.05rem;
+    }
+    .slide {
+      min-height: 100vh;
+      padding: 3rem 4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      background: 
+        radial-gradient(ellipse 80% 50% at 50% 0%, rgba(30, 77, 107, 0.15) 0%, transparent 50%),
+        var(--bg-dark);
+    }
+    .slide::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      opacity: 0.6;
+    }
+    .slide-title {
+      font-family: 'Cinzel', serif;
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .slide-subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+      font-style: italic;
+    }
+    .slide-tagline {
+      font-size: 1.35rem;
+      font-style: italic;
+      color: var(--text-secondary);
+      margin: 1.5rem 0;
+      max-width: 36rem;
+      line-height: 1.7;
+    }
+    .hero {
+      text-align: center;
+      background: 
+        radial-gradient(ellipse 100% 80% at 50% 20%, rgba(30, 77, 107, 0.25) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(201, 162, 39, 0.08) 0%, transparent 50%),
+        var(--bg-dark);
+    }
+    .hero .slide-title { 
+      font-size: 3.5rem; 
+      letter-spacing: 0.2em;
+      text-shadow: 0 0 40px rgba(201, 162, 39, 0.2);
+    }
+    .hero .slide-subtitle { 
+      font-size: 1.25rem; 
+      letter-spacing: 0.15em;
+    }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+      margin-top: 1.5rem;
+    }
+    .image-frame {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
+    }
+    .image-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .king-card {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 2rem;
+      padding: 1.75rem;
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .king-card .king-image {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .king-name { 
+      font-family: 'Cinzel', serif;
+      font-size: 1.2rem; 
+      color: var(--accent-gold); 
+      margin-bottom: 0.25rem;
+      letter-spacing: 0.05em;
+    }
+    .king-title { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .king-domain { font-size: 0.85rem; color: var(--accent-sea-light); margin-bottom: 0.5rem; }
+    .king-dragon { 
+      font-size: 0.9rem; 
+      margin: 0.5rem 0; 
+      padding: 0.6rem 0.75rem; 
+      background: rgba(42,107,138,0.15); 
+      border-radius: 6px;
+      border-left: 3px solid var(--accent-sea-light);
+    }
+    .king-dragon.protects { 
+      background: rgba(74,124,89,0.15); 
+      border-left-color: #4a7c59;
+    }
+    .king-card { position: relative; }
+    .king-lore-btn {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      background: rgba(30, 60, 90, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--accent-gold);
+      font-size: 1.25rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .king-lore-btn:hover {
+      background: rgba(42, 107, 138, 0.8);
+    }
+    ul.compact { margin: 0.5rem 0; padding-left: 1.5rem; }
+    ul.compact li { margin: 0.35rem 0; }
+    .domain-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .domain-chip {
+      padding: 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: center;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .domain-chip:hover {
+      border-color: var(--accent-sea-light);
+      box-shadow: 0 0 20px rgba(30, 77, 107, 0.2);
+    }
+    .domain-chip strong { 
+      font-family: 'Cinzel', serif;
+      color: var(--accent-gold); 
+      display: block; 
+      margin-bottom: 0.25rem;
+      font-size: 0.95rem;
+    }
+    .domain-chip span { font-size: 0.85rem; color: var(--text-muted); }
+    .mission-box {
+      padding: 2rem;
+      background: linear-gradient(135deg, rgba(30, 77, 107, 0.2), rgba(74, 124, 89, 0.1));
+      border: 1px solid var(--accent-sea-light);
+      border-radius: 12px;
+      margin: 1.5rem 0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+    .mission-box h3 { 
+      font-family: 'Cinzel', serif;
+      color: var(--accent-gold); 
+      margin-bottom: 0.75rem;
+      font-size: 1.1rem;
+    }
+    .section-label {
+      font-family: 'Cinzel', serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .familiar-grid, .ship-grid, .dragon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .dragon-card {
+      text-align: center;
+      padding: 1rem;
+      background: var(--bg-card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .dragon-card:hover {
+      border-color: var(--accent-gold-dim);
+      transform: translateY(-2px);
+    }
+    .dragon-card img {
+      width: 100%;
+      max-width: 140px;
+      height: auto;
+      aspect-ratio: 1;
+      object-fit: contain;
+      margin: 0 auto 0.5rem;
+      display: block;
+    }
+    .dragon-card .name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.9rem;
+      color: var(--accent-gold);
+      margin-bottom: 0.2rem;
+    }
+    .dragon-card .role {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .familiar-card, .ship-card {
+      text-align: center;
+      padding: 1rem;
+      background: var(--bg-card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .familiar-card:hover, .ship-card:hover {
+      border-color: var(--accent-gold-dim);
+      transform: translateY(-2px);
+    }
+    .familiar-card img, .ship-card img {
+      width: 100%;
+      max-width: 120px;
+      height: auto;
+      aspect-ratio: 1;
+      object-fit: contain;
+      margin: 0 auto 0.5rem;
+      display: block;
+    }
+    .ship-card img { aspect-ratio: 16/10; max-width: 140px; }
+    .familiar-card .name, .ship-card .name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.9rem;
+      color: var(--accent-gold);
+      margin-bottom: 0.2rem;
+    }
+    .familiar-card .role, .ship-card .role {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .king-familiar {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .king-familiar img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .island-gallery {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .island-gallery img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .island-gallery img:hover { transform: scale(1.02); }
+    .map-gallery {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .map-gallery img {
+      width: 100%;
+      aspect-ratio: 16/10;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .map-gallery img:hover { transform: scale(1.02); }
+    .nav-hint {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+    }
+    .slide-number {
+      position: absolute;
+      top: 1.5rem;
+      right: 2rem;
+      font-family: 'Cinzel', serif;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+    }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .pill {
+      padding: 0.25rem 0.6rem;
+      background: rgba(30, 77, 107, 0.3);
+      border-radius: 20px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .image-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: rgba(0, 0, 0, 0.92);
+      cursor: pointer;
+    }
+    .image-modal.open {
+      display: flex;
+    }
+    .image-modal .modal-content {
+      max-width: 95vw;
+      max-height: 95vh;
+      cursor: default;
+    }
+    .image-modal .modal-content img {
+      max-width: 100%;
+      max-height: 90vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 0 60px rgba(201, 162, 39, 0.15);
+    }
+    .image-modal .modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1.5rem;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      background: rgba(30, 60, 90, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      color: var(--text-primary);
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .image-modal .modal-close:hover {
+      background: rgba(42, 107, 138, 0.6);
+    }
+    .slide img, .hero img {
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .slide img:hover, .hero img:hover {
+      opacity: 0.9;
+    }
+    .lore-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: rgba(0, 0, 0, 0.92);
+      overflow-y: auto;
+    }
+    .lore-modal.open { display: flex; }
+    .lore-modal-content {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      max-width: 680px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .lore-modal-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      background: rgba(30, 60, 90, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      color: var(--text-primary);
+      font-size: 1.4rem;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .lore-modal-close:hover { background: rgba(42, 107, 138, 0.8); }
+    .lore-header {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 1.25rem;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .lore-header img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+    .lore-meta .lore-name { font-family: 'Cinzel', serif; font-size: 1.3rem; color: var(--accent-gold); margin-bottom: 0.25rem; }
+    .lore-meta .lore-title { font-size: 0.9rem; color: var(--text-muted); }
+    .lore-body { padding: 1.5rem; }
+    .lore-section { margin-bottom: 1.25rem; }
+    .lore-section h3 { font-family: 'Cinzel', serif; font-size: 0.85rem; color: var(--accent-gold); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+    .lore-section p { font-size: 0.95rem; margin-bottom: 0.5rem; }
+    .lore-section ul { padding-left: 1.25rem; margin: 0.5rem 0; }
+    .lore-section li { margin: 0.25rem 0; }
+    .lore-dragon { padding: 0.75rem; border-radius: 6px; border-left: 3px solid var(--accent-sea-light); background: rgba(42,107,138,0.15); font-size: 0.95rem; }
+    .lore-dragon.protects { border-left-color: #4a7c59; background: rgba(74,124,89,0.15); }
+    .lore-familiar { display: flex; gap: 1rem; align-items: flex-start; margin-top: 0.5rem; }
+    .lore-familiar img { width: 56px; height: 56px; object-fit: contain; border-radius: 6px; border: 1px solid var(--border); }
+    @media (max-width: 900px) {
+      .two-col { grid-template-columns: 1fr; }
+      .king-card { grid-template-columns: 1fr; }
+      .king-card .king-image { max-width: 220px; margin: 0 auto; }
+      .domain-grid { grid-template-columns: repeat(2, 1fr); }
+      .island-gallery, .map-gallery { grid-template-columns: repeat(2, 1fr); }
+      .familiar-grid, .ship-grid, .dragon-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SLIDE 1: Hero -->
+<section class="slide hero">
+  <span class="slide-number">01</span>
+  <h1 class="slide-title">YoHoH</h1>
+  <p class="slide-subtitle">You Only Have One Hull</p>
+  <p class="slide-tagline">"The old empires drowned. The seas broke. Five crowns rose from the wreckage—and none of them bow to any king on land."</p>
+  <p style="margin-top: 2rem; color: var(--text-muted); letter-spacing: 0.1em;">Trading • Naval combat • Dragon rescue</p>
+  <div style="margin-top: 2.5rem;">
+    <img src="Images/Ships/Sloop_01.png" alt="Sloop" style="max-width: 220px; height: auto; opacity: 0.95; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));">
+  </div>
+</section>
+
+<!-- SLIDE 2: The World -->
+<section class="slide">
+  <span class="slide-number">02</span>
+  <h2 class="slide-title">The Shattered Seas</h2>
+  <p class="slide-subtitle">A fractured archipelago where old empires drowned</p>
+  <div class="two-col">
+    <div>
+      <p>The seas are ruled by <strong>trade, rumor, and fear</strong>. The inner archipelago—the <strong>Home Waters</strong>—remains relatively safe. Beyond the safe routes lie the <strong>Outer Seas</strong>, where the <strong>Five Pirate Kings</strong> hold dominion.</p>
+      <p style="margin-top: 1rem;">Each King commands a domain shaped by their curse, ambition, or obsession. Sailors who venture too far may never return—or return changed.</p>
+    </div>
+    <div class="image-frame">
+      <img src="Images/Islands/Island_01.png" alt="The Shattered Seas archipelago">
+    </div>
+  </div>
+  <div class="domain-grid">
+    <div class="domain-chip"><strong>Veilwake Sea</strong><span>Fog, ghosts</span></div>
+    <div class="domain-chip"><strong>Coiled Expanse</strong><span>Serpents</span></div>
+    <div class="domain-chip"><strong>Drowned Crown</strong><span>Coral, leviathans</span></div>
+    <div class="domain-chip"><strong>Black Spiral</strong><span>Darkness, Kraken</span></div>
+    <div class="domain-chip"><strong>Ashen Reach</strong><span>Fire, dragons</span></div>
+  </div>
+</section>
+
+<!-- SLIDE 3: Core Mission - Dragons -->
+<section class="slide">
+  <span class="slide-number">03</span>
+  <h2 class="slide-title">Your Mission: Rescue the Dragons</h2>
+  <p class="slide-subtitle">Dragons are nearly extinct. Most Pirate Kings hunt them. You save them.</p>
+  <div class="mission-box">
+    <h3>Core Mission</h3>
+    <p>Find dragon eggs before hunters do. Free captured dragons from King strongholds. Ferry them to <strong>dragon sanctuaries</strong> where they can hatch and thrive in peace.</p>
+  </div>
+  <p><strong>Why the Kings hunt dragons:</strong></p>
+  <ul class="compact">
+    <li>Dragon eggs hatch loyal beasts that dominate the seas</li>
+    <li>Scales and bone fuel ancient magic and artifacts</li>
+    <li>A living dragon is the ultimate symbol of dominance—or the ultimate rival to eliminate</li>
+  </ul>
+  <p style="margin-top: 1rem;">This puts you in <strong>direct opposition</strong> to most of the Pirate Kings.</p>
+  <div class="two-col" style="margin-top: 1.5rem;">
+    <div class="image-frame" style="max-width: 200px;">
+      <img src="Images/Dragons/Blackfang.png" alt="Blackfang — Ebon Flameheart's dragon">
+    </div>
+    <div>
+      <p style="font-size: 0.95rem; color: var(--text-muted);"><strong>Blackfang</strong> — Ebon Flameheart's dragon. The only one he allows to live. All others must fall.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 4: Dragons of the Shattered Seas -->
+<section class="slide">
+  <span class="slide-number">04</span>
+  <h2 class="slide-title">Dragons of the Shattered Seas</h2>
+  <p class="slide-subtitle">The last of the great beasts—each breed hunted, each one worth saving</p>
+  <div class="section-label">Adult Dragons</div>
+  <div class="dragon-grid">
+    <div class="dragon-card">
+      <img src="Images/Dragons/Blackfang.png" alt="Blackfang">
+      <div class="name">Blackfang</div>
+      <div class="role">Fire • Bound to Ebon Flameheart</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/Blaze.png" alt="Blaze">
+      <div class="name">Blaze</div>
+      <div class="role">Fire • Volcanic islands</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/Icey.png" alt="Icey">
+      <div class="name">Icey</div>
+      <div class="role">Frost • Northern straits</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/Speedy.png" alt="Speedy">
+      <div class="name">Speedy</div>
+      <div class="role">Wind • Swift, coastal cliffs</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/Elder.png" alt="Elder">
+      <div class="name">Elder</div>
+      <div class="role">Ancient • Ruins, sunken temples</div>
+    </div>
+  </div>
+  <div class="section-label" style="margin-top: 2rem;">Young Dragons — Rescue and Save</div>
+  <div class="dragon-grid">
+    <div class="dragon-card">
+      <img src="Images/Dragons/BabyBlaze.png" alt="Baby Blaze">
+      <div class="name">Baby Blaze</div>
+      <div class="role">Fire hatchling</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/BabyIcey.png" alt="Baby Icey">
+      <div class="name">Baby Icey</div>
+      <div class="role">Frost hatchling</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/BabySpeedy.png" alt="Baby Speedy">
+      <div class="name">Baby Speedy</div>
+      <div class="role">Wind hatchling</div>
+    </div>
+    <div class="dragon-card">
+      <img src="Images/Dragons/BabyElder_01.png" alt="Baby Elder">
+      <div class="name">Baby Elder</div>
+      <div class="role">Ancient hatchling</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 5: The Five Pirate Kings - Overview -->
+<section class="slide">
+  <span class="slide-number">05</span>
+  <h2 class="slide-title">The Five Pirate Kings</h2>
+  <p class="slide-subtitle">Four hunt dragons. One protects them.</p>
+  <div class="two-col">
+    <div>
+      <p>Each King rules a domain in the Outer Seas. Defeating their <strong>Lieutenants</strong> reveals stronghold coordinates. Raiding a stronghold yields unique loot—and <strong>rescued dragons</strong> held in captivity.</p>
+      <p style="margin-top: 1rem;"><strong>Jasper Barrow</strong> (Ghost Captain) does <em>not</em> hunt dragons. He may aid your mission.</p>
+    </div>
+    <div class="image-frame">
+      <img src="Images/Islands/Island_04_Fortress.png" alt="Pirate King stronghold">
+    </div>
+  </div>
+</section>
+
+<!-- SLIDES 6–10: Pirate Kings (data-driven from LORE.md via extract-lore script) -->
+<div id="kings-slides-container"></div>
+
+<!-- SLIDE 11: Familiars Gallery -->
+<section class="slide">
+  <span class="slide-number">11</span>
+  <h2 class="slide-title">The Familiars</h2>
+  <p class="slide-subtitle">Each Pirate King is bound to a powerful companion</p>
+  <div class="familiar-grid">
+    <div class="familiar-card">
+      <img src="Images/Familiars/Gloomfeather.png" alt="Gloomfeather">
+      <div class="name">Gloomfeather</div>
+      <div class="role">Jasper Barrow • Spectral Parrot</div>
+    </div>
+    <div class="familiar-card">
+      <img src="Images/Familiars/Ssyrix.png" alt="Ssyrix">
+      <div class="name">Ssyrix</div>
+      <div class="role">Mordekai Drakon • Serpent Spirit</div>
+    </div>
+    <div class="familiar-card">
+      <img src="Images/Familiars/Pearl.png" alt="Pearl">
+      <div class="name">Pearl</div>
+      <div class="role">Adara Thalassa • Juvenile Leviathan</div>
+    </div>
+    <div class="familiar-card">
+      <img src="Images/Familiars/Inkshadow.png" alt="Inkshadow">
+      <div class="name">Inkshadow</div>
+      <div class="role">Nimue Tideborn • Shadow Octopus</div>
+    </div>
+    <div class="familiar-card">
+      <img src="Images/Familiars/Ember.png" alt="Ember">
+      <div class="name">Ember</div>
+      <div class="role">Ebon Flameheart • Fire Phoenix</div>
+    </div>
+    <div class="familiar-card">
+      <img src="Images/Familiars/Blackfang.png" alt="Blackfang">
+      <div class="name">Blackfang</div>
+      <div class="role">Ebon Flameheart • Dragon</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12: Ships -->
+<section class="slide">
+  <span class="slide-number">12</span>
+  <h2 class="slide-title">Ships of the Shattered Seas</h2>
+  <p class="slide-subtitle">From starter sloop to war galleon—and everything between</p>
+  <div class="ship-grid">
+    <div class="ship-card">
+      <img src="Images/Ships/Sloop_01.png" alt="Sloop">
+      <div class="name">Sloop</div>
+      <div class="role">Starter • Agile, 20 cargo</div>
+    </div>
+    <div class="ship-card">
+      <img src="Images/Ships/Sloop_02.png" alt="Sloop variant">
+      <div class="name">Sloop</div>
+      <div class="role">Light trader • Fast, nimble</div>
+    </div>
+    <div class="ship-card">
+      <img src="Images/Ships/Sloop_03.png" alt="Sloop variant">
+      <div class="name">Sloop</div>
+      <div class="role">Scout • Quick turns</div>
+    </div>
+    <div class="ship-card">
+      <img src="Images/Ships/WarBrig_01.png" alt="Brigantine">
+      <div class="name">Brigantine</div>
+      <div class="role">Balanced • 40 cargo, combat-ready</div>
+    </div>
+    <div class="ship-card">
+      <img src="Images/Ships/Galleon_01.png" alt="Galleon">
+      <div class="name">Galleon</div>
+      <div class="role">Heavy • 60 cargo, tough hull</div>
+    </div>
+    <div class="ship-card">
+      <img src="Images/Ships/Galleon_02.png" alt="Galleon variant">
+      <div class="name">Galleon</div>
+      <div class="role">Flagship • Maximum firepower</div>
+    </div>
+    <div class="ship-card">
+      <img src="Images/Ships/Merchant_01.png" alt="Merchant">
+      <div class="name">Merchant</div>
+      <div class="role">Trade vessel • High capacity</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13: The Archipelago -->
+<section class="slide">
+  <span class="slide-number">13</span>
+  <h2 class="slide-title">The Archipelago</h2>
+  <p class="slide-subtitle">Islands, routes, and sanctuaries</p>
+  <p>Procedurally generated archipelago with varied island types. <strong>Home Waters</strong> (inner) are safer; <strong>Outer Seas</strong> increase danger and reward. <strong>Dragon sanctuaries</strong>—hidden islands where rescued eggs hatch—are central to your mission.</p>
+  <div class="island-gallery">
+    <img src="Images/Islands/Island_01.png" alt="Island">
+    <img src="Images/Islands/Island_02.png" alt="Island">
+    <img src="Images/Islands/Island_03_Volcanic.png" alt="Volcanic island">
+    <img src="Images/Islands/Island_04_Fortress.png" alt="Fortress">
+    <img src="Images/Islands/Island_05_Jungle.png" alt="Jungle island">
+    <img src="Images/Islands/Island_07_SandyAtoll.png" alt="Sandy atoll">
+    <img src="Images/Islands/Island_08_Village.png" alt="Village">
+    <img src="Images/Islands/Island_09_Village.png" alt="Village port">
+  </div>
+</section>
+
+<!-- SLIDE 14: Maps of the Shattered Seas -->
+<section class="slide">
+  <span class="slide-number">14</span>
+  <h2 class="slide-title">Maps of the Shattered Seas</h2>
+  <p class="slide-subtitle">Procedurally generated overworld—every voyage charts a different sea</p>
+  <div class="two-col" style="margin-bottom: 2rem;">
+    <div class="image-frame">
+      <img src="Images/Maps/MapEditor.png" alt="Map Editor">
+      <p style="padding: 0.5rem 0.75rem; font-size: 0.9rem; color: var(--text-muted);">Map Editor — design and visualize archipelago layouts</p>
+    </div>
+    <div class="image-frame">
+      <img src="Images/Maps/MapLayout.png" alt="Map Layout">
+      <p style="padding: 0.5rem 0.75rem; font-size: 0.9rem; color: var(--text-muted);">Map Layout — planar graph structure, islands and routes</p>
+    </div>
+  </div>
+  <div class="section-label">Top-down map views — procedural generations</div>
+  <div class="map-gallery">
+    <img src="Images/Maps/TopDownMap_01.jpg" alt="Archipelago map 1">
+    <img src="Images/Maps/TopDownMap_02.jpg" alt="Archipelago map 2">
+    <img src="Images/Maps/TopDownMap_03.jpg" alt="Archipelago map 3">
+    <img src="Images/Maps/TopDownMap_04.jpg" alt="Archipelago map 4">
+    <img src="Images/Maps/TopDownMap_05.jpg" alt="Archipelago map 5">
+    <img src="Images/Maps/TopDownMap_06.jpg" alt="Archipelago map 6">
+    <img src="Images/Maps/TopDownMap_07.jpg" alt="Archipelago map 7">
+  </div>
+</section>
+
+<!-- SLIDE 15: Gameplay Loop -->
+<section class="slide">
+  <span class="slide-number">15</span>
+  <h2 class="slide-title">Core Gameplay Loop</h2>
+  <p class="slide-subtitle">Trading, sailing, combat, dragon rescue</p>
+  <ol style="margin: 1.5rem 0; padding-left: 1.5rem; font-size: 1.05rem;">
+    <li style="margin: 0.5rem 0;"><strong>Dock</strong> → market prices, rumors, contracts</li>
+    <li style="margin: 0.5rem 0;"><strong>Buy / Accept</strong> → cargo, contracts, dragon egg intel</li>
+    <li style="margin: 0.5rem 0;"><strong>Sail</strong> → choose route; face encounters</li>
+    <li style="margin: 0.5rem 0;"><strong>Fight / Flee</strong> → naval combat, boarding</li>
+    <li style="margin: 0.5rem 0;"><strong>Sell / Turn in</strong> → profit, contracts, <strong>deliver eggs to sanctuary</strong></li>
+    <li style="margin: 0.5rem 0;"><strong>Upgrade</strong> → ship, crew, modules</li>
+    <li style="margin: 0.5rem 0;"><strong>Push outward</strong> → raid strongholds, rescue dragons</li>
+  </ol>
+  <div class="two-col" style="margin-top: 2rem;">
+    <div>
+      <div class="pill-row">
+        <span class="pill">Action-Adventure</span>
+        <span class="pill">Trading</span>
+        <span class="pill">Light RPG</span>
+        <span class="pill">Top-down 2.5D</span>
+        <span class="pill">15–30 min sessions</span>
+      </div>
+    </div>
+    <div class="image-frame" style="max-width: 200px;">
+      <img src="Images/Ships/Galleon_02.png" alt="Galleon">
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16: Your Story -->
+<section class="slide">
+  <span class="slide-number">16</span>
+  <h2 class="slide-title">Your Story</h2>
+  <p class="slide-tagline">You are a new captain climbing the ranks—and you carry a secret mission: <strong>rescue and save the last of the dragons</strong>.</p>
+  <p>The Five Pirate Kings hunt them relentlessly. You defy them by finding eggs before hunters do, freeing captured dragons from strongholds, and ferrying them to sanctuaries where they can thrive.</p>
+  <p style="margin-top: 1.5rem;">The Shattered Seas offer profit, danger, and legend—but your true calling is to <strong>protect what the Kings would destroy</strong>.</p>
+  <p style="margin-top: 1rem;">Defeat lieutenants. Uncover stronghold locations. Save the dragons.</p>
+  <div style="margin-top: 2.5rem; display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap;">
+    <img src="Images/Ships/Sloop_02.png" alt="Your ship" style="max-width: 160px; opacity: 0.95;">
+    <img src="Images/Ships/WarBrig_01.png" alt="Brigantine" style="max-width: 180px; opacity: 0.95;">
+  </div>
+</section>
+
+<!-- SLIDE 17: Closing -->
+<section class="slide hero">
+  <span class="slide-number">17</span>
+  <h1 class="slide-title">YoHoH</h1>
+  <p class="slide-subtitle">The Shattered Seas</p>
+  <p class="slide-tagline">Rescue the dragons. Defy the Kings. Carve your path.</p>
+  <p style="margin-top: 2rem; font-size: 0.9rem; color: var(--text-muted);">LORE.md • YoHoH_Small_Indie_Prototype_GDD.md • <a href="STORYBOOK.html" style="color: var(--accent-sea-light);">Pirate Kings Storybook</a></p>
+</section>
+
+<span class="nav-hint">Scroll to navigate</span>
+
+<!-- Image modal -->
+<div id="image-modal" class="image-modal" aria-hidden="true">
+  <button type="button" class="modal-close" aria-label="Close">&times;</button>
+  <div class="modal-content">
+    <img src="" alt="">
+  </div>
+</div>
+
+<!-- Lore modal (Pirate King in-depth lore) -->
+<div id="lore-modal" class="lore-modal" aria-hidden="true">
+  <div class="lore-modal-content">
+    <button type="button" class="lore-modal-close" id="lore-modal-close" aria-label="Close">&times;</button>
+    <div id="lore-modal-body"></div>
+  </div>
+</div>
+
+<script>window.PIRATE_KINGS_LORE=[{"id":"jasper","name":"Jasper Barrow","title":"The Ghost Captain of the Righteous Tide","image":"Images/PirateKings/JasperBarrow.png","theme":"Curse • Justice • Ghosts • Vengeance","alignment":"Chaotic Good (Relentless, Unforgiving)","status":"Undead (Revenant / Reborn)","backstory":"Once the youngest son of a revered admiral, Jasper Barrow was raised on honor but denied the sea. When he finally earned his own command, he became a protector of the innocent rather than a conqueror. His downfall came when he uncovered his father's betrayal—selling naval secrets to pirate lords for gold.\n\nDeclared a traitor and disowned, Jasper was lured into a storm by a false distress call and sunk by his own blood. Death could not still his sense of justice. He rose as a Ghost Captain, bound to the sea until corruption is punished.\n\nNow, Jasper hunts tyrants, pirate kings, corrupt rulers, and bullies—especially those who prey on weaker crews or islands.","dragons":"Jasper does **not** hunt dragons. He sees them as fellow victims of tyranny—hunted, betrayed, driven to the brink. He has been known to aid captains who rescue dragons and has even guided lost eggs to sanctuary. An unlikely ally in your mission.","dragonStance":"protects","familiar":{"name":"Gloomfeather","type":"Spectral Parrot","image":"Images/Familiars/Gloomfeather.png","abilities":["Debuffs enemies (fear, misfortune, cursed rolls)","Scouts invisibly through fog and darkness","Mimics enemy voices to sow panic"]},"domain":{"name":"The Veilwake Sea","desc":"fog-choked waters where ghost ships drift silently","effects":["His ghost fleet can ignore blockades","Ports under his watch see reduced piracy… unless they're corrupt"]},"playerHooks":["Appears to aid bullied players mid-fight","May spare or reward honorable crews","Can become a powerful ally… or relentless enemy"]},{"id":"mordekai","name":"Captain Mordekai Drakon","title":"The Sea Serpent King","image":"Images/PirateKings/Captain_Mordekai_Drakon.png","theme":"Curse • Serpents • Ancient Magic","alignment":"Lawful Evil","status":"","backstory":"Mordekai was once a cabin boy aboard a doomed merchant vessel. When the ship was attacked by a colossal sea serpent, he discovered an ancient blade sealed within the hold. Slaying the beast bound its dying spirit to him.\n\nOver time, the serpent's curse twisted Mordekai—granting power, longevity, and dominion over the deep, but slowly replacing his humanity. He now rules through fear and inevitability, believing the seas demand dominance, not mercy.","dragons":"Mordekai **hunts dragons** relentlessly. Serpents and dragons are ancient rivals—both draconic, both claiming dominion over the deep. He consumes dragon scales and bone to feed Ssyrix and extend his own power. His lieutenants raid volcanic islands and ambush migrating dragons at sea.","dragonStance":"hunts","familiar":{"name":"Ssyrix","type":"The Bound Serpent Spirit","image":"Images/Familiars/Ssyrix.png","abilities":["Wraps ships, immobilizing them","Inflicts stacking curses over time","Can briefly possess Mordekai to amplify power"]},"domain":{"name":"The Coiled Expanse","desc":"waters marked by massive serpentine shapes beneath the waves","effects":["Ships move slower","Crew morale drains over time"]},"playerHooks":["Hunts players who grow too powerful too quickly","May offer cursed power in exchange for loyalty","Slaying him risks releasing the serpent upon the world"]},{"id":"adara","name":"Lady Adara Thalassa","title":"Queen of the Leviathans","image":"Images/PirateKings/Lady_Adara_Thalassa.png","theme":"Atlantis • Leviathans • Ocean Sovereignty","alignment":"Neutral (Ruthlessly Pragmatic)","status":"","backstory":"Adara was born to a sunken empire—one of the last true descendants of Atlantis. When her people fell beneath the waves, she reclaimed their legacy by stealing the **Trident of the Tides**, an artifact granting command over leviathans.\n\nShe does not raid for gold—she conquers to rebuild a lost civilization beneath the sea. Islands that swear fealty are protected. Those that resist are erased.","dragons":"Adara **hunts dragons** as obstacles to her ocean sovereignty. Dragons are ancient, powerful, and refuse to bow—they threaten her claim to rule the seas. She captures eggs for Atlantean rituals and slays adult dragons that encroach on her domain. Delivering a dragon egg to her stronghold earns rare favor—and damns the dragon.","dragonStance":"hunts","familiar":{"name":"Pearl","type":"Juvenile Leviathan","image":"Images/Familiars/Pearl.png","abilities":["Shields allies with tidal barriers","Heals ships and structures","Grows stronger the longer Adara reigns"]},"domain":{"name":"The Drowned Crown","desc":"a semi-submerged kingdom of coral and ruins","effects":["Can flood islands","Controls trade routes via sea beasts"]},"playerHooks":["Can become a powerful political ally","Might task players with reclaiming Atlantean relics","Open war with her reshapes the map"]},{"id":"nimue","name":"Nimue Tideborn","title":"The Kraken Caller","image":"Images/PirateKings/Nimue_Tideborn.png","theme":"Darkness • Abyss • Madness","alignment":"Chaotic Neutral","status":"","backstory":"Once a fisher's daughter obsessed with legends, Nimue discovered an abyssal song etched into black stone. Singing it summoned not death—but a young Kraken. Instead of fleeing, she bonded with it.\n\nAs the Kraken grew, so did Nimue's power—and her distance from humanity. She no longer raids ports; she drags entire fleets into the dark to \"feed the deep.\"","dragons":"Nimue **hunts dragons** to feed the Kraken. Dragons are powerful prey—their essence sustains the deep and empowers her bond with the abyss. She sends her servants to lure dragons into the Black Spiral, where the Kraken drags them under. A dragon egg is a rare delicacy; a full-grown dragon, a feast.","dragonStance":"hunts","familiar":{"name":"Inkshadow","type":"Living Shadow Octopus","image":"Images/Familiars/Inkshadow.png","abilities":["Creates zones of magical darkness","Blinds and disorients enemies","Can merge with the Kraken to empower it"]},"domain":{"name":"The Black Spiral","desc":"waters that absorb light and sound","effects":["Visibility is severely reduced","Sanity-testing environment"]},"playerHooks":["May ignore players entirely… until provoked","Can be reasoned with via ancient lore","Killing the Kraken may break her mind—or free her"]},{"id":"ebon","name":"Captain Ebon Flameheart","title":"The Dragon Marauder","image":"Images/PirateKings/Flameheart_01.png","theme":"Fire • Dragons • Conquest","alignment":"Chaotic Evil","status":"","backstory":"Ebon was once a subordinate pirate, hungry for more. During a raid on a volcanic isle, he stole a dragon egg and survived long enough to hatch it. That dragon—**Blackfang**—made him a legend.\n\nEbon believes strength is the only truth. He conquers islands not to rule them, but to burn them into submission, forging a fleet of fear and fire.","dragons":"Ebon **hunts dragons** to eliminate all rivals. He has Blackfang—the only dragon that matters. Every other dragon is a threat: another captain could hatch an egg, another King could claim a beast. He burns dragon nests, slaughters migrating dragons, and pays bounties for eggs delivered to him—so he can crush them himself. There will be only one Dragon King.","dragonStance":"protects","familiar":{"name":"Ember","type":"Fire Phoenix","image":"Images/Familiars/Ember.png","abilities":["Revives after death","Ignites ships and crews","Buffs allies with flame-based rage"]},"domain":{"name":"The Ashen Reach","desc":"scorched islands and burning seas","effects":["Constant fire hazards","Volcanic events during combat"]},"playerHooks":["Ultimate test of naval combat skill","Can trigger massive world events if unchecked","Slaying him may leave the dragon unbound…"]}];</script>
+<script>
+(function() {
+  // Kings slides: data from LORE.md via npm run extract-lore
+  const container = document.getElementById('kings-slides-container');
+  const slideNumbers = ['06', '07', '08', '09', '10'];
+  const ordinals = ['1', '2', '3', '4', '5'];
+
+  function formatText(t) { return (t || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
+
+  function renderLoreModal(king) {
+    const f = king.familiar;
+    return `
+      <div class="lore-header">
+        <img src="${king.image}" alt="${king.name}">
+        <div class="lore-meta">
+          <div class="lore-name">${king.name}</div>
+          <div class="lore-title">${king.title}</div>
+          <div class="lore-title">${king.theme}</div>
+          <div class="lore-title">${king.alignment}${king.status ? ' • ' + king.status : ''}</div>
+        </div>
+      </div>
+      <div class="lore-body">
+        <div class="lore-section"><h3>Backstory</h3>${formatText(king.backstory).split(/\n\n+/).map(p => `<p>${p.replace(/\n/g, ' ')}</p>`).join('')}</div>
+        <div class="lore-section"><h3>Dragons</h3><div class="lore-dragon ${king.dragonStance}">${formatText(king.dragons)}</div></div>
+        <div class="lore-section"><h3>Familiar — ${f.name}</h3><div class="lore-familiar"><img src="${f.image}" alt="${f.name}"><div><strong>${f.name}</strong> — ${f.type}<ul>${(f.abilities || []).map(a => `<li>${a}</li>`).join('')}</ul></div></div></div>
+        <div class="lore-section"><h3>Domain — ${king.domain.name}</h3><p><em>${king.domain.desc}</em></p><ul>${(king.domain.effects || []).map(e => `<li>${e}</li>`).join('')}</ul></div>
+        <div class="lore-section"><h3>Player Hooks</h3><ul>${(king.playerHooks || []).map(h => `<li>${h}</li>`).join('')}</ul></div>
+      </div>
+    `;
+  }
+
+  function renderKingSlide(king, idx) {
+    const f = king.familiar;
+    const dragonLabel = king.dragonStance === 'protects' ? 'PROTECTS' : 'HUNTS';
+    const shortDesc = king.backstory.split(/\n\n/)[0] || '';
+    return `
+      <section class="slide">
+        <span class="slide-number">${slideNumbers[idx]}</span>
+        <h2 class="slide-title">${ordinals[idx]}. ${king.name}</h2>
+        <p class="slide-subtitle">${king.title}</p>
+        <div class="king-card" data-king-id="${king.id}">
+          <button type="button" class="king-lore-btn" aria-label="View lore" title="View full lore">📖</button>
+          <img src="${king.image}" alt="${king.name}" class="king-image">
+          <div>
+            <div class="king-name">${king.name}</div>
+            <div class="king-title">${king.alignment}${king.status ? ' • ' + king.status : ''}</div>
+            <div class="king-domain">Domain: ${king.domain.name} — ${king.domain.desc}</div>
+            <div class="king-dragon ${king.dragonStance}"><strong>Dragons: ${dragonLabel}</strong> — ${king.dragons.replace(/\*\*/g, '').substring(0, 90)}…</div>
+            <p>${formatText(shortDesc).replace(/<[^>]+>/g, '').substring(0, 150)}…</p>
+            <div class="king-familiar">
+              <img src="${f.image}" alt="${f.name}">
+              <span><strong>${f.name}</strong> — ${f.type}. ${(f.abilities || [])[0] || ''}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  async function initKings() {
+    let kings = window.PIRATE_KINGS_LORE;
+    if (!kings && typeof fetch !== 'undefined') {
+      try {
+        const r = await fetch('data/pirate-kings-lore.json');
+        if (r.ok) kings = await r.json();
+      } catch (_) {}
+    }
+    if (!kings || !kings.length) {
+      if (container) container.innerHTML = '<section class="slide"><p class="slide-title">Run <code>npm run extract-lore</code> to generate lore from LORE.md</p></section>';
+      return;
+    }
+    if (container) {
+      container.innerHTML = kings.map((k, i) => renderKingSlide(k, i)).join('');
+      container.querySelectorAll('.king-lore-btn').forEach((btn, i) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const body = document.getElementById('lore-modal-body');
+          const modal = document.getElementById('lore-modal');
+          if (body && modal) {
+            body.innerHTML = renderLoreModal(kings[i]);
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+          }
+        });
+      });
+    }
+  }
+  initKings();
+})();
+</script>
+<script>
+(function() {
+  const modal = document.getElementById('image-modal');
+  const modalImg = modal?.querySelector('.modal-content img');
+  const closeBtn = modal?.querySelector('.modal-close');
+
+  function openModal(src, alt) {
+    if (!modal || !modalImg) return;
+    modalImg.src = src;
+    modalImg.alt = alt || '';
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('click', function(e) {
+    if (e.target.tagName === 'IMG' && e.target.closest('.slide, .hero')) {
+      e.preventDefault();
+      const src = e.target.src || e.target.getAttribute('src');
+      if (src) openModal(src, e.target.alt);
+    }
+  });
+
+  closeBtn?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    closeModal();
+  });
+
+  modal?.addEventListener('click', function(e) {
+    if (e.target === modal) closeModal();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modal?.classList.contains('open')) closeModal();
+  });
+})();
+
+(function() {
+  const loreModal = document.getElementById('lore-modal');
+  const loreClose = document.getElementById('lore-modal-close');
+  function closeLoreModal() {
+    if (loreModal) {
+      loreModal.classList.remove('open');
+      loreModal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+  }
+  loreClose?.addEventListener('click', closeLoreModal);
+  loreModal?.addEventListener('click', function(e) { if (e.target === loreModal) closeLoreModal(); });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && loreModal?.classList.contains('open')) closeLoreModal();
+  });
+})();
+</script>
+
+</body>
+</html>

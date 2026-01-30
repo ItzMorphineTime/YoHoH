@@ -83,7 +83,8 @@ Defeat costs time, supplies, and a percentage of cargo—not the entire save.
 - Learn ports, routes, and price patterns.
 - Outsail pirates using turning radius, cannon arcs, and terrain.
 - Recruit and train a crew that “feels” like a team.
-- Challenge Pirate King lieutenants and raid a stronghold.
+- **Rescue and save dragons**—find eggs, free captives, ferry them to sanctuaries.
+- Challenge Pirate King lieutenants and raid strongholds (often to free captured dragons).
 
 ---
 
@@ -315,6 +316,7 @@ Unlocks:
 - upgrade components
 - consumables (optional)
 - cosmetics
+- **dragon eggs** (quest item: deliver to sanctuary, not to Kings)
 
 ---
 
@@ -336,6 +338,7 @@ Unlocks:
 - storm hazard (navigation check)
 - wreck salvage
 - reef maze (short navigation challenge)
+- **dragon egg discovery** (volcanic islands, wrecks; Kings' hunters may pursue)
 - rare “ghost lights” event (optional)
 
 ---
@@ -353,18 +356,29 @@ Unlocks:
 - unique cannon component
 - cosmetic flag
 - unlock: stronghold coordinates (next goal)
+- **rescued dragon / dragon egg** (if lieutenant was transporting one)
 
 ---
 
 ## 12. Narrative & Tone (Prototype)
 
-**Tone:** adventurous, slightly comedic, readable fantasy piracy.  
-**Narrative footprint:** light framing + emergent player stories.
+**Tone:** adventurous, slightly comedic, readable fantasy piracy—with darker undertones when the Pirate Kings are involved.  
+**Narrative footprint:** light framing + emergent player stories.  
+**World:** *The Shattered Seas* — a fractured archipelago where old empires drowned and five Pirate Kings rose from the wreckage. See `LORE.md` for full world-building and King backstories.
+
+**Core mission: Dragons**  
+Your secret calling is to **rescue and save the last of the dragons**. Most of the Five Pirate Kings hunt them relentlessly—for power, for rituals, to feed the deep, or to eliminate rivals. You find eggs before hunters do, free captured dragons from strongholds, and ferry them to **dragon sanctuaries** where they can thrive. Jasper Barrow (Ghost Captain) does *not* hunt dragons and may aid your cause.
 
 **Prototype beats**
-- You are a new captain climbing the ranks.
-- Pirate Kings dominate the outer seas.
-- Defeating lieutenants reveals a stronghold location.
+- You are a new captain climbing the ranks in the **Home Waters**—the last bastion of order.
+- The **Five Pirate Kings** dominate the outer seas; **four of them hunt dragons**; Jasper protects them:
+  - *Jasper Barrow* (Ghost Captain) — Veilwake Sea; **protects dragons**, aids rescuers
+  - *Mordekai Drakon* (Sea Serpent King) — Coiled Expanse; hunts dragons (rivalry)
+  - *Adara Thalassa* (Queen of Leviathans) — Drowned Crown; hunts dragons (sovereignty)
+  - *Nimue Tideborn* (Kraken Caller) — Black Spiral; hunts dragons (feeds the deep)
+  - *Ebon Flameheart* (Dragon Marauder) — Ashen Reach; hunts all dragons except Blackfang
+- Defeating lieutenants reveals a stronghold location—and may free captured dragons.
+- Route modifiers (fog, serpent marks, coral, darkness, ash) hint at which King's domain you're entering.
 
 ---
 

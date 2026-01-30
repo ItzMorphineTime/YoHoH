@@ -34,6 +34,20 @@ This puts you in **direct opposition** to most of the Pirate Kings. They will hu
 
 Hidden islands and secret coves serve as **dragon sanctuaries**—places where rescued eggs can hatch and young dragons can grow without fear. Building, protecting, and supplying these sanctuaries is a core part of your mission. Some say the Ghost Captain himself has been known to aid those who share this cause.
 
+### Known Dragons of the Shattered Seas
+
+The few dragons that remain are scattered across the seas. Each breed carries distinct traits—and each is hunted by the Kings who covet their power.
+
+| Dragon | Breed / Trait | Where Found |
+|--------|---------------|-------------|
+| **Blackfang** | Fire • Conquest | Bound to Ebon Flameheart. The only dragon he allows to live. |
+| **Blaze** | Fire • Volcanic | Volcanic islands of the Ashen Reach. Eggs nest in lava vents. |
+| **Icey** | Frost • Northern | Frozen straits and iceberg caves. Rarely seen south of the ice line. |
+| **Speedy** | Wind • Swift | Coastal cliffs and storm-wracked isles. Fastest of the great beasts. |
+| **Elder** | Ancient • Wisdom | The oldest breed. Nest in ruins and sunken temples. Nearly extinct. |
+
+**Young dragons**—hatchlings rescued from eggs or freed from captivity—grow into these forms. Baby Blaze, Baby Icey, Baby Speedy, and Baby Elder are among those you might save and ferry to sanctuary. Each one you rescue is a blow against the Kings who would see them destroyed.
+
 ---
 
 ## The Five Pirate Kings
