@@ -1,7 +1,7 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
 **Document status:** Draft v1.0 (reviewed)  
-**Last updated:** 2026-01-30  
+**Last updated:** 2026-01-31  
 **Target:** Small indie prototype — PC web browser  
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js  
 
@@ -92,12 +92,13 @@ Demo/
 │   │   ├── MapSerializer.js   # serialize/deserialize for Save/Load
 │   │   └── SeededRNG.js        # Pseudo-random with seed
 │   └── package.json
-├── island-generator-poc/       # Island terrain POC: 3D terrain, buildings, props, gizmos
-│   ├── index.html
+├── island-generator-poc/       # Island terrain POC: 3D terrain, buildings, props, post-processing
+│   ├── index.html              # Settings: Graphics modal (Display, Graphics, Post-processing)
 │   ├── src/
 │   │   ├── main.js             # UI, event handlers, render loop
 │   │   ├── IslandGenerator.js  # Simplex noise terrain, island properties
-│   │   ├── IslandVisualizer.js # Three.js renderer, prop placement, TransformControls
+│   │   ├── IslandVisualizer.js # Three.js renderer, PostProcessing integration
+│   │   ├── PostProcessing.js    # EffectComposer, SSAO, Bloom, FXAA, Film
 │   │   ├── IslandPropPlacer.js # Prop placement, selection, gizmo integration
 │   │   ├── PropTypes.js        # Prop definitions (BerryBush, OakTree, PalmTree, Rock)
 │   │   └── ...
@@ -911,6 +912,16 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `map-generator-poc/src/MapVisualizer.js` (Three.js, gizmo, pan/zoom)
 - [x] `map-generator-poc/src/MapEditor.js` (addNode, removeNode, addEdge, removeEdge)
 - [x] `map-generator-poc/src/MapSerializer.js` (Save/Load JSON)
+
+### Island Generator POC ✓
+- [x] `island-generator-poc/index.html` (Settings: Graphics modal)
+- [x] `island-generator-poc/package.json`, `vite.config.js`
+- [x] `island-generator-poc/src/main.js`
+- [x] `island-generator-poc/src/IslandGenerator.js`, `IslandVisualizer.js`
+- [x] `island-generator-poc/src/PostProcessing.js` (EffectComposer, SSAO, Bloom, FXAA, Film)
+- [x] `island-generator-poc/src/IslandPropPlacer.js`, `PropTypes.js`
+- [x] Post-processing pipeline + Settings: Graphics modal (Display, Graphics, Post-processing)
+- See [island-generator-poc/ISLAND_GEN_RENDERING_IMPLEMENTATION.md](island-generator-poc/ISLAND_GEN_RENDERING_IMPLEMENTATION.md)
 
 ### Phase 0 ✓
 - [x] `index.html`

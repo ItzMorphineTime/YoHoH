@@ -461,24 +461,47 @@ import { Water } from 'three/examples/jsm/objects/Water.js';
 | Normal mapping / texture splatting on terrain | Richer terrain |
 | GTAOPass | Higher-quality AO |
 
-### 4.4 Suggested Post-Processing UI
+### 4.4 Post-Processing UI (Implemented)
+
+**Settings: Graphics** — A dedicated 🎨 button (bottom-left, next to ⚙ Settings) opens a modal with collapsible sections:
 
 ```
-[ ] Post-processing
-    [ ] Bloom      Strength: [====]  Radius: [==]  Threshold: [====]
-    [ ] SSAO       Radius: [==]  MinDist: [=]  MaxDist: [=]
-    [ ] FXAA
-    [ ] Film       Intensity: [=]  [ ] Grayscale
+Settings: Graphics (modal)
+├── Display (collapsible)
+│   ├── Height scale [50–200%]
+│   ├── Wireframe [ ]
+│   ├── Shadows [ ]
+│   └── Elevation legend (Beach, Grass, Rock, Snow)
+├── Graphics (collapsible)
+│   └── Pixel ratio [0.5–2]
+└── Post-processing (collapsible)
+    ├── Enable [ ]
+    ├── Bloom [ ]  Strength [ ]  Radius [ ]  Threshold [ ]
+    ├── SSAO [ ]  Radius [ ]
+    ├── FXAA [ ]
+    ├── Film [ ]  Intensity [ ]  Grayscale [ ]
+    └── Tone exposure [ ]
 ```
 
-### 4.5 File Structure (Proposed)
+**Implementation:** `#settings-graphics-btn` opens `#settings-graphics-modal`; Escape closes. Collapsible sections use `.collapsible-control` / `.collapsible-header` / `.collapsible-content`.
+
+### 4.5 File Structure (Implemented)
 
 ```
 src/
-  IslandVisualizer.js     — Keep as-is; add composer init
-  PostProcessing.js        — EffectComposer, passes, resize, dispose
-  main.js                 — Wire UI toggles to PostProcessing
+  IslandVisualizer.js     — Integrates PostProcessing; composer.render() when enabled
+  PostProcessing.js       — EffectComposer, RenderPass, SSAOPass, UnrealBloomPass,
+                            ShaderPass(FXAAShader), FilmPass, OutputPass; resize, dispose
+  main.js                 — Wire Settings: Graphics modal controls to PostProcessing
+index.html               — Settings: Graphics modal (#settings-graphics-modal) with
+                            collapsible Display, Graphics, Post-processing sections
 ```
+
+---
+
+### 4.6 Implementation Tracker
+
+See [ISLAND_GEN_RENDERING_IMPLEMENTATION.md](ISLAND_GEN_RENDERING_IMPLEMENTATION.md) for phase status: Phase 1 (post-processing pipeline) and Phase 2 (SSAO, Settings: Graphics modal) complete; Phase 3 (LOD), Phase 4 (InstancedMesh), Phase 5 (water) pending.
 
 ---
 

@@ -59,6 +59,7 @@
 - [x] Bloom: radius, threshold sliders
 - [x] Film: grayscale toggle
 - [x] Tone mapping exposure slider
+- [x] **Settings: Graphics** modal — 🎨 button opens modal with collapsible Display, Graphics, Post-processing sections (separate from main Controls panel)
 
 ---
 
@@ -90,5 +91,5 @@
 |------|---------|
 | `src/PostProcessing.js` | New — EffectComposer, passes, resize |
 | `src/IslandVisualizer.js` | Integrate PostProcessing, use composer when enabled |
-| `index.html` | Post-processing UI section |
-| `main.js` | Wire post-processing toggles |
+| `index.html` | Settings: Graphics modal (`#settings-graphics-modal`) with collapsible Display, Graphics, Post-processing sections; 🎨 button (`#settings-graphics-btn`) |
+| `main.js` | Wire Settings: Graphics modal controls; open/close handlers; collapsible toggle |
