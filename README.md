@@ -30,7 +30,8 @@
 > *See [LORE.md](LORE.md) for the full world backstory and the Five Pirate Kings.*  
 > *See the [Presentation GDD](https://itzmorphinetime.github.io/YoHoH/) for a visual presentation (GitHub Pages).*  
 > *See [docs/STORYBOOK.html](docs/STORYBOOK.html) for in-depth lore on each Pirate King (click to open modals).*  
-> *Presentation King cards have a 📖 button to view lore. Run `npm run extract-lore` after updating LORE.md to refresh presentation data.*
+> *Presentation King cards have a 📖 button to view lore. Run `npm run extract-lore` after updating LORE.md to refresh presentation data.*  
+> *The presentation includes an interactive **3D Models** slide—click any model card to preview in 3D (drag to rotate, scroll to zoom, view presets).*
 
 - **Procedural map** — Center-out planar graph; islands and routes generated from a seed
 - **Distance = danger/reward** — Islands farther from Home offer higher risk and reward
@@ -196,7 +197,7 @@ Two proof-of-concept tools for procedural content:
 
 **Map Generator** — Center-out planar graph; islands and routes; edit mode (add/remove nodes, routes); Save/Load JSON. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §5.
 
-**Island Generator** — 3D terrain with Simplex noise; beach/grass/rock/snow elevation colors; tile-based building placement (Tavern, Shipwright, Market, Lighthouse, Warehouse, Fort, Docks, Dragon Sanctuary); **island properties** (name, description, trait, treasure, port type, hazard, faction, rumors); **building selection** — click building to select, properties panel with Rotate/Remove; **cargo size** from building dimensions; **automatic paths** (Prim's MST + A*, terrain smoothing, path color, path width 1–5); **docks over water**; brush elevation editing; Save/Load with full schema; example JSON presets. See [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md).
+**Island Generator** — 3D terrain with Simplex noise; beach/grass/rock/snow elevation colors; tile-based building placement (Tavern, Shipwright, Market, Lighthouse, Warehouse, Fort, Docks, Dragon Sanctuary); **island properties** (name, description, trait, treasure, port type, hazard, faction, rumors); **building selection** — click building to select, properties panel with Rotate/Remove; **cargo size** from building dimensions; **automatic paths** (Prim's MST + A*, terrain smoothing, path color, path width 1–5); **docks over water**; **props & decorations** (BerryBush, OakTree, PalmTree, Rock); brush elevation editing; Save/Load with full schema; example JSON presets. See [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md) for the full plan and improvement suggestions.
 <p align="center">
   <img src="Images/Islands/IslandEditor_01.png" alt="Procedural map layout" width="400">
   <img src="Images/Islands/IslandEditor_02.png" alt="Procedural map layout" width="400">
@@ -235,8 +236,9 @@ Demo/
 ├── index.html              # Main game entry
 ├── package.json
 ├── vite.config.js
-├── Images/                 # Art assets (Pirate Kings, dragons, ships, islands, maps)
-├── docs/                   # Presentation GDD (GitHub Pages)
+├── Images/                 # Art assets (Pirate Kings, dragons, ships, islands, maps, props, items)
+├── 3D_Models/              # 3D assets (FBX) — dragons, items, props, pirate kings
+├── docs/                   # Presentation GDD (GitHub Pages), 3D viewer, STORYBOOK
 ├── src/
 │   ├── main.js             # Bootstrap
 │   ├── config.js           # Centralized config (WORLD, CAMERA, COMBAT, ECONOMY, UI, etc.)
@@ -251,6 +253,8 @@ Demo/
 │   └── ui/                 # HUD, MapUI, BigMapUI, Minimap, PortUI
 ├── public/data/
 │   └── goods.json          # 8 trade goods
+├── scripts/
+│   └── extract-lore.js     # Parse LORE.md → pirate-kings-lore.json for presentation
 ├── map-generator-poc/       # Standalone archipelago map editor (Delaunay, routes)
 ├── island-generator-poc/    # Island terrain (noise, buildings, island properties, paths, Save/Load)
 └── IMPLEMENTATION_PLAN.md   # Detailed design doc

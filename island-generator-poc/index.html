@@ -188,6 +188,16 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
     .building-palette-btn[title] { cursor: pointer; }
+    .prop-palette-btn {
+      width: 28px; height: 28px; min-width: 28px; padding: 0;
+      border: 2px solid transparent; position: relative; font-size: 0; cursor: pointer;
+    }
+    .prop-palette-btn:hover { border-color: var(--block-accent); }
+    .prop-palette-btn.selected { border-color: var(--block-accent); box-shadow: 0 0 0 1px var(--block-accent); }
+    .prop-palette-btn.selected::after {
+      content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
     .building-properties-panel {
       background: linear-gradient(180deg, #141c28 0%, #0f1419 100%);
       border: 2px solid #2a3548;
@@ -434,9 +444,18 @@
       <button id="load-preset-btn" style="width: 100%; background: #374151;">Load Preset</button>
     </div>
     <div class="control-section">
-      <div class="control-section-title">Buildings</div>
+      <div class="control-section-title">Place Mode</div>
       <button id="build-mode-btn" style="width: 100%; margin-bottom: 8px; background: #374151;">Build Mode (Off)</button>
       <div id="build-panel" style="display: none;">
+        <div class="place-mode-tabs" style="display: flex; gap: 4px; margin-bottom: 8px;">
+          <label class="place-mode-tab" style="flex: 1; padding: 6px; text-align: center; background: #374151; cursor: pointer; border: 2px solid transparent;">
+            <input type="radio" name="place-mode" value="buildings" checked> Buildings
+          </label>
+          <label class="place-mode-tab" style="flex: 1; padding: 6px; text-align: center; background: #374151; cursor: pointer; border: 2px solid transparent;">
+            <input type="radio" name="place-mode" value="props"> Props
+          </label>
+        </div>
+        <div id="place-buildings-panel">
         <div class="control-section-title" style="margin-bottom: 6px;">Select building</div>
         <select id="building-type" style="display: none;" aria-hidden="true">
           <option value="tavern">Tavern</option>
@@ -482,6 +501,20 @@
           <div id="buildings-list-items" class="hint" style="font-size: 11px; max-height: 80px; overflow-y: auto;"></div>
         </div>
         <div class="hint" style="margin-top: 8px;">Click tile to place · Click building to select · Shift+Click to remove</div>
+        </div>
+        <div id="place-props-panel" style="display: none;">
+          <div class="control-section-title" style="margin-bottom: 6px;">Select prop</div>
+          <div class="prop-palette" id="prop-palette" style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <button type="button" class="prop-palette-btn selected" data-type="rock_01" title="Rock" style="background:#6b7280; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="rock_06" title="Brimstone Rock" style="background:#7f1d1d; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="palm_tree_01" title="Palm Tree 1" style="background:#16a34a; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="palm_tree_02" title="Palm Tree 2" style="background:#15803d; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="oak_tree_01" title="Oak Tree" style="background:#15803d; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="berry_bush_01" title="Berry Bush" style="background:#22c55e; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="sign" title="Sign" style="background:#78716c; width:28px; height:28px;"></button>
+          </div>
+          <div class="hint" style="margin-top: 8px;">Click tile to place · Click prop to select · Shift+Click to remove</div>
+        </div>
       </div>
     </div>
     <div class="control-section" id="selected-building-section">
@@ -519,6 +552,33 @@
           <div class="building-properties-actions">
             <button type="button" id="building-rotate-btn" style="background: #374151;">↻ Rotate</button>
             <button type="button" id="building-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="control-section" id="selected-prop-section">
+      <div class="control-section-title">Selected Prop</div>
+      <div id="prop-properties-panel" class="building-properties-panel">
+        <div id="prop-properties-empty" class="building-properties-empty">
+          Click a prop on the island to view its properties
+        </div>
+        <div id="prop-properties-content" style="display: none;">
+          <div class="building-properties-header">
+            <div class="building-properties-swatch" id="prop-prop-swatch"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div class="building-properties-name" id="prop-prop-type">—</div>
+              <div style="font-size: 10px; color: #6b7280; margin-top: 2px;" id="prop-prop-id">—</div>
+            </div>
+          </div>
+          <div class="building-properties-grid">
+            <span class="label">Position</span>
+            <span class="value" id="prop-prop-position">—</span>
+            <span class="label">Rotation</span>
+            <span class="value" id="prop-prop-rotation">—</span>
+          </div>
+          <div class="building-properties-actions">
+            <button type="button" id="prop-rotate-btn" style="background: #374151;">↻ Rotate</button>
+            <button type="button" id="prop-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 **Document status:** Planning & Implementation Reference  
 **Last updated:** 2026-01-31  
-*Added: Ramp tool; contour overlay; brush icon bar; keyboard shortcuts; elevation HUD; min/max clamp; ISLAND_RESEARCH.md for Edit/Prop UX plan*  
+*Phase H complete: Props & decorations (Place Mode tabs, prop palette, save/load, placeholder meshes)*  
 **Target:** YoHoH island-generator-poc — procedural island terrain with building placement  
 
 > **See [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md)** for detailed research, Edit mode vision, and Prop placement GUI/UX plan.
@@ -38,6 +38,7 @@
 6. [Save/Load — Config & Example JSON](#6-saveload--config--example-json)
 7. [Implementation Roadmap](#7-implementation-roadmap) (incl. Phase H: Props, Phase G: Paths)
 8. [Edit Mode & Prop Placement Plan](#8-edit-mode--prop-placement-plan) (→ ISLAND_RESEARCH.md)
+9. [Improvement Suggestions](#9-improvement-suggestions)
 
 ---
 
@@ -63,6 +64,7 @@
 | Save/Load | ✓ | JSON height map + config + buildings + island properties |
 | Orbit controls | ✓ | Pan, zoom, rotate |
 | **Automatic paths** | ✓ | A* pathfinding (MST); terrain smoothing; path color (dirt); path width (1–5 tiles) |
+| **Prop foundation** | Partial | PropTypes.js (all 3D_Models/Props); IslandPropPlacer.js — not yet wired to main.js |
 
 ### 1.2 Recent fixes
 - Edit mode hover overlay: fixed missing `ts` (tileSize) in onHoverTile callback — highlight now displays correctly
@@ -78,7 +80,8 @@
 - ~~Elevation controls are coarse (brush only; no level presets)~~ ✓ Phase B
 - ~~Save/Load does not restore UI state~~ ✓ Phase C
 - ~~No example JSON templates for common presets~~ ✓ Phase C
-- **Paths & navigation** — Automatic paths (MST) ✓; path width (1–5 tiles) ✓; remaining: ramp tool, connectivity check, generation tuning (Phase G)
+- **Paths & navigation** — Automatic paths (MST) ✓; path width (1–5 tiles) ✓; ramp tool ✓; remaining: connectivity check, generation tuning (Phase G)
+- ~~Props & decorations~~ ✓ Phase H
 
 ---
 
@@ -133,9 +136,18 @@ The island is divided into a **tile grid**. Each tile is a flat (or near-flat) u
 
 ### 2.6 Prop Sizes (Decorations)
 
-| Prop | Tiles | Notes |
-|------|-------|-------|
-| Rock, Palm Tree, Tree, Bush, Sign | 1×1 | All props are single-tile |
+All props are **1×1 tile**. Props from `3D_Models/Props` (FBX):
+
+| Prop | Tiles | Asset | Notes |
+|------|-------|-------|-------|
+| BerryBush_01 | 1×1 | BerryBush_01.fbx | Berry bush, foliage |
+| BerryBush_02 | 1×1 | BerryBush_02.fbx | Berry bush variant 2 |
+| OakTree_01 | 1×1 | OakTree_01.fbx | Oak tree, inland |
+| PalmTree_01 | 1×1 | PalmTree_01.fbx | Palm tree variant 1 |
+| PalmTree_02 | 1×1 | PalmTree_02.fbx | Palm tree variant 2 |
+| Rock_01 | 1×1 | Rock_01.fbx | Standard rock, boulder |
+| Rock_06 | 1×1 | Rock_06.fbx | Brimstone rock (volcanic) |
+| Sign | 1×1 | — | Placeholder; no 3D model yet |
 
 ---
 
@@ -260,15 +272,30 @@ Buildings for the **YoHoH** pirate game — islands in the Shattered Seas where 
 
 ### 5.2 Placeable Props & Decorations
 
-Natural and decorative objects for island atmosphere. All are **1×1 tile**; no terrain flattening (they sit on existing terrain).
+Natural and decorative objects for island atmosphere. All are **1×1 tile**; no terrain flattening (they sit on existing terrain). Props use FBX models from `3D_Models/Props`.
 
-| Type | Size | Purpose | Theme |
-|------|------|---------|-------|
-| **Rock** | 1×1 | Terrain detail, boulders | Coastal rocks, inland outcrops |
-| **Palm Tree** | 1×1 | Tropical vegetation | Beach, shoreline |
-| **Tree** | 1×1 | Forest, shade | Inland, grassy areas |
-| **Bush** | 1×1 | Low vegetation, foliage | Path edges, building surrounds |
-| **Sign** | 1×1 | Wayfinding, lore, labels | Paths, building entrances |
+| Type | Size | Asset Path | Purpose | Theme |
+|------|------|------------|---------|-------|
+| **BerryBush_01** | 1×1 | `Props/BerryBush_01/BerryBush_01.fbx` | Low vegetation, berries | Path edges, building surrounds |
+| **BerryBush_02** | 1×1 | `Props/BerryBush_02/BerryBush_02.fbx` | Berry bush variant 2 | Foliage variety |
+| **OakTree_01** | 1×1 | `Props/OakTree_01/OakTree_01.fbx` | Forest, shade | Inland, grassy areas |
+| **PalmTree_01** | 1×1 | `Props/PalmTree_01/PalmTree_01.fbx` | Tropical vegetation | Beach, shoreline |
+| **PalmTree_02** | 1×1 | `Props/PalmTree_02/PalmTree_02.fbx` | Palm variant 2 | Beach, shoreline |
+| **Rock_01** | 1×1 | `Props/Rock_01/Rock_01.fbx` | Terrain detail, boulders | Coastal rocks, inland outcrops |
+| **Rock_06** | 1×1 | `Props/Rock_06/Rock_06.fbx` | Volcanic/brimstone rock | Hazard zones, lava areas |
+| **Sign** | 1×1 | — | Wayfinding, lore, labels | Placeholder; no 3D model yet |
+
+**3D_Models/Props inventory (source assets):**
+
+| Folder | FBX | Textures |
+|--------|-----|----------|
+| BerryBush_01 | BerryBush_01.fbx | _texture.png, _metallic, _normal, _roughness |
+| BerryBush_02 | BerryBush_02.fbx | _texture.png, _metallic, _normal, _roughness |
+| OakTree_01 | OakTree_01.fbx | _texture.png, _metallic, _normal, _roughness |
+| PalmTree_01 | PalmTree_01.fbx | _texture.png, _metallic, _normal, _roughness |
+| PalmTree_02 | PalmTree_02.fbx | _texture.png, _metallic, _normal, _roughness |
+| Rock_01 | Rock_01.fbx | _texture.png, _metallic, _normal, _roughness |
+| Rock_06 | Rock_06.fbx | _texture.png, _metallic, _normal, _roughness |
 
 **Placement rules for props:**
 - Snap to tile grid
@@ -357,8 +384,10 @@ Natural and decorative objects for island atmosphere. All are **1×1 tile**; no 
 | **BuildingTypes** | `BuildingTypes.js` | Defines building types: `id`, `width`, `height`, `name`, `color` (hex). Exports `BUILDING_TYPES`, `getBuildingType()`, `getBuildingSize()`. |
 | **IslandBuildingPlacer** | `IslandBuildingPlacer.js` | Handles mouse input, tile hit-testing (raycaster), placement/remove/select logic, terrain flattening, validation. `onBuildingSelect` fires on click; cargoSize = width×height×10 on place. Calls `visualizer.renderBuildings()` and callbacks. |
 | **IslandPathfinder** | `IslandPathfinder.js` | A* pathfinding between building centers; MST (Prim's) for building connectivity; `expandPathTiles` (path width 1–5); `computePathTiles`, `smoothPathTerrain`, `computePathsBetweenBuildings`. Exports `PATH_COLOR`, `computePathsBetweenBuildings`. |
-| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`), placement preview (`setPlacementPreview` — ghost building or invalid overlay). Buildings are `BoxGeometry` meshes parented to **island mesh** (not scene). `_clearBuildings` must remove from `mesh.parent`, not `scene`. |
-| **main.js** | `main.js` | Wires Build Mode UI, `onBuildingsChange`, `onHeightMapChange`; calls `computePathsBetweenBuildings` when buildings change; updates `currentIsland`, editor, visualizer when buildings or terrain change. |
+| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`), placement preview (`setPlacementPreview` — ghost building or invalid overlay). Buildings are `BoxGeometry` meshes parented to **island mesh** (not scene). `_clearBuildings` must remove from `mesh.parent`, not `scene`. Phase H: `renderProps()`, `setPropPlacementPreview()`, `setPropHighlight()` (planned). |
+| **main.js** | `main.js` | Wires Build Mode UI, `onBuildingsChange`, `onHeightMapChange`; calls `computePathsBetweenBuildings` when buildings change; updates `currentIsland`, editor, visualizer when buildings or terrain change. Phase H: wire Place Mode (Buildings/Props tabs), IslandPropPlacer, props save/load. |
+| **PropTypes** | `PropTypes.js` | Defines prop types (berry_bush_01, oak_tree_01, palm_tree_01/02, rock_01/06, sign); `fbxPath`, `placeholderShape`. Exports `PROP_TYPES`, `getPropType()`. |
+| **IslandPropPlacer** | `IslandPropPlacer.js` | Handles prop placement (1×1); land-only; no overlap with buildings; no terrain flattening. `onPropsChange`, `onPropHover`, `onPropSelect`. Calls `visualizer.renderProps()` (when wired). |
 
 **Data flow:**
 1. User enables Build Mode → `buildingPlacer.enable(container)`; `setHeightMap`, `setTileConfig`, `setSeaLevel`, `setBuildings` from `currentIsland`
@@ -407,17 +436,25 @@ Result: building sits on a flat platform; terrain is modified in place before th
 
 ### 5.11 Props Data Model (Future)
 
+Props use types from `3D_Models/Props`. Each type maps to an FBX asset.
+
 ```js
 {
   "props": [
-    { "id": "p1", "type": "rock", "chunkX": 5, "chunkY": 4, "rotation": 0 },
-    { "id": "p2", "type": "palm_tree", "chunkX": 3, "chunkY": 7, "rotation": 45 },
-    { "id": "p3", "type": "tree", "chunkX": 8, "chunkY": 6, "rotation": 0 },
-    { "id": "p4", "type": "bush", "chunkX": 6, "chunkY": 5, "rotation": 90 },
-    { "id": "p5", "type": "sign", "chunkX": 7, "chunkY": 4, "rotation": 0 }
+    { "id": "p1", "type": "rock_01", "chunkX": 5, "chunkY": 4, "rotation": 0 },
+    { "id": "p2", "type": "rock_06", "chunkX": 6, "chunkY": 4, "rotation": 0 },
+    { "id": "p3", "type": "palm_tree_01", "chunkX": 3, "chunkY": 7, "rotation": 45 },
+    { "id": "p4", "type": "palm_tree_02", "chunkX": 4, "chunkY": 7, "rotation": 90 },
+    { "id": "p5", "type": "oak_tree_01", "chunkX": 8, "chunkY": 6, "rotation": 0 },
+    { "id": "p6", "type": "berry_bush_01", "chunkX": 6, "chunkY": 5, "rotation": 90 },
+    { "id": "p7", "type": "sign", "chunkX": 7, "chunkY": 4, "rotation": 0 }
   ]
 }
 ```
+
+**Prop type IDs (from 3D_Models/Props):** `berry_bush_01`, `berry_bush_02`, `oak_tree_01`, `palm_tree_01`, `palm_tree_02`, `rock_01`, `rock_06`, `sign`
+
+**Migration:** Old saves with generic types (`rock`, `palm_tree`, `tree`, `bush`) map to: `rock`→`rock_01`, `palm_tree`→`palm_tree_01`, `tree`→`oak_tree_01`, `bush`→`berry_bush_01`.
 
 ### 5.12 Automatic Paths Between Buildings
 
@@ -470,7 +507,7 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 | **Distinct meshes** | Per-type geometry (cylinder for lighthouse, etc.) instead of boxes |
 | **Undo/Redo for buildings** | Stack of building placement/removal actions |
 | **Path-aware placement** | Validate that new buildings remain reachable from existing ones |
-| **Props & decorations** | Rocks, Palm Trees, Trees, Bushes, Signs — 1×1 placeable objects (Phase H) |
+| **Props & decorations** | BerryBush_01, OakTree_01, PalmTree_01/02, Rock_01/06, Sign — 1×1 placeable (Phase H; foundation partial) |
 
 ---
 
@@ -664,16 +701,16 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 - [x] Brush tool bar as compact icon row; keyboard shortcuts (1–7, E, Z, Y, B)
 - [ ] Performance: LOD or reduced grid for large sizes
 
-### Phase H: Props & Decorations (Design Target)
+### Phase H: Props & Decorations ✓
 
-*Placeable natural and decorative objects for island atmosphere. Full UX plan: [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md) §4.*
+*Placeable natural and decorative objects for island atmosphere. Full UX plan: [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md) §4. Assets from `3D_Models/Props` (FBX).*
 
-- [ ] **Prop types** — Rock, Palm Tree, Tree, Bush, Sign (all 1×1)
-- [ ] **Place Mode** — [Buildings] [Props] tabs; visual palette for props
-- [ ] **Placement** — Click tile to place; ghost preview; land-only; no terrain flattening
-- [ ] **Selection** — Click prop → properties panel (Rotate, Remove); Shift+click to remove
-- [ ] **Rendering** — Placeholder meshes per type (cylinder palm, sphere bush, etc.)
-- [ ] **Save/Load** — Include `props` array in island JSON
+- [x] **PropTypes.js** — berry_bush_01, oak_tree_01, palm_tree_01, palm_tree_02, rock_01, rock_06, sign (all 1×1; FBX paths)
+- [x] **IslandPropPlacer.js** — placement logic; land-only; no overlap with buildings; selection callbacks
+- [x] **IslandSerializer** — Include `props` array in serialize/deserialize
+- [x] **IslandVisualizer** — `renderProps()`, `setPropPlacementPreview()`, `setPropHighlight()`; placeholder meshes per type
+- [x] **main.js** — IslandPropPlacer; placeMode (Buildings/Props); callbacks; load/save props
+- [x] **Place Mode UI** — [Buildings] [Props] tabs; prop palette; Selected Prop panel (Rotate, Remove)
 
 ### Phase G: Paths & Navigation (Partial ✓)
 
@@ -712,7 +749,7 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 | Aspect | Plan |
 |--------|------|
 | **Mode** | Place Mode with [Buildings] [Props] tabs; mutually exclusive |
-| **Prop types** | Rock, Palm Tree, Tree, Bush, Sign (all 1×1) |
+| **Prop types** | BerryBush_01, OakTree_01, PalmTree_01, PalmTree_02, Rock_01, Rock_06, Sign (all 1×1; from 3D_Models/Props) |
 | **Palette** | Visual icon row; click to select; click tile to place |
 | **Placement** | Land only; no terrain flattening; ghost preview |
 | **Selection** | Click prop → properties panel (Rotate, Remove) |
@@ -721,9 +758,68 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 
 ### 8.3 Implementation Phases (from ISLAND_RESEARCH.md)
 
-1. **Edit Mode Polish** — Icon row, shortcuts, HUD, min/max clamp
-2. **Edit Mode New Tools** — Ramp tool, contour overlay
-3. **Prop Mode Foundation** — PropTypes, data model, placer, rendering
+1. **Edit Mode Polish** — ✓ Icon row, shortcuts, HUD, min/max clamp
+2. **Edit Mode New Tools** — ✓ Ramp tool, contour overlay
+3. **Prop Mode Foundation** — ✓ PropTypes, IslandPropPlacer, Serializer, Visualizer
 4. **Prop Mode UI** — Place Mode tabs, palette, preview, properties
 5. **Prop Mode Polish** — Selection, eraser, optional Sign text
 6. **Unified UX Pass** — Layout consolidation, mode indicator, tooltips
+
+---
+
+## 9. Improvement Suggestions
+
+Prioritized ideas to evolve the Island Generator. Use as a backlog for future phases.
+
+### 9.1 Navigation & Pathfinding
+
+| Suggestion | Description | Priority |
+|------------|-------------|----------|
+| **Building zone hints** | Highlight contiguous flat land suitable for placement (e.g. green overlay on viable tiles) | High |
+| **Connectivity check** | Warn when placing a building would isolate it (no path to other buildings); optional validation toggle | High |
+| **Path debug overlay** | Toggle to visualize path graph, MST edges, A* routes — useful for tuning and debugging | Medium |
+| **Generation tuning** | Add parameters that favor navigable terrain (e.g. flatter inland, gentler slopes near coast) | Medium |
+| **Walkability flags** | Per-tile flags for impassable terrain (cliffs, hazards); integrate with pathfinding | Low |
+
+### 9.2 Props & Visuals
+
+| Suggestion | Description | Priority |
+|------------|-------------|----------|
+| **Load FBX props** | Replace placeholder meshes with actual FBX models from `3D_Models/Props`; PBR textures (like docs 3D viewer) | High |
+| **BerryBush_02** | Add BerryBush_02 to PropTypes; supports variety in foliage placement | Medium |
+| **Prop scatter mode** | Paint/scatter multiple props in a brush area; density slider per type | Medium |
+| **Procedural props** | Auto-scatter trees/rocks on unoccupied land; density by elevation band (e.g. palms near beach, oaks inland) | Low |
+| **Building icons** | Visual palette with icons per building type instead of colored squares | Low |
+
+### 9.3 Integration & Workflow
+
+| Suggestion | Description | Priority |
+|------------|-------------|----------|
+| **Export to map-generator-poc** | Export island JSON for use as archipelago node; share building/prop schemas with main game | High |
+| **Multi-island presets** | Quick generation of archipelago templates (e.g. 3-island cluster, linear chain) | Medium |
+| **Share islands** | Copy JSON to clipboard; import from URL (e.g. GitHub Gist); community presets | Low |
+
+### 9.4 Performance & Scale
+
+| Suggestion | Description | Priority |
+|------------|-------------|----------|
+| **LOD / reduced grid** | Level-of-detail for large grids; optional simplified mesh at distance | High |
+| **Chunked generation** | Generate terrain in chunks for very large islands; lazy load heightmap regions | Medium |
+| **Prop batching** | Instanced rendering for repeated props (trees, rocks) to reduce draw calls | Medium |
+
+### 9.5 UX & Accessibility
+
+| Suggestion | Description | Priority |
+|------------|-------------|----------|
+| **Building rotation preview** | Ghost building rotates with scroll or R key before placement | Medium |
+| **Undo/Redo for buildings** | Stack of building placement/removal actions (separate from terrain undo) | Medium |
+| **Keyboard-only placement** | Arrow keys to move ghost; Enter to place; Tab to cycle building type | Low |
+| **Tooltips** | Hover hints on palette buttons, brush tools, sliders | Low |
+
+### 9.6 Terrain & Water
+
+| Suggestion | Description | Priority |
+|------------|-------------|----------|
+| **Water visualization** | Improve sea rendering; wave animation, depth shading, shoreline foam | Medium |
+| **Terrain biomes** | Different surface types by region (volcanic vs tropical vs temperate); affects prop placement hints | Low |
+| **Docks water mesh** | Water mesh around dock piers; better integration of docks with sea | Low |

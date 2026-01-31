@@ -7,7 +7,9 @@ import { generateIsland } from './IslandGenerator.js';
 import { IslandVisualizer } from './IslandVisualizer.js';
 import { IslandEditor, ELEVATION_LEVELS } from './IslandEditor.js';
 import { IslandBuildingPlacer } from './IslandBuildingPlacer.js';
+import { IslandPropPlacer } from './IslandPropPlacer.js';
 import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject, setBuildingDimensionOverride } from './BuildingTypes.js';
+import { PROP_TYPES, getPropType } from './PropTypes.js';
 import { serialize, deserialize } from './IslandSerializer.js';
 import { computePathsBetweenBuildings } from './IslandPathfinder.js';
 
@@ -23,11 +25,14 @@ visualizer.animate();
 
 const editor = new IslandEditor(visualizer);
 const buildingPlacer = new IslandBuildingPlacer(visualizer);
+const propPlacer = new IslandPropPlacer(visualizer);
 
 let currentIsland = null;
 let editMode = false;
 let buildMode = false;
+let placeMode = 'buildings'; // 'buildings' | 'props'
 let selectedBuilding = null;
+let selectedProp = null;
 
 const UNDO_LIMIT = 20;
 let undoStack = [];
@@ -107,6 +112,7 @@ function run() {
   const config = getConfig();
   const island = generateIsland(config);
   island.config = { ...island.config, pathWidth: config.pathWidth };
+  island.props = island.props ?? [];
   currentIsland = island;
   editor.setHeightMap(island.heightMap);
 
@@ -147,7 +153,9 @@ function run() {
   updateStats(island);
   populateIslandProperties();
   selectedBuilding = null;
+  selectedProp = null;
   populateBuildingProperties();
+  populatePropProperties();
   syncContourOverlay();
   if (!buildMode) {
     buildingPlacer.disable();
@@ -156,6 +164,11 @@ function run() {
     buildingPlacer.onPlacementHover = null;
     buildingPlacer.onBuildingHover = null;
     buildingPlacer.onBuildingSelect = null;
+    propPlacer.disable();
+    propPlacer.onPropsChange = null;
+    propPlacer.onPlacementHover = null;
+    propPlacer.onPropHover = null;
+    propPlacer.onPropSelect = null;
   }
   if (!buildMode && (island.buildings?.length ?? 0) > 0) {
     buildingPlacer.setHeightMap(island.heightMap);
@@ -184,8 +197,34 @@ function run() {
     };
     buildingPlacer.onPlacementHover = () => visualizer.clearPlacementPreview();
     buildingPlacer.enable(container, { selectionOnly: true });
-  } else if (!buildMode) {
-    buildingPlacer.disable();
+  }
+  if (!buildMode && (island.props?.length ?? 0) > 0) {
+    propPlacer.setHeightMap(island.heightMap);
+    const cfg = island.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = cfg?.tilesX ?? Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+    const tilesY = cfg?.tilesY ?? tilesX;
+    propPlacer.setTileConfig(ts, tilesX, tilesY);
+    propPlacer.setSeaLevel(cfg?.seaLevel ?? 0.12);
+    propPlacer.setProps(island.props);
+    propPlacer.setBuildings(island.buildings ?? []);
+    propPlacer.onPropHover = (prop) => {
+      const hm = currentIsland?.heightMap;
+      const cfg = currentIsland?.config;
+      const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+      const tilesX = cfg?.tilesX ?? Math.floor((hm?.length - 1 ?? 0) / ts);
+      const tilesY = cfg?.tilesY ?? tilesX;
+      if (prop && hm) visualizer.setPropHighlight(prop, hm, ts, tilesX, tilesY);
+      else visualizer.clearPropHighlight();
+    };
+    propPlacer.onPropSelect = (prop) => {
+      selectedProp = prop;
+      selectedBuilding = null;
+      populatePropProperties();
+      populateBuildingProperties();
+    };
+    propPlacer.onPlacementHover = () => visualizer.clearPropPlacementPreview();
+    propPlacer.enable(container, { selectionOnly: true });
   }
   if (buildMode) {
     setBuildMode(true);
@@ -283,15 +322,24 @@ function setBuildMode(enabled) {
   const inputHint = document.getElementById('input-hint');
   if (inputHint) inputHint.textContent = enabled ? 'Left=place · Right=orbit · Shift+Left=remove · Scroll=zoom' : (editMode ? 'Left=paint · Right=orbit · Space+Left=orbit · Scroll=zoom' : 'Left=orbit · Right=pan · Scroll=zoom');
   if (enabled) {
-    buildingPlacer.setHeightMap(currentIsland?.heightMap);
+    placeMode = document.querySelector('input[name="place-mode"]:checked')?.value || 'buildings';
     const cfg = currentIsland?.config;
     const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
     const tilesX = cfg?.tilesX ?? Math.floor((currentIsland?.heightMap?.length - 1 ?? 0) / ts);
     const tilesY = cfg?.tilesY ?? tilesX;
+
+    buildingPlacer.setHeightMap(currentIsland?.heightMap);
     buildingPlacer.setTileConfig(ts, tilesX, tilesY);
     buildingPlacer.setSeaLevel(cfg?.seaLevel ?? 0.12);
     buildingPlacer.setBuildings(currentIsland?.buildings ?? []);
     buildingPlacer.setSelectedType(document.getElementById('building-type')?.value || 'tavern');
+
+    propPlacer.setHeightMap(currentIsland?.heightMap);
+    propPlacer.setTileConfig(ts, tilesX, tilesY);
+    propPlacer.setSeaLevel(cfg?.seaLevel ?? 0.12);
+    propPlacer.setProps(currentIsland?.props ?? []);
+    propPlacer.setBuildings(currentIsland?.buildings ?? []);
+    propPlacer.setSelectedType(document.querySelector('#prop-palette .prop-palette-btn.selected')?.dataset?.type || 'rock_01');
     buildingPlacer.onBuildingsChange = (buildings) => {
       currentIsland = { ...currentIsland, buildings };
       const cfg = currentIsland?.config;
@@ -347,25 +395,76 @@ function setBuildMode(enabled) {
     };
     buildingPlacer.onBuildingSelect = (building) => {
       selectedBuilding = building;
+      selectedProp = null;
+      populateBuildingProperties();
+      populatePropProperties();
+    };
+    propPlacer.onPropsChange = (props) => {
+      currentIsland = { ...currentIsland, props };
+      visualizer.renderProps(props, currentIsland?.heightMap ?? [], ts, tilesX, tilesY);
+      if (typeof updatePropHud === 'function') updatePropHud();
+    };
+    propPlacer.onPlacementHover = (tx, ty, isValid) => {
+      const hm = currentIsland?.heightMap;
+      if (tx != null && ty != null && hm) {
+        visualizer.setPropPlacementPreview(tx, ty, propPlacer.selectedType, isValid, hm, ts, tilesX, tilesY);
+      } else {
+        visualizer.clearPropPlacementPreview();
+      }
+    };
+    propPlacer.onPropHover = (prop) => {
+      const hm = currentIsland?.heightMap;
+      if (prop && hm) visualizer.setPropHighlight(prop, hm, ts, tilesX, tilesY);
+      else visualizer.clearPropHighlight();
+    };
+    propPlacer.onPropSelect = (prop) => {
+      selectedProp = prop;
+      selectedBuilding = null;
+      populatePropProperties();
       populateBuildingProperties();
     };
-    buildingPlacer.enable(container);
+
+    if (placeMode === 'buildings') {
+      buildingPlacer.enable(container);
+      propPlacer.disable();
+    } else {
+      propPlacer.enable(container);
+      buildingPlacer.disable();
+    }
     const showGrid = document.getElementById('show-grid-overlay')?.checked;
     visualizer.setTileGridOverlay(showGrid, tilesX, tilesY, currentIsland?.heightMap?.length - 1 ?? 0);
     syncBuildingPalette(buildingPlacer.selectedType);
     syncBuildingDimensions(buildingPlacer.selectedType);
+    syncPropPalette(propPlacer.selectedType);
+    const buildingsPanel = document.getElementById('place-buildings-panel');
+    const propsPanel = document.getElementById('place-props-panel');
+    if (placeMode === 'buildings') {
+      if (buildingsPanel) buildingsPanel.style.display = 'block';
+      if (propsPanel) propsPanel.style.display = 'none';
+    } else {
+      if (buildingsPanel) buildingsPanel.style.display = 'none';
+      if (propsPanel) propsPanel.style.display = 'block';
+    }
     updateBuildingsList();
     populateBuildingProperties();
+    populatePropProperties();
   } else {
     buildingPlacer.disable();
+    propPlacer.disable();
     buildingPlacer.onBuildingsChange = null;
     buildingPlacer.onHeightMapChange = null;
     buildingPlacer.onPlacementHover = null;
     buildingPlacer.onBuildingHover = null;
     buildingPlacer.onBuildingSelect = null;
+    propPlacer.onPropsChange = null;
+    propPlacer.onPlacementHover = null;
+    propPlacer.onPropHover = null;
+    propPlacer.onPropSelect = null;
     visualizer.setTileGridOverlay(false);
     visualizer.clearPlacementPreview();
     visualizer.clearBuildingHighlight();
+    visualizer.clearPropPlacementPreview();
+    visualizer.clearPropHighlight();
     if (buildModeHud) buildModeHud.style.display = 'none';
     const buildings = currentIsland?.buildings ?? [];
     if (buildings.length > 0) {
@@ -406,11 +505,22 @@ function setBuildMode(enabled) {
 function updateBuildModeHud() {
   if (!buildModeHud) return;
   if (!buildMode) return;
-  const def = getBuildingType(buildingPlacer.selectedType);
-  const name = def?.name ?? buildingPlacer.selectedType ?? '—';
-  const count = buildingPlacer.getBuildings().length;
-  buildModeHud.textContent = `Building: ${name} · ${count} placed`;
+  if (placeMode === 'props') {
+    const def = getPropType(propPlacer.selectedType);
+    const name = def?.name ?? propPlacer.selectedType ?? '—';
+    const count = propPlacer.getProps().length;
+    buildModeHud.textContent = `Prop: ${name} · ${count} placed`;
+  } else {
+    const def = getBuildingType(buildingPlacer.selectedType);
+    const name = def?.name ?? buildingPlacer.selectedType ?? '—';
+    const count = buildingPlacer.getBuildings().length;
+    buildModeHud.textContent = `Building: ${name} · ${count} placed`;
+  }
   buildModeHud.style.display = 'block';
+}
+
+function updatePropHud() {
+  updateBuildModeHud();
 }
 
 function updateBuildingsList() {
@@ -503,6 +613,37 @@ function populateBuildingProperties() {
   if (cargoFormulaEl) cargoFormulaEl.textContent = `${bSize.width}×${bSize.height} × 10 = ${bSize.width * bSize.height * 10} units`;
 }
 
+function populatePropProperties() {
+  const emptyEl = document.getElementById('prop-properties-empty');
+  const contentEl = document.getElementById('prop-properties-content');
+  const typeEl = document.getElementById('prop-prop-type');
+  const idEl = document.getElementById('prop-prop-id');
+  const swatchEl = document.getElementById('prop-prop-swatch');
+  const posEl = document.getElementById('prop-prop-position');
+  const rotationEl = document.getElementById('prop-prop-rotation');
+  if (!emptyEl || !contentEl) return;
+  if (!selectedProp) {
+    emptyEl.style.display = 'block';
+    contentEl.style.display = 'none';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  contentEl.style.display = 'block';
+  const def = getPropType(selectedProp.type);
+  const rot = selectedProp.rotation ?? 0;
+  if (typeEl) typeEl.textContent = def?.name ?? selectedProp.type ?? '—';
+  if (idEl) idEl.textContent = selectedProp.id ?? '—';
+  if (swatchEl && def) swatchEl.style.backgroundColor = hexToCss(def.color);
+  if (posEl) posEl.textContent = `Tile (${selectedProp.chunkX}, ${selectedProp.chunkY})`;
+  if (rotationEl) rotationEl.textContent = `${rot}°`;
+}
+
+function syncPropPalette(selectedType) {
+  document.querySelectorAll('#prop-palette .prop-palette-btn').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.type === selectedType);
+  });
+}
+
 function migrateBuildingCargoSize(buildings) {
   if (!Array.isArray(buildings)) return buildings;
   return buildings.map((b) => {
@@ -577,6 +718,7 @@ function saveIsland() {
   const mode = document.getElementById('save-mode')?.value || 'full';
   const rawBuildings = buildMode ? buildingPlacer.getBuildings() : (currentIsland.buildings ?? []);
   const buildings = normalizeBuildingsForSave(rawBuildings);
+  const rawProps = buildMode ? propPlacer.getProps() : (currentIsland.props ?? []);
   const island = {
     ...currentIsland,
     heightMap: mode === 'full' ? (editor.getHeightMap() ?? currentIsland.heightMap) : undefined,
@@ -585,6 +727,7 @@ function saveIsland() {
       wireframe: document.getElementById('wireframe').checked,
     },
     buildings: mode === 'full' ? buildings : [],
+    props: mode === 'full' ? rawProps : [],
   };
   const json = serialize(island);
   const blob = new Blob([json], { type: 'application/json' });
@@ -683,6 +826,7 @@ function loadIslandFromFile() {
         } else {
           island = generateIsland(getConfig());
           island.buildings = buildings;
+          island.props = props;
           island.config = { ...island.config, pathWidth: config.pathWidth };
           island.name = data.name ?? island.name ?? '';
           island.description = data.description ?? island.description ?? '';
@@ -711,6 +855,11 @@ function loadIslandFromFile() {
           const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
           const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
           visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesX);
+        }
+        if (island.props?.length) {
+          const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
+          const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+          visualizer.renderProps(island.props, island.heightMap, ts, tilesX, tilesX);
         }
         updateStats(island);
         populateIslandProperties();
@@ -931,6 +1080,7 @@ document.getElementById('building-remove-btn')?.addEventListener('click', () => 
   }
   selectedBuilding = null;
   populateBuildingProperties();
+  populatePropProperties();
   const cfg = currentIsland.config;
   const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
   const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
@@ -957,6 +1107,62 @@ document.getElementById('edit-mode-btn').addEventListener('click', () => {
 
 document.getElementById('build-mode-btn')?.addEventListener('click', () => {
   setBuildMode(!buildMode);
+});
+
+document.querySelectorAll('input[name="place-mode"]').forEach((radio) => {
+  radio.addEventListener('change', (e) => {
+    placeMode = e.target.value;
+    if (buildMode) setBuildMode(true);
+    const buildingsPanel = document.getElementById('place-buildings-panel');
+    const propsPanel = document.getElementById('place-props-panel');
+    if (placeMode === 'buildings') {
+      if (buildingsPanel) buildingsPanel.style.display = 'block';
+      if (propsPanel) propsPanel.style.display = 'none';
+    } else {
+      if (buildingsPanel) buildingsPanel.style.display = 'none';
+      if (propsPanel) propsPanel.style.display = 'block';
+    }
+  });
+});
+
+document.querySelectorAll('#prop-palette .prop-palette-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (!type) return;
+    propPlacer.setSelectedType(type);
+    syncPropPalette(type);
+    updateBuildModeHud();
+  });
+});
+
+document.getElementById('prop-rotate-btn')?.addEventListener('click', () => {
+  if (!selectedProp || !currentIsland) return;
+  const rots = [0, 90, 180, 270];
+  const idx = rots.indexOf(selectedProp.rotation ?? 0);
+  selectedProp.rotation = rots[(idx + 1) % 4];
+  const props = buildMode ? propPlacer.getProps() : (currentIsland.props ?? []);
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  visualizer.renderProps(props, currentIsland.heightMap, ts, tilesX, tilesY);
+  if (buildMode && propPlacer.onPropsChange) propPlacer.onPropsChange(props);
+  currentIsland = { ...currentIsland, props };
+  populatePropProperties();
+});
+
+document.getElementById('prop-remove-btn')?.addEventListener('click', () => {
+  if (!selectedProp || !currentIsland) return;
+  const props = (currentIsland.props ?? []).filter((p) => p !== selectedProp);
+  currentIsland = { ...currentIsland, props };
+  if (buildMode) propPlacer.setProps(props);
+  selectedProp = null;
+  populatePropProperties();
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  visualizer.renderProps(props, currentIsland.heightMap, ts, tilesX, tilesY);
 });
 
 document.getElementById('building-type')?.addEventListener('change', (e) => {

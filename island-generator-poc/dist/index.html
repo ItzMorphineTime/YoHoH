@@ -188,57 +188,77 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
     .building-palette-btn[title] { cursor: pointer; }
+    .prop-palette-btn {
+      width: 28px; height: 28px; min-width: 28px; padding: 0;
+      border: 2px solid transparent; position: relative; font-size: 0; cursor: pointer;
+    }
+    .prop-palette-btn:hover { border-color: var(--block-accent); }
+    .prop-palette-btn.selected { border-color: var(--block-accent); box-shadow: 0 0 0 1px var(--block-accent); }
+    .prop-palette-btn.selected::after {
+      content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
     .building-properties-panel {
-      background: #0f1419;
-      border: var(--block-border);
-      border-radius: var(--block-radius);
-      padding: 12px;
-      margin-top: 8px;
+      background: linear-gradient(180deg, #141c28 0%, #0f1419 100%);
+      border: 2px solid #2a3548;
+      border-radius: 6px;
+      padding: 14px;
+      margin-top: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     .building-properties-header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-      padding-bottom: 10px;
-      border-bottom: var(--block-border);
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #2a3548;
     }
     .building-properties-swatch {
-      width: 28px;
-      height: 28px;
-      min-width: 28px;
-      border: 2px solid rgba(255,255,255,0.2);
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius: 4px;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
     }
-    .building-properties-name { font-size: 14px; font-weight: 700; color: var(--block-accent); }
+    .building-properties-name { font-size: 15px; font-weight: 700; color: var(--block-accent); letter-spacing: 0.3px; }
     .building-properties-empty {
-      padding: 16px;
+      padding: 24px 16px;
       text-align: center;
       font-size: 12px;
       color: #6b7280;
+      border: 1px dashed #374151;
+      border-radius: 4px;
+      background: rgba(15, 20, 25, 0.5);
     }
     .building-properties-grid {
       display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 6px 12px;
+      grid-template-columns: 90px 1fr;
+      gap: 8px 16px;
       font-size: 12px;
     }
-    .building-properties-grid .label { color: #6b7280; }
+    .building-properties-grid .label { color: #9ca3af; font-weight: 500; }
     .building-properties-grid .value { color: #e8e6e3; }
     .building-properties-cargo {
       grid-column: 1 / -1;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      background: rgba(14, 165, 233, 0.15);
-      border: 1px solid rgba(14, 165, 233, 0.3);
-      margin-top: 4px;
-      margin-bottom: 4px;
+      gap: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(14, 165, 233, 0.08) 100%);
+      border: 1px solid rgba(14, 165, 233, 0.4);
+      border-radius: 6px;
+      margin-top: 10px;
+      margin-bottom: 6px;
+      box-shadow: 0 0 0 1px rgba(14, 165, 233, 0.1);
     }
-    .building-properties-cargo-icon { font-size: 18px; }
-    .building-properties-cargo-value { font-size: 16px; font-weight: 700; color: var(--block-accent); }
-    .building-properties-cargo-label { font-size: 11px; color: #6b7280; }
-    .building-properties-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .building-properties-cargo-icon { font-size: 24px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+    .building-properties-cargo-main { flex: 1; }
+    .building-properties-cargo-value { font-size: 22px; font-weight: 800; color: var(--block-accent); letter-spacing: 0.5px; line-height: 1.2; }
+    .building-properties-cargo-label { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .building-properties-cargo-formula { font-size: 10px; color: #6b7280; margin-top: 4px; opacity: 0.9; }
+    .building-properties-actions { display: flex; gap: 8px; margin-top: 14px; }
     .building-properties-actions button { flex: 1; }
     .save-load-btns { display: flex; gap: 8px; }
     .save-load-btns button { flex: 1; min-width: 0; }
@@ -331,7 +351,7 @@
     }
     .controls-help-section li { padding-left: 0; }
   </style>
-  <script type="module" crossorigin src="/assets/index-rIaLLx_O.js"></script>
+  <script type="module" crossorigin src="/assets/index-DYgldnOP.js"></script>
 </head>
 <body>
   <div id="canvas-container"></div>
@@ -425,9 +445,18 @@
       <button id="load-preset-btn" style="width: 100%; background: #374151;">Load Preset</button>
     </div>
     <div class="control-section">
-      <div class="control-section-title">Buildings</div>
+      <div class="control-section-title">Place Mode</div>
       <button id="build-mode-btn" style="width: 100%; margin-bottom: 8px; background: #374151;">Build Mode (Off)</button>
       <div id="build-panel" style="display: none;">
+        <div class="place-mode-tabs" style="display: flex; gap: 4px; margin-bottom: 8px;">
+          <label class="place-mode-tab" style="flex: 1; padding: 6px; text-align: center; background: #374151; cursor: pointer; border: 2px solid transparent;">
+            <input type="radio" name="place-mode" value="buildings" checked> Buildings
+          </label>
+          <label class="place-mode-tab" style="flex: 1; padding: 6px; text-align: center; background: #374151; cursor: pointer; border: 2px solid transparent;">
+            <input type="radio" name="place-mode" value="props"> Props
+          </label>
+        </div>
+        <div id="place-buildings-panel">
         <div class="control-section-title" style="margin-bottom: 6px;">Select building</div>
         <select id="building-type" style="display: none;" aria-hidden="true">
           <option value="tavern">Tavern</option>
@@ -438,6 +467,8 @@
           <option value="fort">Fort</option>
           <option value="docks">Docks</option>
           <option value="dragon_sanctuary">Dragon Sanctuary</option>
+          <option value="castle">Castle</option>
+          <option value="blacksmith">Blacksmith</option>
         </select>
         <div class="building-palette" id="building-palette">
           <button type="button" class="building-palette-btn selected" data-type="tavern" title="Tavern" style="background:#d97706;"></button>
@@ -448,6 +479,8 @@
           <button type="button" class="building-palette-btn" data-type="fort" title="Fort" style="background:#6b7280;"></button>
           <button type="button" class="building-palette-btn" data-type="docks" title="Docks" style="background:#0ea5e9;"></button>
           <button type="button" class="building-palette-btn" data-type="dragon_sanctuary" title="Dragon Sanctuary" style="background:#7c3aed;"></button>
+          <button type="button" class="building-palette-btn" data-type="castle" title="Castle — Store cargo, gold, receive tax" style="background:#374151;"></button>
+          <button type="button" class="building-palette-btn" data-type="blacksmith" title="Blacksmith — Cannons, cannonballs, swords" style="background:#b45309;"></button>
         </div>
         <div class="control-row" id="building-dimensions-row">
           <label>Size</label>
@@ -468,40 +501,87 @@
           <div class="control-section-title" style="margin-top: 8px;">Placed (0)</div>
           <div id="buildings-list-items" class="hint" style="font-size: 11px; max-height: 80px; overflow-y: auto;"></div>
         </div>
-        <div id="building-properties-panel" class="building-properties-panel" style="display: none;">
-          <div id="building-properties-empty" class="building-properties-empty">
-            Click a building to select
+        <div class="hint" style="margin-top: 8px;">Click tile to place · Click building to select · Shift+Click to remove</div>
+        </div>
+        <div id="place-props-panel" style="display: none;">
+          <div class="control-section-title" style="margin-bottom: 6px;">Select prop</div>
+          <div class="prop-palette" id="prop-palette" style="display: flex; flex-wrap: wrap; gap: 4px;">
+            <button type="button" class="prop-palette-btn selected" data-type="rock_01" title="Rock" style="background:#6b7280; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="rock_06" title="Brimstone Rock" style="background:#7f1d1d; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="palm_tree_01" title="Palm Tree 1" style="background:#16a34a; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="palm_tree_02" title="Palm Tree 2" style="background:#15803d; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="oak_tree_01" title="Oak Tree" style="background:#15803d; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="berry_bush_01" title="Berry Bush" style="background:#22c55e; width:28px; height:28px;"></button>
+            <button type="button" class="prop-palette-btn" data-type="sign" title="Sign" style="background:#78716c; width:28px; height:28px;"></button>
           </div>
-          <div id="building-properties-content" style="display: none;">
-            <div class="building-properties-header">
-              <div class="building-properties-swatch" id="building-prop-swatch"></div>
-              <div>
-                <div class="building-properties-name" id="building-prop-type">—</div>
-                <div style="font-size: 10px; color: #6b7280;" id="building-prop-id">—</div>
+          <div class="hint" style="margin-top: 8px;">Click tile to place · Click prop to select · Shift+Click to remove</div>
+        </div>
+      </div>
+    </div>
+    <div class="control-section" id="selected-building-section">
+      <div class="control-section-title">Selected Building</div>
+      <div id="building-properties-panel" class="building-properties-panel">
+        <div id="building-properties-empty" class="building-properties-empty">
+          Click a building on the island to view its properties
+        </div>
+        <div id="building-properties-content" style="display: none;">
+          <div class="building-properties-header">
+            <div class="building-properties-swatch" id="building-prop-swatch"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div class="building-properties-name" id="building-prop-type">—</div>
+              <div style="font-size: 10px; color: #6b7280; margin-top: 2px;" id="building-prop-id">—</div>
+            </div>
+          </div>
+          <div class="building-properties-grid">
+            <span class="label">Position</span>
+            <span class="value" id="building-prop-position">—</span>
+            <span class="label">Rotation</span>
+            <span class="value" id="building-prop-rotation">—</span>
+            <span class="label">Width (tiles)</span>
+            <input type="number" id="building-prop-width" min="1" max="5" value="1" title="Building width in tiles" style="width: 48px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+            <span class="label">Height (tiles)</span>
+            <input type="number" id="building-prop-height" min="1" max="5" value="1" title="Building height in tiles" style="width: 48px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+            <div class="building-properties-cargo">
+              <span class="building-properties-cargo-icon" title="Cargo capacity">📦</span>
+              <div class="building-properties-cargo-main">
+                <input type="number" id="building-prop-cargo" min="10" step="10" value="10" title="Cargo capacity (width×height×10)" style="width: 100%; max-width: 80px; padding: 4px 6px; background: rgba(14,165,233,0.2); border: 1px solid rgba(14,165,233,0.4); color: var(--block-accent); font-size: 16px; font-weight: 700;">
+                <div class="building-properties-cargo-label">Cargo capacity (units)</div>
+                <div class="building-properties-cargo-formula" id="building-prop-cargo-formula">—</div>
               </div>
             </div>
-            <div class="building-properties-grid">
-              <span class="label">Position</span>
-              <span class="value" id="building-prop-position">—</span>
-              <span class="label">Size</span>
-              <span class="value" id="building-prop-size">—</span>
-              <span class="label">Rotation</span>
-              <span class="value" id="building-prop-rotation">—</span>
-              <div class="building-properties-cargo">
-                <span class="building-properties-cargo-icon" title="Cargo capacity">📦</span>
-                <div>
-                  <div class="building-properties-cargo-value" id="building-prop-cargo">—</div>
-                  <div class="building-properties-cargo-label">cargo units</div>
-                </div>
-              </div>
-            </div>
-            <div class="building-properties-actions">
-              <button type="button" id="building-rotate-btn" style="background: #374151;">↻ Rotate</button>
-              <button type="button" id="building-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
-            </div>
+          </div>
+          <div class="building-properties-actions">
+            <button type="button" id="building-rotate-btn" style="background: #374151;">↻ Rotate</button>
+            <button type="button" id="building-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
           </div>
         </div>
-        <div class="hint" style="margin-top: 8px;">Click tile to place · Click building to select · Shift+Click to remove</div>
+      </div>
+    </div>
+    <div class="control-section" id="selected-prop-section">
+      <div class="control-section-title">Selected Prop</div>
+      <div id="prop-properties-panel" class="building-properties-panel">
+        <div id="prop-properties-empty" class="building-properties-empty">
+          Click a prop on the island to view its properties
+        </div>
+        <div id="prop-properties-content" style="display: none;">
+          <div class="building-properties-header">
+            <div class="building-properties-swatch" id="prop-prop-swatch"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div class="building-properties-name" id="prop-prop-type">—</div>
+              <div style="font-size: 10px; color: #6b7280; margin-top: 2px;" id="prop-prop-id">—</div>
+            </div>
+          </div>
+          <div class="building-properties-grid">
+            <span class="label">Position</span>
+            <span class="value" id="prop-prop-position">—</span>
+            <span class="label">Rotation</span>
+            <span class="value" id="prop-prop-rotation">—</span>
+          </div>
+          <div class="building-properties-actions">
+            <button type="button" id="prop-rotate-btn" style="background: #374151;">↻ Rotate</button>
+            <button type="button" id="prop-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="control-section">
@@ -733,7 +813,15 @@
           <li><strong>Scroll</strong> — Zoom in / out</li>
         </ul>
       </div>
+      <div class="controls-help-section">
+        <h3>View mode (select buildings)</h3>
+        <ul>
+          <li><strong>Left click</strong> on building — Select building (properties panel visible in right panel)</li>
+          <li><strong>Right drag</strong> — Orbit camera</li>
+          <li><strong>Scroll</strong> — Zoom in / out</li>
+        </ul>
+      </div>
     </div>
-  </div>
+  </div>
 </body>
 </html>

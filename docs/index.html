@@ -332,6 +332,225 @@
       transition: transform 0.2s;
     }
     .map-gallery img:hover { transform: scale(1.02); }
+    .props-grid, .items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .prop-card, .item-card {
+      text-align: center;
+      padding: 1rem;
+      background: var(--bg-card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .prop-card:hover, .item-card:hover {
+      border-color: var(--accent-gold-dim);
+      transform: translateY(-2px);
+    }
+    .prop-card img, .item-card img {
+      width: 100%;
+      max-width: 100px;
+      height: auto;
+      aspect-ratio: 1;
+      object-fit: contain;
+      margin: 0 auto 0.5rem;
+      display: block;
+    }
+    .prop-card .name, .item-card .name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.85rem;
+      color: var(--accent-gold);
+      margin-bottom: 0.2rem;
+    }
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1.5rem;
+    }
+    .model-card {
+      text-align: center;
+      padding: 1rem;
+      background: var(--bg-card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .model-card:hover {
+      border-color: var(--accent-gold-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .model-card .thumb {
+      width: 100%;
+      max-width: 120px;
+      height: 100px;
+      object-fit: contain;
+      margin: 0 auto 0.5rem;
+      display: block;
+      border-radius: 6px;
+      background: var(--bg-dark);
+    }
+    .model-card .name {
+      font-family: 'Cinzel', serif;
+      font-size: 0.9rem;
+      color: var(--accent-gold);
+      margin-bottom: 0.25rem;
+    }
+    .model-card .hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .model-3d-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10001;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background: rgba(0, 0, 0, 0.95);
+    }
+    .model-3d-modal.open { display: flex; }
+    .model-3d-modal .modal-inner {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    }
+    .model-3d-modal .modal-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .model-3d-modal .modal-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.1rem;
+      color: var(--accent-gold);
+    }
+    .model-3d-modal .modal-canvas-wrap {
+      width: min(640px, 90vw);
+      height: min(480px, 70vh);
+      min-height: 320px;
+      background: var(--bg-dark);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .model-3d-modal canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .model-3d-modal .modal-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      background: var(--bg-dark);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .model-3d-modal .modal-loading.hidden { display: none; }
+    .model-3d-modal .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: model-spin 0.8s linear infinite;
+    }
+    @keyframes model-spin {
+      to { transform: rotate(360deg); }
+    }
+    .model-3d-modal .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.25rem;
+      border-top: 1px solid var(--border);
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .model-3d-modal .modal-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .model-3d-modal .modal-reset-btn {
+      padding: 0.4rem 0.8rem;
+      background: rgba(30, 77, 107, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .model-3d-modal .modal-reset-btn:hover {
+      background: rgba(42, 107, 138, 0.6);
+      border-color: var(--accent-sea-light);
+      color: var(--text-primary);
+    }
+    .model-3d-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .model-3d-controls .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0 0.5rem;
+      border-right: 1px solid var(--border);
+    }
+    .model-3d-controls .ctrl-group:last-of-type { border-right: none; }
+    .model-3d-controls .ctrl-btn {
+      min-width: 36px;
+      height: 36px;
+      padding: 0 0.5rem;
+      background: rgba(30, 77, 107, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+    .model-3d-controls .ctrl-btn:hover {
+      background: rgba(42, 107, 138, 0.6);
+      border-color: var(--accent-sea-light);
+      color: var(--text-primary);
+    }
+    .model-3d-controls .ctrl-btn.active {
+      background: rgba(201, 162, 39, 0.2);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+    }
+    .model-3d-controls .ctrl-btn[title] { cursor: help; }
+    .model-3d-controls .ctrl-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 0.25rem;
+    }
     .nav-hint {
       position: fixed;
       bottom: 1.25rem;
@@ -482,6 +701,8 @@
       .domain-grid { grid-template-columns: repeat(2, 1fr); }
       .island-gallery, .map-gallery { grid-template-columns: repeat(2, 1fr); }
       .familiar-grid, .ship-grid, .dragon-grid { grid-template-columns: repeat(2, 1fr); }
+      .props-grid, .items-grid, .model-grid { grid-template-columns: repeat(2, 1fr); }
+      .model-3d-modal .modal-canvas-wrap { width: 100%; min-height: 280px; }
     }
   </style>
 </head>
@@ -753,9 +974,160 @@
   </div>
 </section>
 
-<!-- SLIDE 15: Gameplay Loop -->
+<!-- SLIDE 15: Props -->
 <section class="slide">
   <span class="slide-number">15</span>
+  <h2 class="slide-title">Props & Environment</h2>
+  <p class="slide-subtitle">Trees, rocks, bushes—island decoration and loot sources</p>
+  <div class="props-grid">
+    <div class="prop-card">
+      <img src="Images/Props/BerryBush_01.png" alt="Berry Bush">
+      <div class="name">Berry Bush</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/BerryBush_02.png" alt="Berry Bush">
+      <div class="name">Berry Bush</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/OakTree_01.png" alt="Oak Tree">
+      <div class="name">Oak Tree</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/PalmTree_01.png" alt="Palm Tree">
+      <div class="name">Palm Tree</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/PalmTree_02.png" alt="Palm Tree">
+      <div class="name">Palm Tree</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/Rock_01.png" alt="Rock">
+      <div class="name">Rock</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/Rock_02.png" alt="Rock">
+      <div class="name">Rock</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/Rock_03_Gold.png" alt="Gold Rock">
+      <div class="name">Gold Rock</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/Rock_04_GemStones.png" alt="Gem Stones">
+      <div class="name">Gem Stones</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/Rock_05_MagioStone.png" alt="Magio Stone">
+      <div class="name">Magio Stone</div>
+    </div>
+    <div class="prop-card">
+      <img src="Images/Props/Rock_06_Brimstone.png" alt="Brimstone">
+      <div class="name">Brimstone</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16: Items -->
+<section class="slide">
+  <span class="slide-number">16</span>
+  <h2 class="slide-title">Items & Weapons</h2>
+  <p class="slide-subtitle">Swords, daggers—equipment for captains and crew</p>
+  <div class="items-grid">
+    <div class="item-card">
+      <img src="Images/Items/FalchionSword_01.png" alt="Falchion">
+      <div class="name">Falchion</div>
+    </div>
+    <div class="item-card">
+      <img src="Images/Items/FalchionSword_02.png" alt="Falchion">
+      <div class="name">Falchion</div>
+    </div>
+    <div class="item-card">
+      <img src="Images/Items/SkullDagger_01.png" alt="Skull Dagger">
+      <div class="name">Skull Dagger</div>
+    </div>
+    <div class="item-card">
+      <img src="Images/Items/Sword_01.png" alt="Sword">
+      <div class="name">Sword</div>
+    </div>
+    <div class="item-card">
+      <img src="Images/Items/Sword_02.png" alt="Sword">
+      <div class="name">Sword</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17: 3D Models (click to preview) -->
+<section class="slide">
+  <span class="slide-number">17</span>
+  <h2 class="slide-title">3D Models</h2>
+  <p class="slide-subtitle">Click any model to preview in 3D — drag to rotate</p>
+  <div class="model-grid" id="model-grid">
+    <div class="model-card" data-model-path="3D_Models/Dragons/BabyBlaze/Walking/BabyBlaze_Walking.fbx" data-model-name="Baby Blaze">
+      <img class="thumb" src="Images/Dragons/BabyBlaze.png" alt="Baby Blaze">
+      <div class="name">Baby Blaze</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Items/Falchion_01/Falchion_01.fbx" data-model-name="Falchion">
+      <img class="thumb" src="Images/Items/FalchionSword_01.png" alt="Falchion">
+      <div class="name">Falchion</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Items/Sword_01/Sword_01.fbx" data-model-name="Sword">
+      <img class="thumb" src="Images/Items/Sword_01.png" alt="Sword">
+      <div class="name">Sword</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/PirateKings/JasperBarrow/JasperBarrow.fbx" data-model-name="Jasper Barrow">
+      <img class="thumb" src="Images/PirateKings/JasperBarrow.png" alt="Jasper Barrow">
+      <div class="name">Jasper Barrow</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/PirateKings/Player/Walking/PlayerWalking.fbx" data-model-name="Player">
+      <img class="thumb" src="Images/PirateKings/Player_01.png" alt="Player">
+      <div class="name">Player</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Props/BerryBush_01/BerryBush_01.fbx" data-model-name="Berry Bush">
+      <img class="thumb" src="Images/Props/BerryBush_01.png" alt="Berry Bush">
+      <div class="name">Berry Bush</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Props/BerryBush_02/BerryBush_02.fbx" data-model-name="Berry Bush 02">
+      <img class="thumb" src="Images/Props/BerryBush_02.png" alt="Berry Bush 02">
+      <div class="name">Berry Bush 02</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Ships/WarBrig_01/WarBrig_01.fbx" data-model-name="War Brig 01">
+      <img class="thumb" src="Images/Ships/WarBrig_01.png" alt="War Brig 01">
+      <div class="name">War Brig 01</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Ships/WarBrig_02/WarBrig_02.fbx" data-model-name="War Brig 02">
+      <img class="thumb" src="Images/Ships/WarBrig_01.png" alt="War Brig 02">
+      <div class="name">War Brig 02</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Props/PalmTree_01/PalmTree_01.fbx" data-model-name="Palm Tree">
+      <img class="thumb" src="Images/Props/PalmTree_01.png" alt="Palm Tree">
+      <div class="name">Palm Tree</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Props/Rock_01/Rock_01.fbx" data-model-name="Rock">
+      <img class="thumb" src="Images/Props/Rock_01.png" alt="Rock">
+      <div class="name">Rock</div>
+      <div class="hint">Click to preview</div>
+    </div>
+    <div class="model-card" data-model-path="3D_Models/Props/OakTree_01/OakTree_01.fbx" data-model-name="Oak Tree">
+      <img class="thumb" src="Images/Props/OakTree_01.png" alt="Oak Tree">
+      <div class="name">Oak Tree</div>
+      <div class="hint">Click to preview</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18: Gameplay Loop -->
+<section class="slide">
+  <span class="slide-number">18</span>
   <h2 class="slide-title">Core Gameplay Loop</h2>
   <p class="slide-subtitle">Trading, sailing, combat, dragon rescue</p>
   <ol style="margin: 1.5rem 0; padding-left: 1.5rem; font-size: 1.05rem;">
@@ -783,9 +1155,9 @@
   </div>
 </section>
 
-<!-- SLIDE 16: Your Story -->
+<!-- SLIDE 19: Your Story -->
 <section class="slide">
-  <span class="slide-number">16</span>
+  <span class="slide-number">19</span>
   <h2 class="slide-title">Your Story</h2>
   <p class="slide-tagline">You are a new captain climbing the ranks—and you carry a secret mission: <strong>rescue and save the last of the dragons</strong>.</p>
   <p>The Five Pirate Kings hunt them relentlessly. You defy them by finding eggs before hunters do, freeing captured dragons from strongholds, and ferrying them to sanctuaries where they can thrive.</p>
@@ -797,9 +1169,9 @@
   </div>
 </section>
 
-<!-- SLIDE 17: Closing -->
+<!-- SLIDE 20: Closing -->
 <section class="slide hero">
-  <span class="slide-number">17</span>
+  <span class="slide-number">20</span>
   <h1 class="slide-title">YoHoH</h1>
   <p class="slide-subtitle">The Shattered Seas</p>
   <p class="slide-tagline">Rescue the dragons. Defy the Kings. Carve your path.</p>
@@ -821,6 +1193,43 @@
   <div class="lore-modal-content">
     <button type="button" class="lore-modal-close" id="lore-modal-close" aria-label="Close">&times;</button>
     <div id="lore-modal-body"></div>
+  </div>
+</div>
+
+<!-- 3D Model preview modal -->
+<div id="model-3d-modal" class="model-3d-modal" aria-hidden="true">
+  <div class="modal-inner">
+    <div class="modal-header">
+      <span class="modal-title" id="model-modal-title">3D Preview</span>
+      <button type="button" class="lore-modal-close" id="model-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-canvas-wrap">
+      <div class="modal-loading" id="model-loading">
+        <div class="spinner"></div>
+        <span>Loading model…</span>
+      </div>
+      <canvas id="model-canvas"></canvas>
+    </div>
+    <div class="modal-footer">
+      <div class="model-3d-controls">
+        <div class="ctrl-group">
+          <button type="button" class="ctrl-btn" id="view-front" title="Front view">Front</button>
+          <button type="button" class="ctrl-btn" id="view-top" title="Top view">Top</button>
+          <button type="button" class="ctrl-btn" id="view-side" title="Right side view">Right</button>
+          <button type="button" class="ctrl-btn" id="view-persp" title="Perspective (default)">3D</button>
+        </div>
+        <div class="ctrl-group">
+          <button type="button" class="ctrl-btn" id="zoom-out" title="Zoom out">−</button>
+          <button type="button" class="ctrl-btn" id="zoom-in" title="Zoom in">+</button>
+        </div>
+        <div class="ctrl-group">
+          <button type="button" class="ctrl-btn" id="auto-rotate" title="Auto-rotate model">↻</button>
+          <span class="ctrl-label" id="auto-rotate-label">Off</span>
+        </div>
+        <button type="button" class="modal-reset-btn" id="model-reset-btn" title="Reset camera (R)">Reset</button>
+      </div>
+      <span class="modal-hint">Left-drag rotate • Scroll zoom • Right-drag pan • +/− zoom • R reset</span>
+    </div>
   </div>
 </div>
 
@@ -939,6 +1348,7 @@
   }
 
   document.addEventListener('click', function(e) {
+    if (e.target.closest('.model-card')) return;
     if (e.target.tagName === 'IMG' && e.target.closest('.slide, .hero')) {
       e.preventDefault();
       const src = e.target.src || e.target.getAttribute('src');
@@ -974,6 +1384,376 @@
   loreModal?.addEventListener('click', function(e) { if (e.target === loreModal) closeLoreModal(); });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && loreModal?.classList.contains('open')) closeLoreModal();
+  });
+})();
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+(function() {
+  const modal = document.getElementById('model-3d-modal');
+  const canvas = document.getElementById('model-canvas');
+  const titleEl = document.getElementById('model-modal-title');
+  const closeBtn = document.getElementById('model-modal-close');
+  const modelCards = document.querySelectorAll('.model-card');
+  const loadingEl = document.getElementById('model-loading');
+  const resetBtn = document.getElementById('model-reset-btn');
+
+  let scene, camera, renderer, controls, model, modelGroup, animationId, initialCameraPos;
+  let baseDistance = 2;
+  let autoRotate = false;
+
+  function resolveModelUrl(path) {
+    try {
+      return new URL(path, window.location.href).href;
+    } catch (_) {
+      return path;
+    }
+  }
+
+  async function loadModel(path) {
+    const threeModule = await import('three');
+    const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    const THREE = threeModule.default || threeModule;
+
+    const modelUrl = resolveModelUrl(path);
+    const basePath = path.replace(/\/[^/]+\.fbx$/i, '/');
+    const resourceUrl = resolveModelUrl(basePath);
+    const baseName = path.replace(/^.*\/([^/]+)\.fbx$/i, '$1');
+
+    const obj = await new Promise((resolve, reject) => {
+      const loader = new FBXLoader();
+      loader.setResourcePath(resourceUrl.endsWith('/') ? resourceUrl : resourceUrl + '/');
+      loader.load(modelUrl, resolve, undefined, reject);
+    });
+
+    await applyPBRMaterials(obj, resourceUrl, baseName, THREE);
+    return { obj, THREE, OrbitControls };
+  }
+
+  async function applyPBRMaterials(model, basePath, baseName, THREE) {
+    const texPath = basePath.endsWith('/') ? basePath : basePath + '/';
+    const texLoader = new THREE.TextureLoader();
+    const loadTex = (url) => new Promise((resolve) => {
+      texLoader.load(texPath + url, resolve, undefined, () => resolve(null));
+    });
+
+    const useTexture0 = /Walking|Running/i.test(baseName);
+    const standardList = [
+      ['map', `${baseName}_texture.png`],
+      ['normalMap', `${baseName}_texture_normal.png`],
+      ['metalnessMap', `${baseName}_texture_metallic.png`],
+      ['roughnessMap', `${baseName}_texture_roughness.png`]
+    ];
+    const texture0List = [
+      ['normalMap', `${baseName}_texture_0_normal.png`],
+      ['metalnessMap', `${baseName}_texture_0_metallic.png`],
+      ['roughnessMap', `${baseName}_texture_0_roughness.png`]
+    ];
+    const metalRoughList = [['metalRough', `${baseName}_texture_metallic_roughness.png`]];
+
+    const loadAll = async (list) => {
+      const results = {};
+      for (const [key, url] of list) {
+        const tex = await loadTex(url);
+        if (tex) {
+          if (key === 'metalRough') {
+            results.roughnessMap = tex;
+            if (!results.metalnessMap) results.metalnessMap = tex;
+          } else {
+            results[key] = tex;
+          }
+        }
+      }
+      return results;
+    };
+
+    let tex = useTexture0 ? await loadAll(texture0List) : await loadAll(standardList);
+    if (!useTexture0 && (!tex.metalnessMap || !tex.roughnessMap)) {
+      const fallback = await loadAll(metalRoughList);
+      tex = { ...tex, ...fallback };
+    }
+    if (!tex.map && !tex.normalMap && !tex.roughnessMap && !useTexture0) {
+      tex = { ...tex, ...(await loadAll(texture0List)) };
+    }
+    if (useTexture0 && Object.keys(tex).length === 0) {
+      tex = { ...tex, ...(await loadAll(standardList)) };
+    }
+
+    if (Object.keys(tex).length === 0) return;
+
+    model.traverse((c) => {
+      if (!c.isMesh) return;
+      const oldMats = Array.isArray(c.material) ? c.material : [c.material];
+      const newMats = oldMats.map((old) => {
+        const params = {
+          color: old.color ? old.color.clone() : 0xffffff,
+          roughness: 0.5,
+          metalness: 0.2,
+          envMapIntensity: 0.8
+        };
+        if (tex.map) {
+          params.map = tex.map;
+          params.map.colorSpace = THREE.SRGBColorSpace;
+        } else if (old.map) {
+          params.map = old.map;
+        }
+        if (tex.normalMap) params.normalMap = tex.normalMap;
+        if (tex.roughnessMap) params.roughnessMap = tex.roughnessMap;
+        if (tex.metalnessMap) params.metalnessMap = tex.metalnessMap;
+        const mat = new THREE.MeshStandardMaterial(params);
+        mat.name = (old.name || '') + '_pbr';
+        return mat;
+      });
+      c.material = newMats.length === 1 ? newMats[0] : newMats;
+    });
+  }
+
+  function initScene(THREE, OrbitControlsClass, modelObj) {
+    const wrap = modal.querySelector('.modal-canvas-wrap');
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x080d18);
+
+    camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+
+    const ambient = new THREE.AmbientLight(0x606080, 1.2);
+    scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.8);
+    dir.position.set(3, 5, 2);
+    dir.castShadow = true;
+    dir.shadow.mapSize.width = 1024;
+    dir.shadow.mapSize.height = 1024;
+    scene.add(dir);
+    const fill = new THREE.DirectionalLight(0x8899aa, 0.9);
+    fill.position.set(-2, 2, -1);
+    scene.add(fill);
+
+    model = modelObj;
+    model.traverse((c) => {
+      if (c.isMesh) {
+        c.castShadow = c.receiveShadow = true;
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach((m) => {
+          if (!m) return;
+          m.transparent = false;
+          m.opacity = 1;
+          m.depthWrite = true;
+          m.depthTest = true;
+          if (typeof m.roughness === 'number' && isNaN(m.roughness)) m.roughness = 0.5;
+          if (typeof m.metalness === 'number' && isNaN(m.metalness)) m.metalness = 0.2;
+        });
+      }
+    });
+
+    modelGroup = new THREE.Group();
+    scene.add(modelGroup);
+    modelGroup.add(model);
+
+    // Reset model transforms so bounding box is in predictable local space.
+    // FBX models often have baked pivot/position that breaks centering for orbit.
+    model.position.set(0, 0, 0);
+    model.rotation.set(0, 0, 0);
+    model.scale.set(1, 1, 1);
+    model.updateMatrixWorld(true, true);
+
+    const box = new THREE.Box3().setFromObject(model, true);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+    const scale = 3.5 / maxDim;
+
+    model.scale.setScalar(scale);
+    model.position.copy(center).multiplyScalar(-scale);
+
+    const distance = Math.max(maxDim * scale * 1.4, 1.5);
+    baseDistance = distance;
+    camera.position.set(distance, distance * 0.9, distance);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    initialCameraPos = camera.position.clone();
+
+    controls = new OrbitControlsClass(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = true;
+    controls.enableZoom = true;
+    controls.zoomSpeed = 1.2;
+    controls.rotateSpeed = 1.0;
+    controls.panSpeed = 1.0;
+    controls.minDistance = baseDistance * 0.3;
+    controls.maxDistance = baseDistance * 4;
+    controls.target.set(0, 0, 0);
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      if (model) {
+        model.traverse((c) => {
+          if (c.isSkinnedMesh && c.skeleton) c.skeleton.update();
+        });
+      }
+      if (autoRotate && controls) {
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 1.5;
+      } else if (controls) {
+        controls.autoRotate = false;
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+    if (loadingEl) loadingEl.classList.add('hidden');
+    setActiveView('persp');
+  }
+
+  function resetCamera() {
+    if (!camera || !controls) return;
+    if (initialCameraPos) camera.position.copy(initialCameraPos);
+    else camera.position.set(1.5, 1.4, 1.5);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+
+  function dispose() {
+    if (animationId) cancelAnimationFrame(animationId);
+    if (controls) controls.dispose();
+    if (renderer) renderer.dispose();
+    if (scene && modelGroup) scene.remove(modelGroup);
+    scene = camera = renderer = controls = model = modelGroup = animationId = initialCameraPos = null;
+  }
+
+  function closeModelModal() {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    autoRotate = false;
+    const autoBtn = document.getElementById('auto-rotate');
+    const autoLabel = document.getElementById('auto-rotate-label');
+    if (autoBtn) autoBtn.classList.remove('active');
+    if (autoLabel) autoLabel.textContent = 'Off';
+    if (loadingEl) {
+      loadingEl.classList.remove('hidden');
+      loadingEl.querySelector('span').textContent = 'Loading model…';
+    }
+    dispose();
+  }
+
+  function setViewPreset(preset) {
+    if (!camera || !controls) return;
+    const d = baseDistance;
+    switch (preset) {
+      case 'front': camera.position.set(0, 0, d); break;
+      case 'top': camera.position.set(0, d, 0); break;
+      case 'side': camera.position.set(d, 0, 0); break;
+      case 'persp': camera.position.copy(initialCameraPos || { x: d, y: d * 0.9, z: d }); break;
+    }
+    controls.target.set(0, 0, 0);
+    controls.update();
+    setActiveView(preset === 'persp' ? 'persp' : preset);
+  }
+
+  function setActiveView(preset) {
+    document.querySelectorAll('.model-3d-controls .ctrl-btn[id^="view-"]').forEach((b) => b.classList.remove('active'));
+    const active = document.getElementById('view-' + preset);
+    if (active) active.classList.add('active');
+  }
+
+  resetBtn?.addEventListener('click', () => { resetCamera(); setActiveView('persp'); });
+
+  document.getElementById('view-front')?.addEventListener('click', () => setViewPreset('front'));
+  document.getElementById('view-top')?.addEventListener('click', () => setViewPreset('top'));
+  document.getElementById('view-side')?.addEventListener('click', () => setViewPreset('side'));
+  document.getElementById('view-persp')?.addEventListener('click', () => setViewPreset('persp'));
+
+  function zoomBy(delta) {
+    if (!controls || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    canvas.dispatchEvent(new WheelEvent('wheel', {
+      clientX: cx, clientY: cy, deltaY: delta,
+      bubbles: true, cancelable: true
+    }));
+  }
+  document.getElementById('zoom-in')?.addEventListener('click', () => zoomBy(-80));
+  document.getElementById('zoom-out')?.addEventListener('click', () => zoomBy(80));
+
+  document.getElementById('auto-rotate')?.addEventListener('click', () => {
+    autoRotate = !autoRotate;
+    const btn = document.getElementById('auto-rotate');
+    const label = document.getElementById('auto-rotate-label');
+    if (btn) btn.classList.toggle('active', autoRotate);
+    if (label) label.textContent = autoRotate ? 'On' : 'Off';
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!modal?.classList.contains('open')) return;
+    if (e.key === 'r' || e.key === 'R') { e.preventDefault(); resetCamera(); setActiveView('persp'); }
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomBy(-60); }
+    if (e.key === '-') { e.preventDefault(); zoomBy(60); }
+  });
+
+  modelCards.forEach((card) => {
+    card.addEventListener('click', async () => {
+      const path = card.dataset.modelPath;
+      const name = card.dataset.modelName || 'Model';
+      if (!path) return;
+
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      titleEl.textContent = name + ' — Loading…';
+      if (loadingEl) loadingEl.classList.remove('hidden');
+
+      try {
+        const { obj, THREE, OrbitControls } = await loadModel(path);
+        titleEl.textContent = name;
+        initScene(THREE, OrbitControls, obj);
+      } catch (err) {
+        titleEl.textContent = name + ' — Load failed';
+        if (loadingEl) {
+          const span = loadingEl.querySelector('span');
+          if (span) span.textContent = err?.message || 'Failed to load model';
+          loadingEl.classList.remove('hidden');
+        }
+        console.warn('Model load error:', err);
+      }
+    });
+  });
+
+  closeBtn?.addEventListener('click', closeModelModal);
+  modal?.addEventListener('click', (e) => { if (e.target === modal) closeModelModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('open')) closeModelModal();
+  });
+
+  window.addEventListener('resize', () => {
+    if (renderer && camera && modal.classList.contains('open')) {
+      const wrap = modal.querySelector('.modal-canvas-wrap');
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
   });
 })();
 </script>

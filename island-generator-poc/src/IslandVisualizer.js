@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { MOUSE } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject } from './BuildingTypes.js';
+import { getPropType } from './PropTypes.js';
 import { PATH_COLOR } from './IslandPathfinder.js';
 
 /** Vertex colors by elevation band (hex) */
@@ -49,6 +50,9 @@ export class IslandVisualizer {
     this.gridOverlayMesh = null;
     this.placementPreviewMesh = null;
     this.buildingHighlightMesh = null;
+    this.propMeshes = [];
+    this.propPlacementPreviewMesh = null;
+    this.propHighlightMesh = null;
     this.rampPreviewMesh = null;
     this._inputMode = 'view';
     this._spaceHeld = false;
@@ -500,6 +504,162 @@ export class IslandVisualizer {
 
   clearBuildingHighlight() {
     this._clearBuildingHighlight();
+  }
+
+  _clearProps() {
+    for (const m of this.propMeshes) {
+      if (m.parent) m.parent.remove(m);
+      m.geometry?.dispose();
+      m.material?.dispose();
+    }
+    this.propMeshes = [];
+  }
+
+  _clearPropPlacementPreview() {
+    if (this.propPlacementPreviewMesh && this.islandMesh) {
+      this.islandMesh.remove(this.propPlacementPreviewMesh);
+      this.propPlacementPreviewMesh.geometry?.dispose();
+      this.propPlacementPreviewMesh.material?.dispose();
+      this.propPlacementPreviewMesh = null;
+    }
+  }
+
+  _clearPropHighlight() {
+    if (this.propHighlightMesh && this.islandMesh) {
+      this.islandMesh.remove(this.propHighlightMesh);
+      this.propHighlightMesh.geometry?.dispose();
+      this.propHighlightMesh.material?.dispose();
+      this.propHighlightMesh = null;
+    }
+  }
+
+  _createPropPlaceholderGeometry(shape, scale = 0.08) {
+    switch (shape) {
+      case 'sphere':
+        return new THREE.SphereGeometry(scale, 8, 6);
+      case 'cylinder':
+        return new THREE.CylinderGeometry(scale * 0.4, scale * 0.5, scale * 1.5, 8);
+      case 'cone':
+        return new THREE.ConeGeometry(scale * 0.6, scale * 1.2, 8);
+      case 'box':
+        return new THREE.BoxGeometry(scale * 0.4, scale * 1.2, scale * 0.2);
+      default:
+        return new THREE.SphereGeometry(scale, 8, 6);
+    }
+  }
+
+  /**
+   * Render prop meshes on terrain (placeholder geometry per type)
+   */
+  renderProps(props, heightMap, tileSize, tilesX, tilesY) {
+    this._clearProps();
+    if (!this.islandMesh || !heightMap || !Array.isArray(props)) return;
+
+    const gridSize = heightMap.length - 1;
+    const ts = tileSize || 8;
+    const txCount = tilesX ?? Math.floor(gridSize / ts);
+    const tyCount = tilesY ?? Math.floor(gridSize / ts);
+
+    for (const p of props) {
+      const def = getPropType(p.type);
+      if (!def) continue;
+      const chunkX = p.chunkX ?? 0;
+      const chunkY = p.chunkY ?? 0;
+      const rot = (p.rotation ?? 0) * (Math.PI / 180);
+
+      const centerX = (chunkX + 0.5) / txCount - 0.5;
+      const centerY = 0.5 - (chunkY + 0.5) / tyCount;
+      const gx = Math.min(gridSize, Math.floor((chunkX + 0.5) * ts));
+      const gy = Math.min(gridSize, Math.floor((chunkY + 0.5) * ts));
+      const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+      const geometry = this._createPropPlaceholderGeometry(def.placeholderShape ?? 'sphere');
+      const material = new THREE.MeshLambertMaterial({ color: def.color });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(centerX, centerY, terrainH + 0.04);
+      mesh.rotation.z = -rot;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.prop = p;
+      this.islandMesh.add(mesh);
+      this.propMeshes.push(mesh);
+    }
+  }
+
+  /**
+   * Show prop placement preview (ghost) or invalid overlay at tile
+   */
+  setPropPlacementPreview(tx, ty, propType, isValid, heightMap, tileSize, tilesX, tilesY) {
+    this._clearPropPlacementPreview();
+    if (tx == null || ty == null || !this.islandMesh || !heightMap) return;
+
+    const def = getPropType(propType);
+    if (!def) return;
+
+    const gridSize = heightMap.length - 1;
+    const ts = tileSize || 8;
+    const txCount = tilesX ?? Math.floor(gridSize / ts);
+    const tyCount = tilesY ?? Math.floor(gridSize / ts);
+
+    const centerX = (tx + 0.5) / txCount - 0.5;
+    const centerY = 0.5 - (ty + 0.5) / tyCount;
+    const gx = Math.min(gridSize, Math.floor((tx + 0.5) * ts));
+    const gy = Math.min(gridSize, Math.floor((ty + 0.5) * ts));
+    const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+    const geometry = this._createPropPlaceholderGeometry(def.placeholderShape ?? 'sphere');
+    const material = new THREE.MeshBasicMaterial({
+      color: isValid ? def.color : 0xef4444,
+      transparent: true,
+      opacity: isValid ? 0.6 : 0.5,
+      depthTest: true,
+      depthWrite: false,
+    });
+    this.propPlacementPreviewMesh = new THREE.Mesh(geometry, material);
+    this.propPlacementPreviewMesh.position.set(centerX, centerY, terrainH + 0.04);
+    this.propPlacementPreviewMesh.layers.set(1);
+    this.islandMesh.add(this.propPlacementPreviewMesh);
+  }
+
+  /**
+   * Highlight prop at tile when hovering
+   */
+  setPropHighlight(prop, heightMap, tileSize, tilesX, tilesY) {
+    this._clearPropHighlight();
+    if (!prop || !this.islandMesh || !heightMap) return;
+
+    const def = getPropType(prop.type);
+    if (!def) return;
+
+    const gridSize = heightMap.length - 1;
+    const ts = tileSize || 8;
+    const txCount = tilesX ?? Math.floor(gridSize / ts);
+    const tyCount = tilesY ?? Math.floor(gridSize / ts);
+    const chunkX = prop.chunkX ?? 0;
+    const chunkY = prop.chunkY ?? 0;
+
+    const centerX = (chunkX + 0.5) / txCount - 0.5;
+    const centerY = 0.5 - (chunkY + 0.5) / tyCount;
+    const gx = Math.min(gridSize, Math.floor((chunkX + 0.5) * ts));
+    const gy = Math.min(gridSize, Math.floor((chunkY + 0.5) * ts));
+    const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+    const geometry = this._createPropPlaceholderGeometry(def.placeholderShape ?? 'sphere');
+    const edges = new THREE.EdgesGeometry(geometry);
+    geometry.dispose();
+    const material = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
+    this.propHighlightMesh = new THREE.LineSegments(edges, material);
+    this.propHighlightMesh.position.set(centerX, centerY, terrainH + 0.04);
+    this.propHighlightMesh.layers.set(1);
+    this.islandMesh.add(this.propHighlightMesh);
+  }
+
+  clearPropPlacementPreview() {
+    this._clearPropPlacementPreview();
+  }
+
+  clearPropHighlight() {
+    this._clearPropHighlight();
   }
 
   /**
