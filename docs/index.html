@@ -1062,7 +1062,7 @@
   <h2 class="slide-title">3D Models</h2>
   <p class="slide-subtitle">Click any model to preview in 3D — drag to rotate</p>
   <div class="model-grid" id="model-grid">
-    <div class="model-card" data-model-path="3D_Models/Dragons/BabyBlaze/Walking/BabyBlaze_Walking.fbx" data-model-name="Baby Blaze">
+    <div class="model-card" data-model-path="3D_Models/Dragons/BabyBlaze/Walking/BabyBlaze_Walking_withSkin.fbx" data-model-name="Baby Blaze">
       <img class="thumb" src="Images/Dragons/BabyBlaze.png" alt="Baby Blaze">
       <div class="name">Baby Blaze</div>
       <div class="hint">Click to preview</div>
@@ -1082,7 +1082,7 @@
       <div class="name">Jasper Barrow</div>
       <div class="hint">Click to preview</div>
     </div>
-    <div class="model-card" data-model-path="3D_Models/PirateKings/Player/Walking/PlayerWalking.fbx" data-model-name="Player">
+    <div class="model-card" data-model-path="3D_Models/PirateKings/Player/Walking/PlayerWalking_withSkin.fbx" data-model-name="Player">
       <img class="thumb" src="Images/PirateKings/Player_01.png" alt="Player">
       <div class="name">Player</div>
       <div class="hint">Click to preview</div>
@@ -1226,9 +1226,13 @@
           <button type="button" class="ctrl-btn" id="auto-rotate" title="Auto-rotate model">↻</button>
           <span class="ctrl-label" id="auto-rotate-label">Off</span>
         </div>
+        <div class="ctrl-group" id="animate-ctrl-group" style="display:none;">
+          <button type="button" class="ctrl-btn" id="animate-btn" title="Play/pause animation">▶</button>
+          <span class="ctrl-label" id="animate-label">Off</span>
+        </div>
         <button type="button" class="modal-reset-btn" id="model-reset-btn" title="Reset camera (R)">Reset</button>
       </div>
-      <span class="modal-hint">Left-drag rotate • Scroll zoom • Right-drag pan • +/− zoom • R reset</span>
+      <span class="modal-hint">Left-drag rotate • Scroll zoom • Right-drag pan • +/− zoom • R reset • ▶ play animation (when available)</span>
     </div>
   </div>
 </div>
@@ -1406,9 +1410,10 @@
   const loadingEl = document.getElementById('model-loading');
   const resetBtn = document.getElementById('model-reset-btn');
 
-  let scene, camera, renderer, controls, model, modelGroup, animationId, initialCameraPos;
+  let scene, camera, renderer, controls, model, modelGroup, mixer, clock, animationAction, animationId, initialCameraPos;
   let baseDistance = 2;
   let autoRotate = false;
+  let animatePlayback = false;
 
   function resolveModelUrl(path) {
     try {
@@ -1427,7 +1432,8 @@
     const modelUrl = resolveModelUrl(path);
     const basePath = path.replace(/\/[^/]+\.fbx$/i, '/');
     const resourceUrl = resolveModelUrl(basePath);
-    const baseName = path.replace(/^.*\/([^/]+)\.fbx$/i, '$1');
+    let baseName = path.replace(/^.*\/([^/]+)\.fbx$/i, '$1');
+    const texBaseName = baseName.replace(/_withSkin$/i, '');
 
     const obj = await new Promise((resolve, reject) => {
       const loader = new FBXLoader();
@@ -1435,7 +1441,7 @@
       loader.load(modelUrl, resolve, undefined, reject);
     });
 
-    await applyPBRMaterials(obj, resourceUrl, baseName, THREE);
+    await applyPBRMaterials(obj, resourceUrl, texBaseName, THREE);
     return { obj, THREE, OrbitControls };
   }
 
@@ -1603,8 +1609,32 @@
     controls.maxDistance = baseDistance * 4;
     controls.target.set(0, 0, 0);
 
+    clock = new THREE.Clock();
+    mixer = null;
+    const anims = model.animations;
+    if (anims && anims.length > 0) {
+      mixer = new THREE.AnimationMixer(model);
+      const walkClip = anims.find((c) => /walk|run|idle/i.test(c.name)) || anims[0];
+      animationAction = mixer.clipAction(walkClip);
+      animationAction.setLoop(THREE.LoopRepeat);
+      animationAction.clampWhenFinished = false;
+      if (animatePlayback) animationAction.play();
+      const animGroup = document.getElementById('animate-ctrl-group');
+      const animBtn = document.getElementById('animate-btn');
+      const animLabel = document.getElementById('animate-label');
+      if (animGroup) animGroup.style.display = '';
+      if (animatePlayback) { animBtn?.classList.add('active'); animBtn && (animBtn.textContent = '⏸'); animLabel && (animLabel.textContent = 'On'); }
+      else { animBtn?.classList.remove('active'); animBtn && (animBtn.textContent = '▶'); animLabel && (animLabel.textContent = 'Off'); }
+    } else {
+      animationAction = null;
+      const animGroup = document.getElementById('animate-ctrl-group');
+      if (animGroup) animGroup.style.display = 'none';
+    }
+
     function animate() {
       animationId = requestAnimationFrame(animate);
+      const dt = clock ? clock.getDelta() : 0;
+      if (mixer && animatePlayback) mixer.update(dt);
       if (model) {
         model.traverse((c) => {
           if (c.isSkinnedMesh && c.skeleton) c.skeleton.update();
@@ -1636,8 +1666,9 @@
     if (animationId) cancelAnimationFrame(animationId);
     if (controls) controls.dispose();
     if (renderer) renderer.dispose();
+    if (mixer) mixer.stopAllAction();
     if (scene && modelGroup) scene.remove(modelGroup);
-    scene = camera = renderer = controls = model = modelGroup = animationId = initialCameraPos = null;
+    scene = camera = renderer = controls = model = modelGroup = mixer = clock = animationAction = animationId = initialCameraPos = null;
   }
 
   function closeModelModal() {
@@ -1645,10 +1676,15 @@
     modal.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
     autoRotate = false;
+    animatePlayback = false;
     const autoBtn = document.getElementById('auto-rotate');
     const autoLabel = document.getElementById('auto-rotate-label');
     if (autoBtn) autoBtn.classList.remove('active');
     if (autoLabel) autoLabel.textContent = 'Off';
+    const animBtn = document.getElementById('animate-btn');
+    const animLabel = document.getElementById('animate-label');
+    if (animBtn) { animBtn.classList.remove('active'); animBtn.textContent = '▶'; animBtn.title = 'Play animation'; }
+    if (animLabel) animLabel.textContent = 'Off';
     if (loadingEl) {
       loadingEl.classList.remove('hidden');
       loadingEl.querySelector('span').textContent = 'Loading model…';
@@ -1702,6 +1738,16 @@
     const label = document.getElementById('auto-rotate-label');
     if (btn) btn.classList.toggle('active', autoRotate);
     if (label) label.textContent = autoRotate ? 'On' : 'Off';
+  });
+
+  document.getElementById('animate-btn')?.addEventListener('click', () => {
+    if (!animationAction) return;
+    animatePlayback = !animatePlayback;
+    if (animatePlayback) animationAction.play(); else animationAction.paused = true;
+    const btn = document.getElementById('animate-btn');
+    const label = document.getElementById('animate-label');
+    if (btn) { btn.classList.toggle('active', animatePlayback); btn.textContent = animatePlayback ? '⏸' : '▶'; btn.title = animatePlayback ? 'Pause animation' : 'Play animation'; }
+    if (label) label.textContent = animatePlayback ? 'On' : 'Off';
   });
 
   document.addEventListener('keydown', (e) => {
