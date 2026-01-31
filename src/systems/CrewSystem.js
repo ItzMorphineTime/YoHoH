@@ -101,11 +101,25 @@ export function hireCrew(roster, gold, cost = CREW.hireCost, maxCrew = CREW.maxC
   return { crew, cost };
 }
 
-/** Compute station effect multipliers for ship stats. Multiple crew per station stack multiplicatively. */
+/** Map station -> result keys it affects (for C.6b unassigned penalty) */
+const STATION_TO_EFFECT_KEYS = {
+  helmsman: ['turnRateMult'],
+  gunner_port: ['portReloadMult'],
+  gunner_starboard: ['starboardReloadMult'],
+  carpenter: ['repairMult', 'leakRepairMult'],
+  navigator: ['sailSpeedMult'],
+  sailing: ['sailSpeedMult'],
+  bilge: ['bilgePumpMult'],
+  man_at_arms: ['crewMult'],
+};
+
+/** Compute station effect multipliers for ship stats. Multiple crew per station stack multiplicatively. C.6: morale scales effectiveness. C.6b: unassigned stations reduce effectiveness. */
 export function getStationEffects(roster, shipClassId = null) {
   const effects = CREW.stationEffects ?? {};
   const slots = getStationSlots(shipClassId);
   const fillCounts = getStationFillCounts(roster);
+  const moraleMult = getAverageMorale(roster);
+  const unassignedPenalty = CREW.unassignedStationPenalty ?? 0.85;
   const result = {
     turnRateMult: 1,
     portReloadMult: 1,
@@ -132,7 +146,66 @@ export function getStationEffects(roster, shipClassId = null) {
       if (e.crewMult) result.crewMult *= e.crewMult;
     }
   }
+  // C.6b: unassigned stations apply penalty (encourage full roster on larger ships)
+  for (const station of CREW.stations ?? []) {
+    const max = slots[station] ?? 0;
+    if (max <= 0) continue;
+    const filled = fillCounts[station] ?? 0;
+    if (filled > 0) continue;
+    const keys = STATION_TO_EFFECT_KEYS[station];
+    if (keys) for (const k of keys) result[k] *= unassignedPenalty;
+  }
+  // C.6: morale scales all station effects (low morale = reduced effectiveness)
+  for (const k of Object.keys(result)) {
+    result[k] *= moraleMult;
+  }
   return result;
+}
+
+/** C.6: Average morale of crew (0–1). Used to scale station effects. */
+export function getAverageMorale(roster) {
+  const arr = roster ?? [];
+  if (arr.length === 0) return CREW.moraleBaseline ?? 1;
+  const sum = arr.reduce((a, c) => a + (c.morale ?? CREW.moraleBaseline ?? 1), 0);
+  return Math.max(CREW.moraleMin ?? 0.2, Math.min(CREW.moraleMax ?? 1, sum / arr.length));
+}
+
+/** C.6: Decay morale during voyage. C.6c: faster decay when undercrewed. */
+export function updateMoraleDecay(roster, dt, maxCrew = null) {
+  const arr = roster ?? [];
+  if (arr.length === 0) return;
+  const baseRate = CREW.moraleDecayPerSecond ?? 0.0015;
+  const mult = CREW.undercrewedMoraleDecayMult ?? 1.5;
+  const threshold = CREW.undercrewedThreshold ?? 0.5;
+  const max = maxCrew ?? arr.length;
+  const ratio = max > 0 ? arr.length / max : 1;
+  const rate = ratio < threshold ? baseRate * mult : baseRate;
+  const delta = rate * dt;
+  for (const c of arr) {
+    c.morale = Math.max(CREW.moraleMin ?? 0.2, (c.morale ?? 1) - delta);
+  }
+}
+
+/** C.6: Boost morale on combat victory. */
+export function applyVictoryMoraleBoost(roster) {
+  const gain = CREW.moraleVictoryGain ?? 0.1;
+  for (const c of roster ?? []) {
+    c.morale = Math.min(CREW.moraleMax ?? 1, (c.morale ?? 1) + gain);
+  }
+}
+
+/** C.6: Serve rum from cargo to raise crew morale. Consumes 1 rum. Returns true if served. */
+export function serveRum(roster, cargo) {
+  const rumId = CREW.rumGoodId ?? 'rum';
+  const qty = cargo?.[rumId] ?? 0;
+  if (qty < 1 || !roster?.length) return false;
+  cargo[rumId] = qty - 1;
+  if (cargo[rumId] <= 0) delete cargo[rumId];
+  const gain = CREW.moraleRumGain ?? 0.2;
+  for (const c of roster) {
+    c.morale = Math.min(CREW.moraleMax ?? 1, (c.morale ?? 1) + gain);
+  }
+  return true;
 }
 
 /** Station display names */

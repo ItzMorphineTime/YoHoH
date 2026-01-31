@@ -3,6 +3,7 @@
  */
 
 import { OVERWORLD, UI } from '../config.js';
+import { getRouteModifiers, getPrimaryModifier } from '../utils/routeModifiers.js';
 
 const { minimap: UI_MINIMAP } = UI;
 
@@ -278,7 +279,14 @@ export class Minimap {
         (edge.a === travelRoute.a && edge.b === travelRoute.b) ||
         (edge.a === travelRoute.b && edge.b === travelRoute.a)
       );
-      this.ctx.strokeStyle = isActiveRoute ? c.routeActive : c.route;
+      let routeColor = isActiveRoute ? c.routeActive : c.route;
+      if (!isActiveRoute) {
+        const primary = getPrimaryModifier(getRouteModifiers(edge));
+        if (primary === 'stormy') routeColor = c.routeStormy ?? c.route;
+        else if (primary === 'patrolled') routeColor = c.routePatrolled ?? c.route;
+        else if (primary === 'shoals') routeColor = c.routeShoals ?? c.route;
+      }
+      this.ctx.strokeStyle = routeColor;
       this.ctx.lineWidth = isActiveRoute ? 3 : 2;
       this.ctx.beginPath();
       this.ctx.moveTo(pa.px, pa.py);

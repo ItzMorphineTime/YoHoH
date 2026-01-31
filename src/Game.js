@@ -3,7 +3,7 @@
  * Phase A: Combat | Phase B: Overworld, Sailing, Save/Load
  */
 
-import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY } from './config.js';
+import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES, INFAMY } from './config.js';
 import { loadGoods } from './systems/EconomySystem.js';
 import { Renderer } from './Renderer.js';
 import { Input } from './Input.js';
@@ -15,7 +15,8 @@ import { Minimap } from './ui/Minimap.js';
 import { MapUI } from './ui/MapUI.js';
 import { BigMapUI } from './ui/BigMapUI.js';
 import { PortUI } from './ui/PortUI.js';
-import { hireCrew } from './systems/CrewSystem.js';
+import { hireCrew, getStationEffects, updateMoraleDecay, applyVictoryMoraleBoost } from './systems/CrewSystem.js';
+import { saveToStorage, loadFromStorage } from './utils/saveSystem.js';
 
 export class Game {
   constructor(container) {
@@ -34,10 +35,12 @@ export class Game {
     this.portUI = new PortUI(container);
 
     this._playerGold = GAME?.startingGold ?? 0;
+    this._playerInfamy = 0;
     this._crewRoster = [];
     this._playerShipClass = GAME?.defaultShipClass ?? 'sloop';
     this._playerShipState = null; // hull, sails, crew, bilgeWater, leaks; persisted across sailing/port
     this._playerCargo = {}; // { goodId: quantity }; persisted across port
+    this._playerUpgrades = {}; // { slotId: upgradeId }; C.7, C.10
 
     this.lastTime = 0;
     this.running = false;
@@ -48,7 +51,50 @@ export class Game {
     this._overworldDragStart = null;
   }
 
-  init() {
+  /** D.9: Get current game state for save. */
+  getSaveState() {
+    const currentIsland = this.overworldScene.getCurrentIsland?.();
+    const mapJson = this.overworldScene.serializeMap?.();
+    return {
+      gold: this._playerGold ?? 0,
+      infamy: this._playerInfamy ?? 0,
+      crewRoster: [...(this._crewRoster ?? [])],
+      shipClass: this._playerShipClass ?? 'sloop',
+      shipState: this._playerShipState ? { ...this._playerShipState } : null,
+      cargo: { ...(this._playerCargo ?? {}) },
+      upgrades: { ...(this._playerUpgrades ?? {}) },
+      unlockedShipClasses: [...(this._playerUnlockedShipClasses ?? ['sloop'])],
+      currentIslandId: currentIsland?.id ?? 0,
+      mapJson: mapJson ?? null,
+    };
+  }
+
+  /** D.9: Save game to localStorage. Returns true on success. */
+  saveGame() {
+    return saveToStorage(this.getSaveState());
+  }
+
+  /** D.9: Load game state from localStorage. Returns state or null. */
+  loadGame() {
+    return loadFromStorage();
+  }
+
+  /** D.9: Apply loaded state to game. Call before init when continuing. */
+  applyLoadedState(state) {
+    if (!state) return;
+    this._playerGold = state.gold ?? GAME?.startingGold ?? 0;
+    this._playerInfamy = state.infamy ?? 0;
+    this._crewRoster = Array.isArray(state.crewRoster) ? state.crewRoster : [];
+    this._playerShipClass = state.shipClass ?? 'sloop';
+    this._playerShipState = state.shipState ? { ...state.shipState } : null;
+    this._playerCargo = state.cargo && typeof state.cargo === 'object' ? { ...state.cargo } : {};
+    this._playerUpgrades = state.upgrades && typeof state.upgrades === 'object' ? { ...state.upgrades } : {};
+    this._playerUnlockedShipClasses = Array.isArray(state.unlockedShipClasses) ? state.unlockedShipClasses : ['sloop'];
+  }
+
+  init(loadState = null) {
+    if (loadState) this.applyLoadedState(loadState);
+
     this.renderer.init();
     this.input.init(this.renderer.renderer.domElement);
     this.hud.init();
@@ -56,10 +102,16 @@ export class Game {
     this.mapUI.init();
     this.bigMapUI.init();
     this.combatScene.init();
-    this.overworldScene.init();
+
+    if (loadState?.mapJson) {
+      this.overworldScene.init(loadState.mapJson, loadState.currentIslandId ?? 0);
+    } else {
+      this.overworldScene.init();
+    }
 
     this.mapUI.onSaveMap = () => this.overworldScene.serializeMap();
     this.mapUI.onLoadMap = (json) => this.overworldScene.loadMap(json);
+    this.mapUI.onSaveGame = () => this.saveGame();
     this.mapUI.onStartSailing = (route) => this._startSailing(route);
     this.mapUI.onDeselectRoute = () => { this._selectedRoute = null; };
     this.mapUI.onEnterPort = () => this._enterPort();
@@ -75,6 +127,8 @@ export class Game {
     this.portUI.onBuyGood = (goodId) => this._onPortBuyGood(goodId);
     this.portUI.onSellGood = (goodId) => this._onPortSellGood(goodId);
     this.portUI.onDismissCrew = (crewId) => this._onPortDismissCrew(crewId);
+    this.portUI.onBuyUpgrade = (upgradeId) => this._onPortBuyUpgrade(upgradeId);
+    this.portUI.onServeRum = () => this._onPortServeRum();
     this._initOverworldNavControls();
     this._initSettings();
 
@@ -188,6 +242,14 @@ export class Game {
 
     overworldScene.update(dt, input);
 
+    // C.6: morale decays during voyage; C.6c: faster decay when undercrewed
+    const maxCrew = SHIP_CLASSES?.[this._playerShipClass ?? 'sloop']?.crewMax ?? 20;
+    updateMoraleDecay(this._crewRoster ?? [], dt, maxCrew);
+    const sailingShip = overworldScene.getSailingShip?.();
+    if (sailingShip) {
+      sailingShip.setStationEffects(getStationEffects(this._crewRoster ?? [], this._playerShipClass ?? 'sloop'));
+    }
+
     const arrivedState = overworldScene.consumeLastArrivedShipState?.();
     if (arrivedState) this._playerShipState = arrivedState;
 
@@ -296,9 +358,11 @@ export class Game {
   _enterPort() {
     const currentIsland = this.overworldScene.getCurrentIsland();
     if (!currentIsland) return;
+    // D.9: Auto-save when entering port
+    this.saveGame();
     const dockFee = ECONOMY?.dockFee ?? 0;
     const goldAfterDock = Math.max(0, (this._playerGold ?? 0) - dockFee);
-    this.portScene.init(currentIsland, [...(this._crewRoster ?? [])], goldAfterDock, this._playerShipClass ?? 'sloop', this._playerShipState ?? null, { ...(this._playerCargo ?? {}) });
+    this.portScene.init(currentIsland, [...(this._crewRoster ?? [])], goldAfterDock, this._playerShipClass ?? 'sloop', this._playerShipState ?? null, { ...(this._playerCargo ?? {}) }, { ...(this._playerUpgrades ?? {}) }, this._playerInfamy ?? 0, [...(this._playerUnlockedShipClasses ?? ['sloop'])]);
     this.portScene.dockFeePaid = dockFee;
     this.portUI.show(this.portScene);
     this.state = GAME_STATES.PORT;
@@ -308,6 +372,7 @@ export class Game {
     this._crewRoster = [...(this.portScene.getCrewRoster() ?? [])];
     this._playerGold = this.portScene.getGold();
     this._playerShipState = this.portScene.getShipState?.() ?? this._playerShipState;
+    this._playerUpgrades = this.portScene.getUpgrades?.() ?? this._playerUpgrades;
     this._playerCargo = this.portScene.getCargo?.() ?? this._playerCargo ?? {};
     this.portUI.hide();
     this.state = GAME_STATES.OVERWORLD;
@@ -329,8 +394,39 @@ export class Game {
   }
 
   _onPortShipClassChange(shipClassId) {
-    this._playerShipClass = shipClassId ?? 'sloop';
-    this.portScene.shipClassId = this._playerShipClass;
+    const target = shipClassId ?? 'sloop';
+    const unlocked = this._playerUnlockedShipClasses ?? ['sloop'];
+    const brigantineUnlock = INFAMY?.brigantineUnlock ?? 3;
+    const galleonUnlock = INFAMY?.galleonUnlock ?? 5;
+    const brigantineCost = INFAMY?.brigantineCost ?? 500;
+    const galleonCost = INFAMY?.galleonCost ?? 1200;
+    const infamy = this._playerInfamy ?? 0;
+    const gold = this.portScene.getGold?.() ?? 0;
+    const revert = () => this.portUI.update(this.portScene);
+
+    if (target === 'brigantine') {
+      if (infamy < brigantineUnlock) { revert(); return; }
+      if (!unlocked.includes('brigantine') && gold < brigantineCost) { revert(); return; }
+      if (!unlocked.includes('brigantine')) {
+        const newGold = gold - brigantineCost;
+        this.portScene.setGold(newGold);
+        this._playerGold = newGold; // keep in sync for display
+        this._playerUnlockedShipClasses = [...unlocked, 'brigantine'];
+      }
+    } else if (target === 'galleon') {
+      if (infamy < galleonUnlock) { revert(); return; }
+      if (!unlocked.includes('galleon') && gold < galleonCost) { revert(); return; }
+      if (!unlocked.includes('galleon')) {
+        const newGold = gold - galleonCost;
+        this.portScene.setGold(newGold);
+        this._playerGold = newGold;
+        this._playerUnlockedShipClasses = [...unlocked, 'galleon'];
+      }
+    }
+
+    this._playerShipClass = target;
+    this.portScene.shipClassId = target;
+    this.portScene.unlockedShipClasses = this._playerUnlockedShipClasses;
     this.portScene.adaptShipStateToClass?.();
     this.portUI.update(this.portScene);
   }
@@ -352,11 +448,32 @@ export class Game {
   }
 
   _onPortSellGood(goodId) {
-    if (this.portScene.sellGood?.(goodId)) this.portUI.update(this.portScene);
+    const goldReceived = this.portScene.sellGood?.(goodId) ?? 0;
+    if (goldReceived > 0) {
+      const infamyGain = (INFAMY?.infamyPerGoldFromSale ?? 0.01) * goldReceived;
+      this._playerInfamy = (this._playerInfamy ?? 0) + infamyGain;
+      this.portScene.infamy = this._playerInfamy;
+    }
+    if (goldReceived > 0) this.portUI.update(this.portScene);
   }
 
   _onPortDismissCrew(crewId) {
     if (this.portScene.removeCrew?.(crewId)) this.portUI.update(this.portScene);
+  }
+
+  _onPortBuyUpgrade(upgradeId) {
+    if (this.portScene.buyUpgrade?.(upgradeId)) {
+      this._playerUpgrades = this.portScene.getUpgrades?.() ?? this._playerUpgrades;
+      this.portUI.update(this.portScene);
+    }
+  }
+
+  _onPortServeRum() {
+    if (this.portScene.serveRum?.()) {
+      this._playerCargo = this.portScene.getCargo?.() ?? this._playerCargo;
+      this._crewRoster = [...(this.portScene.getCrewRoster() ?? [])];
+      this.portUI.update(this.portScene);
+    }
   }
 
   _updatePort(_dt) {
@@ -375,7 +492,7 @@ export class Game {
       this.mapUI.showToast(`Need ${suppliesCost} gold for supplies!`, 'error');
       return false;
     }
-    const ok = this.overworldScene.startTravel(target, this._crewRoster ?? [], this._playerShipClass ?? 'sloop', this._playerShipState ?? null);
+    const ok = this.overworldScene.startTravel(target, this._crewRoster ?? [], this._playerShipClass ?? 'sloop', this._playerShipState ?? null, this._playerUpgrades ?? {});
     if (ok) {
       if (suppliesCost > 0) this._playerGold = Math.max(0, gold - suppliesCost);
       this._selectedRoute = null;

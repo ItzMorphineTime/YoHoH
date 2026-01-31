@@ -1,7 +1,7 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
-**Document status:** Draft v1.0  
-**Last updated:** 2026-01-29  
+**Document status:** Draft v1.0 (reviewed)  
+**Last updated:** 2026-01-30  
 **Target:** Small indie prototype — PC web browser  
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js  
 
@@ -101,8 +101,10 @@ Demo/
 │   │   └── audio/
 │   └── data/
 │       ├── goods.json
-│       ├── ships.json
-│       └── enemies.json
+│       ├── lore.json
+│       ├── pirate-kings-lore.json
+│       ├── ships.json          # (future)
+│       └── enemies.json        # (future)
 ├── src/
 │   ├── main.js
 │   ├── config.js
@@ -110,7 +112,9 @@ Demo/
 │   ├── Renderer.js
 │   ├── Input.js
 │   ├── map/
-│   │   └── MapGenerator.js     # Shared: import from POC or copy
+│   │   ├── MapGenerator.js     # Shared: import from POC or copy
+│   │   ├── MapSerializer.js   # Save/Load map JSON
+│   │   └── SeededRNG.js        # Pseudo-random with seed
 │   ├── render/
 │   │   └── RenderConfig.js     # Per-view config (combat, overworld, sailing)
 │   ├── scenes/
@@ -132,12 +136,17 @@ Demo/
 │   │   └── CrewSystem.js
 │   ├── ui/
 │   │   ├── HUD.js
-│   │   ├── PortUI.js
-│   │   ├── MapUI.js
-│   │   └── MenuUI.js
+│   │   ├── MapUI.js            # Overworld route selection panel
+│   │   ├── BigMapUI.js          # Chart Screen (M key)
+│   │   ├── Minimap.js           # Combat/overworld minimap
+│   │   ├── PortUI.js            # Tavern, Shipwright, Market
+│   │   └── MenuUI.js            # (future) Main menu
 │   └── utils/
 │       ├── math.js
-│       └── rng.js
+│       ├── rng.js
+│       ├── routeModifiers.js   # B.4: stormy, patrolled, shoals
+│       ├── upgrades.js         # C.7, C.10: upgrade stat overrides
+│       └── saveSystem.js       # D.9: localStorage save/load
 └── IMPLEMENTATION_PLAN.md
 ```
 
@@ -289,7 +298,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Goal:** 6–8 goods, market UI, buy/sell, repairs, simple variance. *(GDD §8.3, §8.6)*
 
-**Status:** In progress. Overworld map + travel implemented. Economy (B.6–B.8) + Port (B.9–B.10a) complete.
+**Status:** Trading loop complete. Overworld map, travel, economy (B.6–B.8), port (B.9–B.10a), economy sinks (B.11), route modifiers (B.4) implemented.
 
 ### 6.1 Overworld Map (§7.1)
 | # | Task | Status |
@@ -333,6 +342,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 - [x] Price variance between islands (B.6: base + bias + distanceFromHome)
 - [x] Dock fees (B.11): gold deducted on port entry; config ECONOMY.dockFee
 - [x] Supplies (B.11): gold deducted when setting sail; config ECONOMY.suppliesCost; Start Sailing disabled if can't afford
+- [x] Route modifiers (B.4): stormy, patrolled, shoals derived from distanceFromHome and hazard; route colors + UI labels
 
 ---
 
@@ -340,16 +350,16 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Goal:** Improve core gameplay feel, sailing experience, and rendering quality before expanding content. Focus on making the sailing loop satisfying and the visuals readable at all display sizes.
 
-**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) largely complete. Economy (B.6–B.8) complete. B.11 economy sinks complete (dock fees, supplies). S.6 arrival toast implemented. Next: graphical bugs (§8.3a), sailing polish.
+**Status:** In progress. Dynamic GUI, sailing speed, combat zoom fixed. Map UI UX/UI (§8.6) complete (incl. N.2 minimap tooltip). Economy (B.6–B.8) and B.11 economy sinks complete. S.3 wake, S.5 corridor feedback, S.6 arrival toast, M.2 camera smoothing implemented. Next: graphical bugs (§8.3a R.8), rendering improvements, Phase C upgrades.
 
 ### 8.1 Sailing Experience
 | # | Task | Details |
 |---|------|---------|
 | S.1 | Sailing feel | ✓ Reduced speed (SAILING.maxSpeed 0.22); gentler thrust; distinct from combat |
 | S.2 | Wind / heading | — Optional wind direction; slight speed bonus when sailing with wind |
-| S.3 | Wake / trail | — Ship wake or foam trail when moving (visual feedback) |
+| S.3 | Wake / trail | ✓ Ship wake behind ship when moving (length scales with speed; config: wakeLengthMax, wakeWidth, wakeColor, wakeOpacity) |
 | S.4 | Sailing audio | — Ambient waves, creaking; optional wind SFX |
-| S.5 | Corridor feedback | — Subtle edge markers or water color change at corridor bounds |
+| S.5 | Corridor feedback | ✓ Subtle edge markers at corridor bounds (config: corridorEdgeColor, corridorEdgeOpacity, corridorEdgeWidth) |
 | S.6 | Arrival feel | ✓ Toast "Arrived at [Island]!" when ship reaches destination; MapUI.showToast |
 
 ### 8.2 Dynamic GUI & Layout
@@ -383,7 +393,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | # | Task | Details |
 |---|------|---------|
 | M.1 | Input feel | — Responsive; optional deadzone for analog |
-| M.2 | Camera smoothing | — Optional lerp on camera follow during sailing |
+| M.2 | Camera smoothing | ✓ Optional lerp on camera follow during sailing (config: cameraSmoothingLerp) |
 | M.3 | Combat–sailing flow | — Smooth transition; no jarring state switches |
 | M.4 | Performance | — Frame budget; entity limits; instancing if needed |
 
@@ -480,6 +490,15 @@ routeSelection: {
 SAILING_RENDER: {
   islandRadius: 320,
   corridorWidth: 50,
+  wakeLengthMax: 40,              // S.3: max wake length at full speed
+  wakeWidth: 12,
+  wakeColor: 0x5a8aba,
+  wakeOpacity: 0.4,
+  wakeSpeedThreshold: 0.02,
+  cameraSmoothingLerp: 0.12,      // M.2: camera follow smoothing (0=instant, 0.1=smooth)
+  corridorEdgeColor: 0x3a5a7a,   // S.5: edge markers at corridor bounds
+  corridorEdgeOpacity: 0.5,
+  corridorEdgeWidth: 2,
   // ... destMarkerRadius, corridorColor, etc.
 }
 
@@ -497,8 +516,10 @@ SAILING_RENDER: {
 - [x] Route selection panel: "Docked at" current island, connected routes list, destination details; UI.routeSelection config
 - [x] Sailing rendering: SAILING_RENDER.islandRadius for island circles; corridor width aligned with movement boundary
 - [x] Minimap island tooltip (N.2): hover over island during sailing to see name
-- [ ] Sailing experience polish (wake, corridor feedback)
+- [x] Wake / trail (S.3): ship wake behind ship when moving; length scales with speed
+- [x] Corridor feedback (S.5): subtle edge markers at sailing corridor bounds
 - [x] Arrival feel (S.6): toast on arrival at destination
+- [x] Camera smoothing (M.2): lerp on camera follow during sailing
 - [ ] Rendering improvements (water, ship, islands)
 - [ ] Per-class ship rendering (§9.0.6 I.5)
 - [x] Optional UI scaling setting (Settings modal; G.4)
@@ -510,7 +531,7 @@ SAILING_RENDER: {
 
 **Goal:** Hire crew, stations, 6–8 upgrades, ship tier 2. *(GDD §8.4, §8.5)*
 
-**Status:** §9.0 Rendering Refactor complete. §9.0.5 Ship Classes implemented. Crew System (§9.1) with station slots integrated. Ship comparison UI (C.10b) implemented. §9.0.6 Ship System Improvements (ideas) documented.
+**Status:** §9.0 Rendering Refactor complete. §9.0.5 Ship Classes implemented. Crew System (§9.1) with station slots integrated. Morale (C.6): Rum in cargo raises morale; voyage decay; victory boost; morale scales station effects. C.6c: Undercrewed ships suffer faster morale decay. Ship comparison UI (C.10b) implemented. Ship upgrades (C.7, C.8, C.10) with UI and combat integration. Cannon count per class (C.10c): Sloop 1, Brigantine 2, Galleon 3 broadsides. Infamy (C.11), ship class unlock gates (C.11a), ship class purchase (C.10a) implemented. §9.0.6 Ship System Improvements (ideas) documented.
 
 ### 9.0 Rendering Refactor (Prerequisite) ★ First Step
 
@@ -588,11 +609,11 @@ GAME.defaultShipClass: 'sloop'
 | I.6 | Cannon count per class | Sloop 1 broadside, Brigantine 2, Galleon 3; or damage/cooldown scaling by class | C.10c |
 | I.7 | Enemy ship classes | Raider Sloop vs Raider Brigantine; Trader Sloop vs Trader Galleon; Enemy extends Sloop/Brigantine | D.4b |
 | I.8 | Ship naming | Player names their ship; display in HUD, port, save | D.4a |
-| I.9 | Ship persistence | Save/load ship class, hull/sails/crew/bilge/leaks state; crew roster; upgrades | D.9a |
+| I.9 | Ship persistence | ✓ Save/load ship class, hull/sails/crew/bilge/leaks state; crew roster; upgrades | D.9a |
 | I.10 | Leak repair at port | Carpenter + gold repairs leaks at port; or leaks decay slowly when hull > 80% | B.10a |
 | I.11 | Frigate (tier 3) | Stretch: larger ship class; 4+ gunner slots; unlock at Infamy 7 | §11.3 |
 | I.12 | Ship comparison UI | Shipwright: side-by-side stats (Sloop vs Brigantine vs Galleon); "Upgrade to Brigantine" CTA | C.10b |
-| I.13 | Crew capacity scaling | Max crew scales with ship class; hire cost or morale impact for undercrewed ships | C.6c |
+| I.13 | Crew capacity scaling | ✓ Morale decays faster when crew < 50% of max; config undercrewedMoraleDecayMult | C.6c |
 | I.14 | Station effectiveness decay | Unassigned stations reduce effectiveness; encourage full roster on larger ships | C.6b |
 
 **Priority candidates:**
@@ -610,27 +631,27 @@ GAME.defaultShipClass: 'sloop'
 | C.3 | Stations | ✓ Helmsman, Gunner P/S, Carpenter, Navigator, Sailing, Bilge, Man at Arms |
 | C.4 | Station effects | ✓ CrewSystem.getStationEffects; turnRate, reload, repair, sailSpeed, bilgePump, crewMult; Ship integration |
 | C.5 | Variable slots | ✓ getStationSlots(shipClassId); getAssignableStationsForCrew; assignStation enforces slot limits |
-| C.6 | Morale (light) | — Shifts from pay, victories, voyage length |
+| C.6 | Morale (light) | ✓ Rum, victories, voyage decay; morale scales station effects |
 | C.6a | Carpenter repair | ✓ Carpenter station repairs hull and stops leaks over time (sailing/combat); repairMult, leakRepairMult (§9.0.6 I.1) |
-| C.6b | Station effectiveness decay | — Unassigned stations reduce effectiveness; encourage full roster on larger ships (§9.0.6 I.14) |
-| C.6c | Crew capacity scaling | — Hire cost or morale impact for undercrewed ships (§9.0.6 I.13) |
+| C.6b | Station effectiveness decay | ✓ Unassigned stations apply penalty (config unassignedStationPenalty); encourage full roster (§9.0.6 I.14) |
+| C.6c | Crew capacity scaling | ✓ Morale decays faster when crew < 50% of max; config undercrewedMoraleDecayMult (§9.0.6 I.13) |
 
 ### 9.2 Ship Upgrades (§8.5)
 | # | Task | Details |
 |---|------|---------|
-| C.7 | Upgrade slots | Hull, Sails, Cannons, Cargo, Utility, Boarding |
-| C.8 | Upgrade UI | Shipwright: slot selection, stat deltas, cost |
+| C.7 | Upgrade slots | ✓ Hull, Sails, Cannons, Cargo, Utility, Boarding |
+| C.8 | Upgrade UI | ✓ Shipwright: slot selection, stat deltas, cost |
 | C.9 | Ship tiers | ✓ Sloop (default), Brigantine, Galleon — distinct classes; Brig/Galleon unlock at Infamy (future) |
-| C.10 | 6–8 upgrades | Plating, Fast rigging, Heavy shot, etc. |
-| C.10a | Ship class purchase | — Upgrade ship class at Shipwright (Sloop → Brigantine → Galleon); cost + Infamy gate; transfer crew/state (§9.0.6 I.3) |
+| C.10 | 6–8 upgrades | ✓ Plating, Fast rigging, Heavy shot, etc.; cannonDamageMult/cannonCooldown apply in combat |
+| C.10a | Ship class purchase | ✓ Upgrade ship class at Shipwright (Sloop → Brigantine → Galleon); cost (500/1200 gold) + Infamy gate; transfer crew/state (§9.0.6 I.3) |
 | C.10b | Ship comparison UI | ✓ Shipwright: side-by-side stats table (Sloop vs Brigantine vs Galleon); Hull, Sails, Crew, Cargo, Turn rate, Speed, Slots (§9.0.6 I.12) |
-| C.10c | Cannon count per class | — Sloop 1 broadside, Brigantine 2, Galleon 3; or damage/cooldown scaling by class (§9.0.6 I.6) |
+| C.10c | Cannon count per class | ✓ Sloop 1, Brigantine 2, Galleon 3 broadsides; config cannonCount; slight spread per shot (§9.0.6 I.6) |
 
 ### 9.3 Progression (§9.1)
 | # | Task | Details |
 |---|------|---------|
-| C.11 | Infamy | Earn from profit, victories; unlock tiers |
-| C.11a | Ship class unlock gates | — Brigantine/Galleon unlock at Infamy 3/5; show "Locked" in Shipwright until unlocked (§9.0.6 I.4) |
+| C.11 | Infamy | ✓ Earn from profit (selling goods), victories (combat loot); config INFAMY |
+| C.11a | Ship class unlock gates | ✓ Brigantine/Galleon unlock at Infamy 3/5; show "Locked" in Shipwright until unlocked (§9.0.6 I.4) |
 
 ### 9.4 Deliverables
 - [x] **9.0 Rendering refactor:** Scene-specific logic extracted; config consolidated; scalable layout
@@ -638,14 +659,16 @@ GAME.defaultShipClass: 'sloop'
 - [x] Tavern: hire crew, assign stations (PortUI Tavern tab); slot info (e.g. "1/2"); max crew per ship class
 - [x] Crew Management UI: station overview chips, crew count (X/Y), dismiss crew (C.2a)
 - [x] Crew affects ship stats (turn rate, reload, sail speed, bilge pump) — CrewSystem.getStationEffects; Ship integration
+- [x] Morale (C.6): Rum in cargo raises morale (Serve Rum at Tavern); voyage decay; victory boost; morale scales station effects
 - [x] Shipwright: ship class selector (Sloop/Brigantine/Galleon)
 - [x] Carpenter repair (hull + leaks over time) (§9.0.6 I.1)
-- [ ] Shipwright: 6–8 upgrades across slots
+- [x] Shipwright: 6–8 upgrades across slots (C.7, C.8, C.10); upgrade stats apply in sailing + combat
 - [x] Ship comparison UI (C.10b): stats table in Shipwright (§9.0.6 I.12)
-- [ ] Ship class purchase (§9.0.6 I.3)
-- [ ] Ship class unlock gates (Infamy 3/5) (§9.0.6 I.4)
-- [ ] Cannon count per class (§9.0.6 I.6)
-- [ ] Station effectiveness decay; crew capacity scaling (§9.0.6 I.13, I.14)
+- [x] Ship class purchase (§9.0.6 I.3)
+- [x] Ship class unlock gates (Infamy 3/5) (§9.0.6 I.4)
+- [x] Cannon count per class (C.10c): Sloop 1, Brigantine 2, Galleon 3 broadsides (§9.0.6 I.6)
+- [x] Station effectiveness decay (§9.0.6 I.14)
+- [x] Crew capacity scaling (§9.0.6 I.13)
 
 ---
 
@@ -676,9 +699,9 @@ GAME.defaultShipClass: 'sloop'
 | # | Task | Details |
 |---|------|---------|
 | D.8 | Economy tuning | Sinks, caps, event spikes |
-| D.9 | Save system | Ship, crew, islands, reputation (localStorage) |
-| D.9a | Ship persistence | — Save/load ship class, hull/sails/crew/bilge/leaks state; crew roster; upgrades (§9.0.6 I.9) |
-| D.10 | Main menu | New game, Continue, Settings |
+| D.9 | Save system | ✓ Ship, crew, islands, gold, infamy (localStorage); auto-save on port entry |
+| D.9a | Ship persistence | ✓ Save/load ship class, hull/sails/crew/bilge/leaks state; crew roster; upgrades (§9.0.6 I.9) |
+| D.10 | Main menu | ✓ New game, Continue (if save exists), Settings |
 
 ### 10.4 Deliverables
 - [x] 8–12 islands with full routes (OVERWORLD.numIslands)
@@ -686,9 +709,9 @@ GAME.defaultShipClass: 'sloop'
 - [ ] Ship naming (§9.0.6 I.8)
 - [ ] Enemy ship classes (Raider/Trader Sloop vs Brigantine) (§9.0.6 I.7)
 - [ ] 1 Pirate King Lieutenant boss
-- [ ] Save/load via localStorage
-- [ ] Ship persistence (class, state, crew, upgrades) (§9.0.6 I.9)
-- [ ] Main menu + Continue
+- [x] Save/load via localStorage
+- [x] Ship persistence (class, state, crew, upgrades) (§9.0.6 I.9)
+- [x] Main menu + Continue
 
 ---
 
@@ -891,7 +914,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `src/scenes/CombatScene.js`
 - [x] `src/ui/HUD.js`
 
-### Phase B (in progress)
+### Phase B ✓ (Trading loop complete)
 - [x] `src/render/RenderConfig.js` (centralized per-view config; §9.0)
 - [x] `src/map/MapGenerator.js`, `SeededRNG.js`
 - [x] `src/scenes/OverworldScene.js`
@@ -899,10 +922,12 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `src/ui/BigMapUI.js` (Chart Screen: pan, zoom, M/Esc close; UI.chartScreen config)
 - [x] `src/ui/Minimap.js` (N.2 island tooltip on hover during sailing)
 - [x] `public/data/goods.json` (8 goods: staples, military, luxury)
+- [x] `public/data/lore.json`, `pirate-kings-lore.json` (world-building, Pirate Kings)
 - [x] `src/scenes/PortScene.js`
 - [x] `src/systems/EconomySystem.js` (loads goods.json; getBuyPrice/getSellPrice; B.6 price model)
 - [x] `src/ui/PortUI.js` (Tavern/Crew Management, Shipwright + ship comparison C.10b, Market tabs; B.7 buy/sell; C.2a crew UI)
 - [x] Shipwright repairs (B.10); leak repair at port (B.10a) (§9.0.6 I.2, I.10)
+- [x] `src/utils/routeModifiers.js` (B.4: stormy, patrolled, shoals from distanceFromHome and hazard)
 
 ### Phase B.5 (Rendering)
 - [ ] Per-class ship rendering (R.3a) (§9.0.6 I.5)
@@ -912,16 +937,19 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `src/systems/CrewSystem.js`
 - [x] Tavern UI (PortUI Tavern tab); Crew Management UI (station overview, dismiss crew)
 - [x] Carpenter repair (hull + leaks) (§9.0.6 I.1)
-- [ ] Upgrade UI (Shipwright)
-- [ ] Ship class purchase + comparison UI (§9.0.6 I.3, I.12)
-- [ ] Ship class unlock gates (Infamy 3/5) (§9.0.6 I.4)
-- [ ] Cannon count per class (§9.0.6 I.6)
-- [ ] Station effectiveness decay; crew capacity scaling (§9.0.6 I.13, I.14)
+- [x] Upgrade UI (Shipwright)
+- [x] Ship comparison UI (C.10b) (§9.0.6 I.12)
+- [x] Ship class purchase (§9.0.6 I.3)
+- [x] Ship class unlock gates (Infamy 3/5) (§9.0.6 I.4)
+- [x] Cannon count per class (C.10c): Sloop 1, Brigantine 2, Galleon 3 broadsides (§9.0.6 I.6)
+- [x] Station effectiveness decay (§9.0.6 I.14)
+- [x] Crew capacity scaling (§9.0.6 I.13)
 
 ### Phase D
 - [ ] `public/data/contracts.json`, `enemies.json`
 - [ ] Ship naming (§9.0.6 I.8)
 - [ ] Enemy ship classes (Raider/Trader Sloop vs Brigantine) (§9.0.6 I.7)
-- [ ] Boss logic, Save system
-- [ ] Ship persistence (class, state, crew, upgrades) (§9.0.6 I.9)
-- [ ] `src/ui/MenuUI.js`
+- [ ] Boss logic
+- [x] Save system (`src/utils/saveSystem.js`)
+- [x] Ship persistence (class, state, crew, upgrades) (§9.0.6 I.9)
+- [x] Main menu (index.html + main.js)

@@ -69,8 +69,10 @@ export class Ship {
     // Station effects (set by Game when sailing; from crew roster)
     this._stationEffects = opts.stationEffects ?? null;
 
-    // Cannon state
+    // Cannon state (C.10: upgrades; C.10c: cannon count per class)
     this.cannonCooldown = opts.cannonCooldown ?? stats.cannonCooldown;
+    this.cannonDamageMult = opts.cannonDamageMult ?? 1;
+    this.cannonCount = opts.cannonCount ?? classConfig?.cannonCount ?? SHIP_CLASSES?.[opts.shipClassId ?? opts.shipClass ?? this.constructor.shipClassId]?.cannonCount ?? 1;
     this.portCooldown = 0;
     this.starboardCooldown = 0;
 

@@ -87,6 +87,9 @@ export function getOverworldRenderConfig() {
       selectedWidthMult: RENDER.routeSelectedWidthMult ?? 2.5,
       outlineColor: RENDER.routeSelectedOutlineColor ?? 0xffffff,
       outlineWidth: RENDER.routeSelectedOutlineWidth ?? 2, // 0 = no outline
+      stormyColor: RENDER.routeStormyColor ?? 0x4a5a7a,
+      patrolledColor: RENDER.routePatrolledColor ?? 0x6a4a4a,
+      shoalsColor: RENDER.routeShoalsColor ?? 0x6a5a3a,
     },
     camera: {
       overworldZoom: CAMERA.overworldZoom ?? 0.25,
@@ -113,6 +116,16 @@ export function getSailingRenderConfig() {
     corridor: {
       color: SAILING_RENDER?.corridorColor ?? RENDER.sailingCorridorColor ?? 0x2a4a6a,
       opacity: SAILING_RENDER?.corridorOpacity ?? RENDER.sailingCorridorOpacity ?? 0.35,
+      edgeColor: SAILING_RENDER?.corridorEdgeColor ?? RENDER.sailingCorridorEdgeColor ?? 0x3a5a7a,
+      edgeOpacity: SAILING_RENDER?.corridorEdgeOpacity ?? RENDER.sailingCorridorEdgeOpacity ?? 0.5,
+      edgeWidth: SAILING_RENDER?.corridorEdgeWidth ?? RENDER.sailingCorridorEdgeWidth ?? 2,
+    },
+    wake: {
+      lengthMax: SAILING_RENDER?.wakeLengthMax ?? RENDER.sailingWakeLengthMax ?? 40,
+      width: SAILING_RENDER?.wakeWidth ?? RENDER.sailingWakeWidth ?? 12,
+      color: SAILING_RENDER?.wakeColor ?? RENDER.sailingWakeColor ?? 0x5a8aba,
+      opacity: SAILING_RENDER?.wakeOpacity ?? RENDER.sailingWakeOpacity ?? 0.4,
+      speedThreshold: SAILING_RENDER?.wakeSpeedThreshold ?? RENDER.sailingWakeSpeedThreshold ?? 0.02,
     },
     destMarker: {
       radius: SAILING_RENDER?.destMarkerRadius ?? RENDER.sailingDestRadius,
@@ -129,6 +142,7 @@ export function getSailingRenderConfig() {
     camera: {
       zoom: CAMERA.sailingZoom,
       positionZ: CAMERA.positionZ,
+      smoothingLerp: SAILING_RENDER?.cameraSmoothingLerp ?? 0.12,
     },
   };
 }

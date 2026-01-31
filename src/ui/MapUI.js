@@ -3,6 +3,7 @@
  */
 
 import { UI, ECONOMY } from '../config.js';
+import { getRouteModifiers } from '../utils/routeModifiers.js';
 
 const ONBOARDING_KEY = 'yohoh-onboarding-hint';
 const { routeSelection: ROUTE_SELECTION } = UI;
@@ -13,6 +14,7 @@ export class MapUI {
     this.elements = {};
     this.onSaveMap = null;
     this.onLoadMap = null;
+    this.onSaveGame = null;
     this.onEnterPort = null;
     this._hintDismissed = false;
     this._lastTravelRoute = null;
@@ -95,6 +97,8 @@ export class MapUI {
     try {
       this._hintDismissed = localStorage.getItem(ONBOARDING_KEY) === '1';
     } catch (_) {}
+    this.elements.saveGameBtn = document.getElementById('map-save-game-btn');
+    this.elements.saveGameBtn?.addEventListener('click', () => this._onSaveGame());
     this.elements.saveBtn?.addEventListener('click', () => this._onSave());
     this.elements.loadInput?.addEventListener('change', (e) => this._onLoad(e));
     this.elements.startSailingBtn?.addEventListener('click', () => this._onStartSailing());
@@ -147,6 +151,14 @@ export class MapUI {
     this._toastTimer = setTimeout(() => {
       toast.style.display = 'none';
     }, 2500);
+  }
+
+  _onSaveGame() {
+    if (this.onSaveGame) {
+      const ok = this.onSaveGame();
+      this.showToast(ok ? 'Game saved' : 'Save failed', ok ? 'success' : 'error');
+      this._toggleSettings();
+    }
   }
 
   _toggleSettings() {
@@ -311,6 +323,9 @@ export class MapUI {
           if (info.dangerous) rows.push({ icon: '⚠', text: 'Dangerous' });
           if (info.appealing) rows.push({ icon: '✓', text: 'Safe port' });
           if (info.portType && info.portType !== 'none') rows.push({ icon: '⚓', text: info.portType });
+          const modIcons = { stormy: '⛈', patrolled: '⚔', shoals: '⚠' };
+          const modLabels = { stormy: 'Stormy', patrolled: 'Patrolled', shoals: 'Shoals' };
+          for (const m of info.modifiers ?? []) rows.push({ icon: modIcons[m] ?? '•', text: modLabels[m] ?? m });
           this.elements.routeDetails.innerHTML = rows
             .map(r => `<span class="map-route-row"><span class="map-route-icon">${r.icon}</span>${r.text}</span>`)
             .join('');
@@ -334,6 +349,7 @@ export class MapUI {
       dangerous: dest.dangerous,
       appealing: dest.appealing,
       portType: dest.portType || 'none',
+      modifiers: getRouteModifiers(edge),
     };
   }
 

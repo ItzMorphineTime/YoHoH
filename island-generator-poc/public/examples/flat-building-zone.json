@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "config": {
+    "gridSize": 128,
+    "elevationScale": 1.0,
+    "islandRadius": 0.7,
+    "coastFalloff": 3.0,
+    "coastIrregularity": 0.15,
+    "elongation": 0.5,
+    "seaLevel": 0.12,
+    "terrainRoughness": 0.4,
+    "chunkSize": 8,
+    "flatnessStrength": 0.9,
+    "noiseOctaves": 3,
+    "frequency": 1.5,
+    "persistence": 0.6,
+    "lacunarity": 2.2
+  },
+  "display": { "heightScale": 0.6, "wireframe": false },
+  "seed": 123
+}

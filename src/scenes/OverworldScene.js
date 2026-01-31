@@ -7,8 +7,10 @@
 import { createShip } from '../entities/ships.js';
 import { SailingSystem } from '../systems/SailingSystem.js';
 import { getStationEffects } from '../systems/CrewSystem.js';
+import { getCreateShipOptsFromUpgrades } from '../utils/upgrades.js';
 import { generateMap } from '../map/MapGenerator.js';
 import { deserialize, serialize } from '../map/MapSerializer.js';
+import { getRouteModifiers } from '../utils/routeModifiers.js';
 import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER } from '../config.js';
 
 export class OverworldScene {
@@ -20,10 +22,10 @@ export class OverworldScene {
     this.shipPosition = { x: 0, y: 0 };
   }
 
-  init(mapData = null) {
+  init(mapData = null, currentIslandId = null) {
     if (mapData) {
       this.map = deserialize(mapData);
-      this.currentIsland = this.map.homeNode;
+      this.currentIsland = this._getNodeById(currentIslandId) ?? this.map.homeNode;
     } else {
       this.map = generateMap({
         numIslands: OVERWORLD.numIslands,
@@ -32,10 +34,15 @@ export class OverworldScene {
       });
       this.currentIsland = this.map.homeNode;
     }
-    this.currentIsland = this.map.homeNode;
     this.travelRoute = null;
     this.sailingShip = null;
     this._updateShipPosition();
+  }
+
+  /** Get node by id (for save/load). */
+  _getNodeById(id) {
+    if (id == null || !this.map?.nodes) return null;
+    return this.map.nodes.find(n => n.id === id) ?? null;
   }
 
   /** Serialize current map for save */
@@ -43,11 +50,13 @@ export class OverworldScene {
     return this.map ? serialize(this.map) : null;
   }
 
-  /** Load map from serialized JSON */
-  loadMap(json) {
+  /** Load map from serialized JSON. Optionally set current island by id. */
+  loadMap(json, currentIslandId = null) {
     try {
       this.map = deserialize(json);
-      this.currentIsland = this.map.homeNode;
+      this.currentIsland = (currentIslandId != null && this._getNodeById(currentIslandId))
+        ? this._getNodeById(currentIslandId)
+        : this.map.homeNode;
       this.travelRoute = null;
       this.sailingShip = null;
       this._updateShipPosition();
@@ -132,7 +141,7 @@ export class OverworldScene {
   }
 
   /** Start travel along route from current island to target. Uses SailingSystem for player control. */
-  startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null) {
+  startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null, upgrades = {}) {
     if (this.travelRoute) return false;
     if (!this.currentIsland) return false;
     const edge = this._findEdge(this.currentIsland, targetIsland);
@@ -147,6 +156,7 @@ export class OverworldScene {
       bilgeWater: shipState.bilgeWater,
       leaks: shipState.leaks,
     } : {};
+    const upgradeOpts = getCreateShipOptsFromUpgrades(upgrades, shipClassId, true);
     this.sailingShip = createShip(shipClassId, {
       x: this.currentIsland.position.x,
       y: this.currentIsland.position.y,
@@ -154,6 +164,7 @@ export class OverworldScene {
       isPlayer: true,
       useSailing: true,
       ...stateOpts,
+      ...upgradeOpts,
     });
     this.sailingShip.setStationEffects(getStationEffects(crewRoster, shipClassId));
     return true;
@@ -249,7 +260,7 @@ export class OverworldScene {
     this._updateShipPosition();
   }
 
-  /** Get route info for UI: destination name, distance, danger level */
+  /** Get route info for UI: destination name, distance, danger level, modifiers (B.4) */
   getRouteInfo(edge) {
     if (!edge) return null;
     const dest = edge.a === this.currentIsland ? edge.b : edge.a;
@@ -262,6 +273,7 @@ export class OverworldScene {
       dangerous: dest.dangerous,
       appealing: dest.appealing,
       portType: dest.portType || 'none',
+      modifiers: getRouteModifiers(edge),
     };
   }
 }

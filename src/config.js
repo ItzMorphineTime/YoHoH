@@ -77,8 +77,17 @@ export const SAILING_RENDER = {
   waterGradient: true,
   corridorColor: 0x2a4a6a,
   corridorOpacity: 0.35,
+  wakeLengthMax: 40,              // S.3: max wake length at full speed
+  wakeWidth: 12,
+  wakeColor: 0x5a8aba,
+  wakeOpacity: 0.4,
+  wakeSpeedThreshold: 0.02,
+  corridorEdgeColor: 0x3a5a7a,   // S.5: subtle edge markers at corridor bounds
+  corridorEdgeOpacity: 0.5,
+  corridorEdgeWidth: 2,
   destMarkerRadius: 25,
   destMarkerOpacity: 0.8,
+  cameraSmoothingLerp: 0.12,     // M.2: camera follow smoothing (0=instant, 0.1=smooth)
 };
 
 // ─── Game States ───────────────────────────────────────────────────────────
@@ -149,6 +158,7 @@ export const SAILING = {
 export const SHIP_CLASSES = {
   sloop: {
     name: 'Sloop',
+    cannonCount: 1, // C.10c: broadsides per class
     hullMax: 80,
     sailMax: 80,
     crewMax: 60,
@@ -180,6 +190,7 @@ export const SHIP_CLASSES = {
   },
   brigantine: {
     name: 'Brigantine',
+    cannonCount: 2, // C.10c: broadsides per class
     hullMax: 120,
     sailMax: 120,
     crewMax: 100,
@@ -211,6 +222,7 @@ export const SHIP_CLASSES = {
   },
   galleon: {
     name: 'Galleon',
+    cannonCount: 3, // C.10c: broadsides per class
     hullMax: 150,
     sailMax: 150,
     crewMax: 150,
@@ -242,11 +254,44 @@ export const SHIP_CLASSES = {
   },
 };
 
+// ─── Ship Upgrades (C.7, C.10) — Hull, Sails, Cannons, Cargo, Utility, Boarding ─
+export const UPGRADE_SLOTS = ['hull', 'sails', 'cannons', 'cargo', 'utility', 'boarding'];
+
+export const UPGRADES = {
+  // Hull slot
+  plating: { id: 'plating', name: 'Plating', slot: 'hull', cost: 80, hullMax: 10 },
+  reinforced_hull: { id: 'reinforced_hull', name: 'Reinforced Hull', slot: 'hull', cost: 120, hullMax: 15, maxSpeedMult: 0.95 },
+  // Sails slot
+  fast_rigging: { id: 'fast_rigging', name: 'Fast Rigging', slot: 'sails', cost: 90, sailSpeedMult: 1.1 },
+  storm_sails: { id: 'storm_sails', name: 'Storm Sails', slot: 'sails', cost: 100, sailMax: 15 },
+  // Cannons slot
+  heavy_shot: { id: 'heavy_shot', name: 'Heavy Shot', slot: 'cannons', cost: 110, cannonDamageMult: 1.15 },
+  quick_reload: { id: 'quick_reload', name: 'Quick Reload', slot: 'cannons', cost: 95, cannonCooldownMult: 0.9 },
+  // Cargo slot
+  extra_holds: { id: 'extra_holds', name: 'Extra Holds', slot: 'cargo', cost: 70, cargoCapacity: 5 },
+  storage_nets: { id: 'storage_nets', name: 'Storage Nets', slot: 'cargo', cost: 85, cargoCapacity: 10 },
+  // Utility slot
+  reinforced_bilge: { id: 'reinforced_bilge', name: 'Reinforced Bilge', slot: 'utility', cost: 75, bilgeWaterMax: 20 },
+  navigator_tools: { id: 'navigator_tools', name: "Navigator's Tools", slot: 'utility', cost: 80, turnRateMult: 1.05 },
+  // Boarding slot
+  boarding_nets: { id: 'boarding_nets', name: 'Boarding Nets', slot: 'boarding', cost: 65, crewMult: 1.08 },
+  grappling_hooks: { id: 'grappling_hooks', name: 'Grappling Hooks', slot: 'boarding', cost: 90, crewMult: 1.12 },
+};
+
 // ─── Crew & Stations (GDD §8.4) ─────────────────────────────────────────────
 export const CREW = {
   hireCost: 25,
   maxCrew: 20,
   moraleBaseline: 1,
+  moraleMin: 0.2,
+  moraleMax: 1,
+  moraleDecayPerSecond: 0.0015,   // C.6: voyage length drains morale
+  moraleRumGain: 0.2,             // C.6: per rum served
+  moraleVictoryGain: 0.1,        // C.6: per combat victory
+  rumGoodId: 'rum',
+  unassignedStationPenalty: 0.85,  // C.6b: multiplier when station has 0 crew (0.85 = 15% penalty)
+  undercrewedMoraleDecayMult: 1.5, // C.6c: morale decays faster when crew < 50% of max (1.5 = 50% faster)
+  undercrewedThreshold: 0.5,       // C.6c: crew/maxCrew below this = undercrewed
   stations: ['helmsman', 'gunner_port', 'gunner_starboard', 'carpenter', 'navigator', 'sailing', 'bilge', 'man_at_arms'],
   stationEffects: {
     helmsman: { turnRateMult: 1.15 },
@@ -293,6 +338,17 @@ export const SAILING_SYSTEM = {
   corridorLenEpsilon: 0.001,
 };
 
+// ─── Infamy (C.11) — progression; unlocks ship tiers ───────────────────────
+export const INFAMY = {
+  infamyPerVictory: 1,           // Infamy gained per combat victory
+  infamyPerGoldFromCombat: 0.02, // Infamy per gold from combat loot
+  infamyPerGoldFromSale: 0.01,   // Infamy per gold from selling goods (trading profit proxy)
+  brigantineUnlock: 3,           // C.11a: Brigantine unlocks at Infamy 3
+  galleonUnlock: 5,              // C.11a: Galleon unlocks at Infamy 5
+  brigantineCost: 500,           // C.10a: gold to purchase Brigantine
+  galleonCost: 1200,             // C.10a: gold to purchase Galleon
+};
+
 // ─── Game Loop ─────────────────────────────────────────────────────────────
 export const GAME = {
   maxDt: 0.1,
@@ -337,9 +393,21 @@ export const RENDER = {
   routeColor: 0x3a6a9a,
   routeHoverColor: 0x5a8aba,
   routeHoverWidthMult: 1.3,
+  // B.4 Route modifiers (stormy, patrolled, shoals)
+  routeStormyColor: 0x4a5a7a,
+  routePatrolledColor: 0x6a4a4a,
+  routeShoalsColor: 0x6a5a3a,
   sailingPathRefLength: 500,
   sailingCorridorColor: 0x2a4a6a,
   sailingCorridorOpacity: 0.35,
+  sailingCorridorEdgeColor: 0x3a5a7a,
+  sailingCorridorEdgeOpacity: 0.5,
+  sailingCorridorEdgeWidth: 2,
+  sailingWakeLengthMax: 40,
+  sailingWakeWidth: 12,
+  sailingWakeColor: 0x5a8aba,
+  sailingWakeOpacity: 0.4,
+  sailingWakeSpeedThreshold: 0.02,
   sailingWaterGradient: true,
   sailingDestColor: 0x4a7c59,
   sailingDestOpacity: 0.8,
@@ -374,6 +442,9 @@ const MAP_COLORS = {
   border: '#2a4a6a',
   route: '#3a6a9a',
   routeActive: '#6bca9a',
+  routeStormy: '#4a5a7a',
+  routePatrolled: '#6a4a4a',
+  routeShoals: '#6a5a3a',
   islandHome: '#4a7c59',
   islandDanger: '#8b4444',
   islandAppeal: '#6b9b7a',

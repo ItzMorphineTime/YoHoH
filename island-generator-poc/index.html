@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YoHoH — Island Terrain Generator (POC)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0a0e17;
+      color: #e8e6e3;
+      overflow: hidden;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #controls {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(10, 14, 23, 0.95);
+      border: 1px solid #2a3548;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 260px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    #controls-save-load {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(10, 14, 23, 0.95);
+      border: 1px solid #2a3548;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 220px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    #controls h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #7eb8da;
+      margin-bottom: 4px;
+    }
+    .control-section {
+      padding-bottom: 8px;
+      border-bottom: 1px solid #2a3548;
+    }
+    .control-section:last-of-type { border-bottom: none; }
+    .control-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .control-row:last-child { margin-bottom: 0; }
+    .control-row label {
+      flex: 0 0 100px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .control-row input[type="number"],
+    .control-row input[type="text"],
+    .control-row select {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 8px;
+      background: #1a2332;
+      border: 1px solid #2a3548;
+      border-radius: 4px;
+      color: #e8e6e3;
+      font-size: 12px;
+    }
+    .control-row input[type="range"] {
+      flex: 1;
+      min-width: 60px;
+      accent-color: #2563eb;
+    }
+    .control-row .value-display {
+      flex: 0 0 40px;
+      font-size: 11px;
+      color: #6b7280;
+      text-align: right;
+    }
+    button {
+      padding: 10px 16px;
+      background: #2563eb;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button:hover {
+      background: #3b82f6;
+    }
+    button.active {
+      background: #059669;
+    }
+    button.active:hover {
+      background: #10b981;
+    }
+    #stats {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    .edit-tools {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .edit-tool-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #1a2332;
+      border: 1px solid #2a3548;
+      border-radius: 6px;
+      color: #e8e6e3;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+    }
+    .edit-tool-btn:hover {
+      background: #243044;
+      border-color: #3b4a5c;
+    }
+    .edit-tool-btn.active {
+      background: #0f3d2e;
+      border-color: #059669;
+      color: #34d399;
+    }
+    .edit-tool-btn .icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(126, 184, 218, 0.2);
+      border-radius: 4px;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .edit-tool-btn.active .icon {
+      background: rgba(52, 211, 153, 0.2);
+    }
+    .save-load-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .save-load-btns button {
+      flex: 1;
+      min-width: 0;
+    }
+    .hint {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="controls-save-load">
+    <div class="save-load-btns">
+      <button id="save-btn">Save</button>
+      <button id="load-btn" style="background: #374151;">Load</button>
+    </div>
+    <div class="control-section">
+      <div class="control-section-title">Presets</div>
+      <select id="preset-select" style="width: 100%; margin-bottom: 4px;">
+        <option value="">— Load preset —</option>
+        <option value="/default-config.json">Default</option>
+        <option value="/examples/compact-island.json">Compact island</option>
+        <option value="/examples/flat-building-zone.json">Flat building zone</option>
+        <option value="/examples/default-preset.json">Default (full)</option>
+      </select>
+      <button id="load-preset-btn" style="width: 100%; background: #374151;">Load Preset</button>
+    </div>
+    <div class="control-section">
+      <div class="control-section-title">Map Editor</div>
+      <button id="edit-mode-btn" style="width: 100%; margin-bottom: 8px;">Edit Mode (Off)</button>
+      <div id="edit-panel" style="display: none;">
+        <div class="control-section-title" style="margin-bottom: 8px;">Brush</div>
+        <div class="control-row">
+          <label>Mode</label>
+          <select id="brush-mode" style="flex: 1;">
+            <option value="raise">Raise</option>
+            <option value="lower">Lower</option>
+            <option value="flatten">Flatten</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label>Radius</label>
+          <input type="range" id="brush-radius" min="1" max="30" value="10" step="1">
+          <span class="value-display" id="val-brush-radius">10</span>
+        </div>
+        <div class="control-row">
+          <label>Strength</label>
+          <input type="range" id="brush-strength" min="1" max="20" value="8" step="1">
+          <span class="value-display" id="val-brush-strength">8</span>
+        </div>
+      </div>
+    </div>
+    <div class="hint">Drag to orbit · Scroll to zoom</div>
+  </div>
+  <div id="controls">
+    <h2>YoHoH Island Generator</h2>
+
+    <div class="control-section">
+      <div class="control-section-title">Terrain</div>
+      <div class="control-row">
+        <label>Grid size</label>
+        <input type="number" id="grid-size" value="128" min="16" max="512" step="8" title="Resolution (vertices per side)">
+        <span class="value-display" id="val-grid">128</span>
+      </div>
+      <div class="control-row">
+        <label>Elevation</label>
+        <input type="range" id="elevation-scale" min="50" max="300" value="120" step="10" title="Max height multiplier (%)">
+        <span class="value-display" id="val-elevation">120%</span>
+      </div>
+      <div class="control-row">
+        <label>Roughness</label>
+        <input type="range" id="terrain-roughness" min="20" max="100" value="70" step="5" title="Overall terrain bumpiness (%)">
+        <span class="value-display" id="val-roughness">70%</span>
+      </div>
+      <div class="control-row">
+        <label>Island radius</label>
+        <input type="range" id="island-radius" min="20" max="80" value="70" step="5" title="Island size (0–1 scale)">
+        <span class="value-display" id="val-radius">70%</span>
+      </div>
+      <div class="control-row">
+        <label>Coast falloff</label>
+        <input type="range" id="coast-falloff" min="10" max="50" value="35" step="5" title="How steep the coast drops">
+        <span class="value-display" id="val-coast">3.5</span>
+      </div>
+      <div class="control-row">
+        <label>Coast irregularity</label>
+        <input type="range" id="coast-irregularity" min="0" max="80" value="25" step="5" title="Coastline wobble from noise">
+        <span class="value-display" id="val-coast-irreg">25%</span>
+      </div>
+      <div class="control-row">
+        <label>Elongation</label>
+        <input type="range" id="elongation" min="20" max="80" value="80" step="5" title="0.5=round, &lt;0.5=wider, &gt;0.5=taller">
+        <span class="value-display" id="val-elongation">80%</span>
+      </div>
+      <div class="control-row">
+        <label>Sea level</label>
+        <input type="range" id="sea-level" min="0" max="30" value="12" step="1" title="Base water level">
+        <span class="value-display" id="val-sea">0.12</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Building zones (chunks)</div>
+      <div class="control-row">
+        <label>Chunk size</label>
+        <input type="number" id="chunk-size" value="8" min="0" max="64" step="2" title="Cells per chunk (0=no flattening)">
+        <span class="value-display" id="val-chunk">8</span>
+      </div>
+      <div class="control-row">
+        <label>Flatness</label>
+        <input type="range" id="flatness-strength" min="0" max="80" value="80" step="5" title="How much to flatten chunks for building">
+        <span class="value-display" id="val-flatness">80%</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Noise</div>
+      <div class="control-row">
+        <label>Octaves</label>
+        <input type="range" id="noise-octaves" min="1" max="8" value="5" step="1" title="Detail layers">
+        <span class="value-display" id="val-octaves">5</span>
+      </div>
+      <div class="control-row">
+        <label>Frequency</label>
+        <input type="range" id="noise-frequency" min="10" max="80" value="10" step="5" title="Base frequency">
+        <span class="value-display" id="val-freq">1.0</span>
+      </div>
+      <div class="control-row">
+        <label>Persistence</label>
+        <input type="range" id="noise-persistence" min="20" max="80" value="75" step="5" title="Octave amplitude falloff">
+        <span class="value-display" id="val-persist">0.75</span>
+      </div>
+      <div class="control-row">
+        <label>Lacunarity</label>
+        <input type="range" id="noise-lacunarity" min="15" max="35" value="26" step="1" title="Octave frequency multiplier">
+        <span class="value-display" id="val-lac">2.6</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Display</div>
+      <div class="control-row">
+        <label>Height scale</label>
+        <input type="range" id="height-scale" min="50" max="200" value="50" step="10" title="Visual height multiplier">
+        <span class="value-display" id="val-height-scale">50%</span>
+      </div>
+      <div class="control-row">
+        <label>Wireframe</label>
+        <input type="checkbox" id="wireframe" title="Show wireframe">
+      </div>
+      <div class="elevation-legend" style="margin-top: 8px; font-size: 10px; color: #6b7280;">
+        <span style="background:#fef3c7;padding:2px 6px;border-radius:2px;margin-right:4px;">Beach</span>
+        <span style="background:#4a7c59;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Grass</span>
+        <span style="background:#6b7280;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Rock</span>
+        <span style="background:#f0f9ff;padding:2px 6px;border-radius:2px;">Snow</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Randomness</div>
+      <div class="control-row">
+        <label>Seed</label>
+        <input type="text" id="seed" value="1" placeholder="Random">
+      </div>
+    </div>
+
+    <button id="regenerate">Regenerate Island</button>
+    <button id="randomize" style="background: #374151; margin-top: 4px;">New Random Island</button>
+    <div id="stats"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

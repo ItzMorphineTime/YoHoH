@@ -232,11 +232,44 @@ export class Renderer {
     this.sailingPathMesh.position.z = 0;
     this.sailingGroup.add(this.sailingPathMesh);
 
+    // S.5 Corridor feedback: subtle edge markers at corridor bounds
+    const edgeWidth = cfg.corridor.edgeWidth ?? 2;
+    const edgeGeo = new THREE.PlaneGeometry(cfg.pathRefLength, edgeWidth);
+    const edgeMat = new THREE.MeshBasicMaterial({
+      color: cfg.corridor.edgeColor ?? cfg.corridor.color,
+      transparent: true,
+      opacity: cfg.corridor.edgeOpacity ?? 0.5,
+      side: THREE.DoubleSide,
+    });
+    const edgeLeft = new THREE.Mesh(edgeGeo.clone(), edgeMat.clone());
+    edgeLeft.position.y = -cfg.corridorWidthWorld / 2 - edgeWidth / 2;
+    edgeLeft.position.z = 0.01;
+    this.sailingPathMesh.add(edgeLeft);
+    const edgeRight = new THREE.Mesh(edgeGeo.clone(), edgeMat.clone());
+    edgeRight.position.y = cfg.corridorWidthWorld / 2 + edgeWidth / 2;
+    edgeRight.position.z = 0.01;
+    this.sailingPathMesh.add(edgeRight);
+
     const shipGeo = new THREE.ConeGeometry(cfg.ship.radius, cfg.ship.height, cfg.ship.segments);
     const shipMat = new THREE.MeshBasicMaterial({ color: cfg.ship.color });
     this.sailingShipMesh = new THREE.Mesh(shipGeo, shipMat);
     this.sailingShipMesh.position.z = 1;
     this.sailingGroup.add(this.sailingShipMesh);
+
+    // S.3 Wake / trail: foam trail behind ship when moving
+    const wake = cfg.wake ?? {};
+    const wakeLen = wake.lengthMax ?? 40;
+    const wakeW = wake.width ?? 12;
+    const wakeGeo = new THREE.PlaneGeometry(wakeLen, wakeW);
+    const wakeMat = new THREE.MeshBasicMaterial({
+      color: wake.color ?? 0x5a8aba,
+      transparent: true,
+      opacity: wake.opacity ?? 0.4,
+      side: THREE.DoubleSide,
+    });
+    this.sailingWakeMesh = new THREE.Mesh(wakeGeo, wakeMat);
+    this.sailingWakeMesh.position.z = 0.15;
+    this.sailingGroup.add(this.sailingWakeMesh);
 
     const destGeo = new THREE.CircleGeometry(cfg.destMarker.radius, RENDER.sailingDestSegments);
     const destMat = new THREE.MeshBasicMaterial({
@@ -485,12 +518,53 @@ export class Renderer {
     }
 
     if (this.sailingShipMesh) this.sailingShipMesh.visible = !sailingShip;
+
+    // S.3 Wake / trail: show behind ship when moving
+    if (this.sailingWakeMesh) {
+      if (!sailingShip) {
+        this.sailingWakeMesh.visible = false;
+      } else {
+      const wake = cfg.wake ?? {};
+      const threshold = wake.speedThreshold ?? 0.02;
+      const speed = sailingShip.speed ?? 0;
+      const maxSpeed = sailingShip?.effectiveMaxSpeed ?? sailingShip?.maxSpeed ?? 0.1;
+      if (Math.abs(speed) > threshold && maxSpeed > 0) {
+        const speedFactor = Math.min(1, Math.abs(speed) / maxSpeed);
+        const wakeLenMax = wake.lengthMax ?? 40;
+        const actualLen = speedFactor * wakeLenMax;
+        const r = sailingShip?.rotation ?? Math.atan2(
+          travelRoute ? travelRoute.b.position.y - travelRoute.a.position.y : 0,
+          travelRoute ? travelRoute.b.position.x - travelRoute.a.position.x : 1
+        );
+        const backX = -Math.sin(r) * (actualLen / 2);
+        const backY = -Math.cos(r) * (actualLen / 2);
+        this.sailingWakeMesh.position.set(sx + backX, sy + backY, 0.15);
+        this.sailingWakeMesh.rotation.z = Math.atan2(-Math.cos(r), -Math.sin(r));
+        this.sailingWakeMesh.scale.set(speedFactor, 1, 1);
+        this.sailingWakeMesh.visible = true;
+      } else {
+        this.sailingWakeMesh.visible = false;
+      }
+      }
+    }
   }
 
   _updateSailingCamera(shipPosition) {
     const cfg = getSailingRenderConfig();
-    const sx = shipPosition.x * cfg.worldScale;
-    const sy = shipPosition.y * cfg.worldScale;
+    const targetX = shipPosition.x * cfg.worldScale;
+    const targetY = shipPosition.y * cfg.worldScale;
+    const lerp = cfg.camera.smoothingLerp ?? 0.12;
+    if (lerp > 0 && lerp < 1) {
+      const prevX = this._sailingCameraX ?? targetX;
+      const prevY = this._sailingCameraY ?? targetY;
+      this._sailingCameraX = prevX + (targetX - prevX) * lerp;
+      this._sailingCameraY = prevY + (targetY - prevY) * lerp;
+    } else {
+      this._sailingCameraX = targetX;
+      this._sailingCameraY = targetY;
+    }
+    const sx = this._sailingCameraX;
+    const sy = this._sailingCameraY;
     this.camera.zoom = cfg.camera.zoom;
     this.camera.position.set(sx, sy, cfg.camera.positionZ);
     this.camera.lookAt(sx, sy, 0);
@@ -545,7 +619,14 @@ export class Renderer {
       );
       const isThisSelected = isSelected && isDisplayed;
       const widthMult = isThisSelected ? cfg.route.selectedWidthMult : (isDisplayed ? cfg.route.hoverWidthMult : 1);
-      const color = isThisSelected ? cfg.route.selectedColor : (isDisplayed ? cfg.route.hoverColor : cfg.route.color);
+      let color = isThisSelected ? cfg.route.selectedColor : (isDisplayed ? cfg.route.hoverColor : cfg.route.color);
+      if (!isThisSelected && !isDisplayed) {
+        const mods = getRouteModifiers(edge);
+        const primary = getPrimaryModifier(mods);
+        if (primary === 'stormy') color = cfg.route.stormyColor ?? cfg.route.color;
+        else if (primary === 'patrolled') color = cfg.route.patrolledColor ?? cfg.route.color;
+        else if (primary === 'shoals') color = cfg.route.shoalsColor ?? cfg.route.color;
+      }
 
       if (isThisSelected && cfg.route.outlineWidth > 0) {
         const outlineW = routeWidth * widthMult + cfg.route.outlineWidth * 2;

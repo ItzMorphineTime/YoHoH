@@ -3,8 +3,8 @@
  * B.9: Port hub | C.2: Tavern UI | B.7: Market UI
  */
 
-import { CREW, REPAIR, SHIP_CLASSES } from '../config.js';
-import { hireCrew, getAssignableStationsForCrew, getStationFillInfo, STATION_NAMES } from '../systems/CrewSystem.js';
+import { CREW, REPAIR, SHIP_CLASSES, UPGRADES, UPGRADE_SLOTS } from '../config.js';
+import { hireCrew, getAssignableStationsForCrew, getStationFillInfo, getAverageMorale, STATION_NAMES } from '../systems/CrewSystem.js';
 import { getGoods, getBuyPrice, getSellPrice } from '../systems/EconomySystem.js';
 
 export class PortUI {
@@ -20,6 +20,8 @@ export class PortUI {
     this.onBuyGood = null;
     this.onSellGood = null;
     this.onDismissCrew = null;
+    this.onBuyUpgrade = null;
+    this.onServeRum = null;
   }
 
   init() {
@@ -70,6 +72,40 @@ export class PortUI {
     if (this.onAssignStation) this.onAssignStation(crewId, station);
   }
 
+  /** Format upgrade stat deltas for display (C.8). */
+  _formatUpgradeStats(upgrade) {
+    const parts = [];
+    if (upgrade.hullMax != null) parts.push(`Hull +${upgrade.hullMax}`);
+    if (upgrade.sailMax != null) parts.push(`Sails +${upgrade.sailMax}`);
+    if (upgrade.maxSpeedMult != null) {
+      const pct = Math.round((upgrade.maxSpeedMult - 1) * 100);
+      parts.push(`Speed ${pct >= 0 ? '+' : ''}${pct}%`);
+    }
+    if (upgrade.sailSpeedMult != null) {
+      const pct = Math.round((upgrade.sailSpeedMult - 1) * 100);
+      parts.push(`Sail speed +${pct}%`);
+    }
+    if (upgrade.cannonDamageMult != null) {
+      const pct = Math.round((upgrade.cannonDamageMult - 1) * 100);
+      parts.push(`Cannon dmg +${pct}%`);
+    }
+    if (upgrade.cannonCooldownMult != null) {
+      const pct = Math.round((1 - upgrade.cannonCooldownMult) * 100);
+      parts.push(`Reload +${pct}%`);
+    }
+    if (upgrade.cargoCapacity != null) parts.push(`Cargo +${upgrade.cargoCapacity}`);
+    if (upgrade.bilgeWaterMax != null) parts.push(`Bilge +${upgrade.bilgeWaterMax}`);
+    if (upgrade.turnRateMult != null) {
+      const pct = Math.round((upgrade.turnRateMult - 1) * 100);
+      parts.push(`Turn +${pct}%`);
+    }
+    if (upgrade.crewMult != null) {
+      const pct = Math.round((upgrade.crewMult - 1) * 100);
+      parts.push(`Crew +${pct}%`);
+    }
+    return parts.join(' · ') || '—';
+  }
+
   show(portScene) {
     if (!this.overlay) return;
     this.overlay.classList.add('visible');
@@ -104,6 +140,9 @@ export class PortUI {
 
     const goldEl = this.overlay.querySelector('.port-gold');
     if (goldEl) goldEl.textContent = `${gold} gold`;
+    const infamy = portScene.infamy ?? 0;
+    const infamyEl = this.overlay.querySelector('#port-infamy');
+    if (infamyEl) infamyEl.textContent = `${Math.floor(infamy)} Infamy`;
 
     const hireBtn = this.overlay.querySelector('.port-hire-btn');
     if (hireBtn) {
@@ -116,6 +155,18 @@ export class PortUI {
     const crewMaxEl = this.overlay.querySelector('#port-crew-max');
     if (crewCountEl) crewCountEl.textContent = roster?.length ?? 0;
     if (crewMaxEl) crewMaxEl.textContent = maxCrew;
+
+    // C.6: Morale and Serve Rum
+    const moraleEl = this.overlay.querySelector('#port-morale-value');
+    const rumGoodId = CREW.rumGoodId ?? 'rum';
+    const rumQty = portScene.getCargo?.()?.[rumGoodId] ?? 0;
+    const avgMorale = getAverageMorale(roster);
+    if (moraleEl) moraleEl.textContent = roster?.length ? `${Math.round(avgMorale * 100)}%` : '—';
+    const serveRumBtn = this.overlay.querySelector('#port-serve-rum');
+    if (serveRumBtn) {
+      serveRumBtn.disabled = rumQty < 1 || !roster?.length;
+      serveRumBtn.textContent = `Serve Rum (1) — ${rumQty} in cargo`;
+    }
 
     // Crew management: station overview
     const stationOverviewEl = this.overlay.querySelector('#port-station-overview');
@@ -174,12 +225,92 @@ export class PortUI {
     }
 
     const shipClassSelect = this.overlay?.querySelector('#port-ship-class-select');
-    if (shipClassSelect) {
+    if (shipClassSelect && SHIP_CLASSES) {
       const current = shipClassId ?? 'sloop';
-      const classes = Object.entries(SHIP_CLASSES ?? {});
-      shipClassSelect.innerHTML = classes.map(([id, cls]) =>
-        `<option value="${id}"${current === id ? ' selected' : ''}>${cls?.name ?? id}</option>`
-      ).join('');
+      const unlockedClasses = portScene.unlockedShipClasses ?? ['sloop'];
+      const brigantineUnlock = INFAMY?.brigantineUnlock ?? 3;
+      const galleonUnlock = INFAMY?.galleonUnlock ?? 5;
+      const brigantineCost = INFAMY?.brigantineCost ?? 500;
+      const galleonCost = INFAMY?.galleonCost ?? 1200;
+      const hasInfamyFor = (id) => {
+        if (id === 'sloop') return true;
+        if (id === 'brigantine') return infamy >= brigantineUnlock;
+        if (id === 'galleon') return infamy >= galleonUnlock;
+        return true;
+      };
+      const isPurchased = (id) => unlockedClasses.includes(id);
+      const canAfford = (id) => {
+        if (id === 'brigantine') return gold >= brigantineCost;
+        if (id === 'galleon') return gold >= galleonCost;
+        return true;
+      };
+      const getLabel = (id, cls) => {
+        if (id === 'sloop') return cls?.name ?? id;
+        if (id === 'brigantine') {
+          if (!hasInfamyFor(id)) return `${cls?.name ?? id} (Locked — Infamy ${brigantineUnlock})`;
+          if (!isPurchased(id)) return `${cls?.name ?? id} — ${brigantineCost} gold`;
+          return cls?.name ?? id;
+        }
+        if (id === 'galleon') {
+          if (!hasInfamyFor(id)) return `${cls?.name ?? id} (Locked — Infamy ${galleonUnlock})`;
+          if (!isPurchased(id)) return `${cls?.name ?? id} — ${galleonCost} gold`;
+          return cls?.name ?? id;
+        }
+        return cls?.name ?? id;
+      };
+      const isSelectable = (id) => {
+        if (id === 'sloop') return true;
+        if (!hasInfamyFor(id)) return false;
+        if (isPurchased(id)) return true;
+        return canAfford(id);
+      };
+      shipClassSelect.innerHTML = Object.entries(SHIP_CLASSES).map(([id, cls]) => {
+        const selectable = isSelectable(id);
+        const sel = current === id ? ' selected' : '';
+        const dis = !selectable ? ' disabled' : '';
+        return `<option value="${id}"${sel}${dis}>${getLabel(id, cls)}</option>`;
+      }).join('');
+    }
+
+    // Upgrades (C.8)
+    const upgradesEl = this.overlay?.querySelector('#port-upgrades');
+    if (upgradesEl && UPGRADES && UPGRADE_SLOTS) {
+      const equipped = portScene.getUpgrades?.() ?? {};
+      const slotLabels = { hull: 'Hull', sails: 'Sails', cannons: 'Cannons', cargo: 'Cargo', utility: 'Utility', boarding: 'Boarding' };
+      upgradesEl.innerHTML = UPGRADE_SLOTS.map(slot => {
+        const equippedId = equipped[slot];
+        const equippedUp = equippedId ? UPGRADES[equippedId] : null;
+        const available = Object.values(UPGRADES).filter(u => u.slot === slot);
+        const equippedHtml = equippedUp
+          ? `<div class="port-upgrade-equipped">Equipped: ${equippedUp.name}</div>`
+          : '';
+        const itemsHtml = available.map(u => {
+          const isEquipped = u.id === equippedId;
+          const canBuy = !equippedId && gold >= (u.cost ?? 0);
+          const statsText = this._formatUpgradeStats(u);
+          return `
+            <div class="port-upgrade-item" data-upgrade-id="${u.id}">
+              <span class="port-upgrade-name">${u.name}</span>
+              <span class="port-upgrade-stats">${statsText}</span>
+              <span class="port-upgrade-cost">${u.cost ?? 0} gold</span>
+              <button type="button" class="port-upgrade-buy" data-upgrade-id="${u.id}" ${isEquipped || !canBuy ? 'disabled' : ''}>${isEquipped ? 'Equipped' : 'Buy'}</button>
+            </div>
+          `;
+        }).join('');
+        return `
+          <div class="port-upgrade-slot">
+            <div class="port-upgrade-slot-title">${slotLabels[slot] ?? slot}</div>
+            ${equippedHtml}
+            ${itemsHtml}
+          </div>
+        `;
+      }).join('');
+      upgradesEl.querySelectorAll('.port-upgrade-buy:not(:disabled)').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.target.dataset.upgradeId;
+          if (id && this.onBuyUpgrade) this.onBuyUpgrade(id);
+        });
+      });
     }
 
     // Ship comparison table (C.10b)
@@ -192,6 +323,7 @@ export class PortUI {
         { key: 'sailMax', label: 'Sails' },
         { key: 'crewMax', label: 'Crew' },
         { key: 'cargoCapacity', label: 'Cargo' },
+        { key: 'cannonCount', label: 'Cannons' },
         { key: 'turnRate', label: 'Turn rate' },
         { key: 'maxSpeed', label: 'Combat speed' },
       ];

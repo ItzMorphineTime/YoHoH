@@ -27,16 +27,24 @@ export class CombatSystem {
   _spawnProjectile(ship, side) {
     const arc = side === 'port' ? ship.getPortArc() : ship.getStarboardArc();
     const arcCenter = (arc.start + arc.end) / 2;
-    // Projectile moves (sin(r), cos(r)); arc center angle θ = atan2(dy,dx) → direction (cos θ, sin θ)
-    // So we need sin(r)=cos(θ), cos(r)=sin(θ) → r = π/2 - θ
-    const rotation = Math.PI / 2 - arcCenter;
-    this.projectiles.push(new Projectile({
-      x: ship.x,
-      y: ship.y,
-      rotation,
-      ownerId: ship.isPlayer ? 'player' : ship.id,
-      side,
-    }));
+    const cannonCount = Math.max(1, ship.cannonCount ?? 1);
+    const spreadRad = cannonCount > 1 ? 0.06 : 0; // slight spread per cannon (C.10c)
+    const damageMult = ship.cannonDamageMult ?? 1;
+    const baseDamage = COMBAT.projectileDamage * damageMult;
+    for (let i = 0; i < cannonCount; i++) {
+      const offset = cannonCount > 1 ? (i - (cannonCount - 1) / 2) * spreadRad : 0;
+      const centerAngle = arcCenter + offset;
+      // Projectile moves (sin(r), cos(r)); arc center angle θ → r = π/2 - θ
+      const rotation = Math.PI / 2 - centerAngle;
+      this.projectiles.push(new Projectile({
+        x: ship.x,
+        y: ship.y,
+        rotation,
+        damage: baseDamage,
+        ownerId: ship.isPlayer ? 'player' : ship.id,
+        side,
+      }));
+    }
   }
 
   update(dt, player, enemies) {

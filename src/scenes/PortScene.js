@@ -4,9 +4,10 @@
  * C.2: Tavern UI for hiring crew
  */
 
-import { assignStation, unassignStation } from '../systems/CrewSystem.js';
-import { SHIP_CLASSES, REPAIR } from '../config.js';
+import { assignStation, unassignStation, serveRum as crewServeRum } from '../systems/CrewSystem.js';
+import { SHIP_CLASSES, REPAIR, UPGRADES, INFAMY } from '../config.js';
 import { getGoods, getBuyPrice, getSellPrice } from '../systems/EconomySystem.js';
+import { getCargoCapacityWithUpgrades } from '../utils/upgrades.js';
 
 export class PortScene {
   constructor() {
@@ -15,17 +16,35 @@ export class PortScene {
     this.shipClassId = null;
     this.shipState = null;
     this.cargo = {}; // { goodId: quantity }
+    this.upgrades = {}; // { slotId: upgradeId } — C.7, C.10
     this.activeTab = 'tavern';
   }
 
-  init(island, crewRoster = [], gold = 0, shipClassId = null, shipState = null, cargo = {}) {
+  init(island, crewRoster = [], gold = 0, shipClassId = null, shipState = null, cargo = {}, upgrades = {}, infamy = 0, unlockedShipClasses = ['sloop']) {
     this.currentIsland = island;
     this.crewRoster = Array.isArray(crewRoster) ? [...crewRoster] : [];
     this.gold = gold;
+    this.infamy = infamy ?? 0;
+    this.unlockedShipClasses = Array.isArray(unlockedShipClasses) ? [...unlockedShipClasses] : ['sloop'];
     this.shipClassId = shipClassId ?? 'sloop';
     this.shipState = shipState ? { ...shipState } : this._defaultShipState();
     this.cargo = typeof cargo === 'object' && cargo !== null ? { ...cargo } : {};
+    this.upgrades = typeof upgrades === 'object' && upgrades !== null ? { ...upgrades } : {};
     this.activeTab = 'tavern';
+  }
+
+  getUpgrades() {
+    return { ...this.upgrades };
+  }
+
+  buyUpgrade(upgradeId) {
+    const up = UPGRADES?.[upgradeId];
+    if (!up || this.gold < (up.cost ?? 0)) return false;
+    const slot = up.slot;
+    if (this.upgrades[slot]) return false; // slot occupied
+    this.gold -= up.cost;
+    this.upgrades[slot] = upgradeId;
+    return true;
   }
 
   getCargo() {
@@ -33,8 +52,7 @@ export class PortScene {
   }
 
   getCargoCapacity() {
-    const cls = SHIP_CLASSES?.[this.shipClassId];
-    return cls?.cargoCapacity ?? 20;
+    return getCargoCapacityWithUpgrades(this.shipClassId, this.upgrades);
   }
 
   getCargoUsed() {
@@ -65,12 +83,17 @@ export class PortScene {
 
   sellGood(goodId) {
     const qty = this.cargo[goodId] ?? 0;
-    if (qty <= 0) return false;
+    if (qty <= 0) return 0;
     const price = getSellPrice(goodId, this.currentIsland);
     this.gold += price;
     this.cargo[goodId] = qty - 1;
     if (this.cargo[goodId] <= 0) delete this.cargo[goodId];
-    return true;
+    return price; // C.11: return gold received for Infamy calculation
+  }
+
+  /** C.6: Serve rum from cargo to raise crew morale. Consumes 1 rum. */
+  serveRum() {
+    return crewServeRum(this.crewRoster, this.cargo);
   }
 
   _defaultShipState() {
