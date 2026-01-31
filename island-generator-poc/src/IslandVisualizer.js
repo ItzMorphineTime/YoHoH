@@ -10,7 +10,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { PostProcessing } from './PostProcessing.js';
 import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject } from './BuildingTypes.js';
 import { getPropType } from './PropTypes.js';
-import { getPropMeshClone, loadPropMesh } from './PropMeshLoader.js';
+import { getPropMeshClone, getLODPropClone, loadPropMesh } from './PropMeshLoader.js';
 import { PATH_COLOR } from './IslandPathfinder.js';
 
 /** Island themes: terrain color schemes by elevation band (water, beach, grass, rock, snow) */
@@ -720,8 +720,10 @@ export class IslandVisualizer {
   _clearProps() {
     for (const m of this.propMeshes) {
       if (m.parent) m.parent.remove(m);
-      m.geometry?.dispose();
-      m.material?.dispose();
+      m.traverse((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
     }
     this.propMeshes = [];
   }
@@ -797,7 +799,7 @@ export class IslandVisualizer {
       const gy = Math.min(gridSize, Math.floor((chunkY + 0.5) * ts));
       const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
 
-      const mesh = getPropMeshClone(p.type);
+      const mesh = getLODPropClone(p.type);
       if (def?.fbxPath && !mesh.userData?.fromPropCache) typesToLoad.add(p.type);
       // Props are normalized to max dim 1.0; scale to fit 1 tile; trees use defaultScale
       const defScale = def.defaultScale ?? 1;

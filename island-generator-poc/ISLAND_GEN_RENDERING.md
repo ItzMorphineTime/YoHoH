@@ -33,7 +33,7 @@
 
 ---
 
-### 1.2 Level of Detail (LOD)
+### 1.2 Level of Detail (LOD) ✓ Implemented
 
 **Purpose:** Reduce geometry complexity for distant objects to improve FPS.
 
@@ -41,9 +41,9 @@
 
 ```javascript
 const lod = new THREE.LOD();
-lod.addLevel(highDetailMesh, 0);      // 0–2 units
-lod.addLevel(mediumDetailMesh, 2);    // 2–5 units
-lod.addLevel(lowDetailMesh, 5);       // 5+ units
+lod.addLevel(highDetailMesh, 0);      // 0–1.2 units (close)
+lod.addLevel(mediumDetailMesh, 1.2);  // 1.2–2.5 units (mid)
+lod.addLevel(lowDetailMesh, 2.5);     // 2.5+ units (far)
 ```
 
 **Parameters:**
@@ -51,8 +51,13 @@ lod.addLevel(lowDetailMesh, 5);       // 5+ units
 - **Hysteresis** — Prevents flickering at boundaries (built-in)
 - **autoUpdate** — Default true; LOD updates each frame
 
-**Island generator fit:**
-- **Props (trees, rocks):** Use LOD for distant props — sphere/cone placeholder at far distance, full FBX up close
+**Island generator implementation:**
+- **Props (trees, rocks):** Each prop uses `THREE.LOD` with three levels:
+  - **Level 0 (0–1.2):** Full FBX mesh (or placeholder if not loaded)
+  - **Level 1 (1.2–2.5):** Medium placeholder — sphere/cone/cylinder with 6×4 segments
+  - **Level 2 (2.5+):** Low placeholder — sphere/cone with 4×3 segments
+- **PropMeshLoader:** `getLODPropClone(type)` returns LOD; `createLODPlaceholder(def, 'medium'|'low')` builds low-poly stand-ins per prop shape (sphere, cone, cylinder, box, signpost)
+- **Placement preview & highlight:** Still use full-detail mesh (single prop, user close)
 - **Terrain:** Single mesh; LOD less relevant unless chunking
 - **Buildings:** Simple boxes; LOD optional
 
@@ -501,7 +506,7 @@ index.html               — Settings: Graphics modal (#settings-graphics-modal)
 
 ### 4.6 Implementation Tracker
 
-See [ISLAND_GEN_RENDERING_IMPLEMENTATION.md](ISLAND_GEN_RENDERING_IMPLEMENTATION.md) for phase status: Phase 1 (post-processing pipeline) and Phase 2 (SSAO, Settings: Graphics modal) complete; Phase 3 (LOD), Phase 4 (InstancedMesh), Phase 5 (water) pending.
+See [ISLAND_GEN_RENDERING_IMPLEMENTATION.md](ISLAND_GEN_RENDERING_IMPLEMENTATION.md) for phase status: Phase 1 (post-processing pipeline), Phase 2 (SSAO, Settings: Graphics modal), and Phase 3 (LOD for props) complete; Phase 4 (InstancedMesh), Phase 5 (water) pending.
 
 ---
 

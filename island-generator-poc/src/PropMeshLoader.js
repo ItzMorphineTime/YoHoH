@@ -136,6 +136,77 @@ export function loadPropMesh(type) {
 }
 
 /**
+ * Create a low-poly placeholder for LOD levels (medium = fewer segments, low = minimal).
+ * @param {Object} def - Prop type definition
+ * @param {'medium'|'low'} lodLevel
+ * @returns {THREE.Group}
+ */
+function createLODPlaceholder(def, lodLevel) {
+  const color = def?.color ?? 0x888888;
+  const material = new THREE.MeshLambertMaterial({ color });
+  const s = 1.0;
+  const isLow = lodLevel === 'low';
+  const segW = isLow ? 4 : 6;
+  const segH = isLow ? 3 : 4;
+
+  let geometry;
+  let mesh;
+  switch (def?.placeholderShape ?? 'sphere') {
+    case 'cylinder':
+      geometry = new THREE.CylinderGeometry(s * 0.2, s * 0.25, s, segW);
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = s / 2;
+      break;
+    case 'cone':
+      geometry = new THREE.ConeGeometry(s * 0.3, s, segW);
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = s / 2;
+      break;
+    case 'box':
+      geometry = new THREE.BoxGeometry(s * 0.2, s, s * 0.1);
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = s / 2;
+      break;
+    case 'signpost':
+      geometry = new THREE.CylinderGeometry(0.04, 0.044, s, segW);
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = s / 2;
+      break;
+    default:
+      geometry = new THREE.SphereGeometry(s / 2, segW, segH);
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = s / 2;
+  }
+  const group = new THREE.Group();
+  group.add(mesh);
+  group.rotation.x = -Math.PI / 2;
+  return group;
+}
+
+/** LOD distance thresholds (camera distance; island ~1 unit) */
+const LOD_DISTANCE_MEDIUM = 1.2;
+const LOD_DISTANCE_LOW = 2.5;
+
+/**
+ * Get a THREE.LOD prop with dynamic levels: full detail (close), medium (mid), low (far).
+ * @param {string} type
+ * @returns {THREE.LOD}
+ */
+export function getLODPropClone(type) {
+  const def = getPropType(type);
+  const fullMesh = getPropMeshClone(type);
+  const mediumMesh = createLODPlaceholder(def, 'medium');
+  const lowMesh = createLODPlaceholder(def, 'low');
+
+  const lod = new THREE.LOD();
+  lod.addLevel(fullMesh, 0);
+  lod.addLevel(mediumMesh, LOD_DISTANCE_MEDIUM);
+  lod.addLevel(lowMesh, LOD_DISTANCE_LOW);
+  lod.userData.fromPropCache = fullMesh.userData?.fromPropCache ?? false;
+  return lod;
+}
+
+/**
  * Get a clone of the prop mesh for the given type. Sync if cached, else returns placeholder.
  * @param {string} type
  * @returns {THREE.Object3D}

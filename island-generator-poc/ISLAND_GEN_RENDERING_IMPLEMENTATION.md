@@ -12,7 +12,7 @@
 |-------|-------------|--------|
 | **Phase 1** | Post-processing pipeline (EffectComposer, Bloom, FXAA, Film) | Done |
 | **Phase 2** | SSAO pass + graphic/post-process controls | Done |
-| **Phase 3** | LOD for props | Pending |
+| **Phase 3** | LOD for props | Done |
 | **Phase 4** | InstancedMesh for props (optional) | Pending |
 | **Phase 5** | Water shader improvements | Pending |
 
@@ -63,10 +63,13 @@
 
 ---
 
-## Phase 3: LOD for Props (Planned)
+## Phase 3: LOD for Props (Done)
 
-- Use THREE.LOD for distant props
-- Per-type LOD: high-detail FBX up close, sphere/cone at distance
+- [x] Use THREE.LOD for distant props
+- [x] Per-type LOD: high-detail FBX up close, sphere/cone at distance
+- [x] **PropMeshLoader:** `getLODPropClone(type)` returns THREE.LOD with 3 levels; `createLODPlaceholder(def, 'medium'|'low')` for low-poly stand-ins
+- [x] **Distance thresholds:** 0 (full), 1.2 (medium), 2.5 (low) — tuned for island ~1 unit
+- [x] **IslandVisualizer:** `renderProps` uses `getLODPropClone`; `_clearProps` traverses LOD children for dispose
 
 ---
 
@@ -90,6 +93,7 @@
 | File | Changes |
 |------|---------|
 | `src/PostProcessing.js` | New — EffectComposer, passes, resize |
-| `src/IslandVisualizer.js` | Integrate PostProcessing, use composer when enabled |
+| `src/IslandVisualizer.js` | Integrate PostProcessing, use composer when enabled; renderProps uses getLODPropClone; _clearProps traverses LOD for dispose |
+| `src/PropMeshLoader.js` | getLODPropClone, createLODPlaceholder — THREE.LOD with 3 levels per prop |
 | `index.html` | Settings: Graphics modal (`#settings-graphics-modal`) with collapsible Display, Graphics, Post-processing sections; 🎨 button (`#settings-graphics-btn`) |
 | `main.js` | Wire Settings: Graphics modal controls; open/close handlers; collapsible toggle |
