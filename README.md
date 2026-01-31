@@ -197,7 +197,9 @@ Two proof-of-concept tools for procedural content:
 **Map Generator** — Center-out planar graph; islands and routes; edit mode (add/remove nodes, routes); Save/Load JSON. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §5.
 
 **Island Generator** — 3D terrain meshes with Perlin/Simplex noise; beach/grass/rock/snow colors; chunk-based building zones; brush elevation editing; config presets. See [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md).
-
+<p align="center">
+  <img src="Images/Island/IslandEditor_01.png" alt="Procedural map layout" width="400">
+</p>
 <p align="center">
   <img src="Images/Maps/MapLayout.png" alt="Procedural map layout" width="400">
   <img src="Images/Maps/MapEditor.png" alt="Archipelago map" width="400">
