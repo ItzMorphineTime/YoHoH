@@ -12,6 +12,7 @@ import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject } 
 import { getPropType } from './PropTypes.js';
 import { getPropMeshClone, getLODPropClone, loadPropMesh } from './PropMeshLoader.js';
 import { PATH_COLOR } from './IslandPathfinder.js';
+import { createWaterMaterial, updateWaterTime } from './WaterShader.js';
 
 /** Island themes: terrain color schemes by elevation band (water, beach, grass, rock, snow) */
 export const ISLAND_THEMES = {
@@ -92,6 +93,10 @@ export class IslandVisualizer {
     this.directionalLight = null;
     this.config = {
       waterColor: 0x2563eb,
+      waterShader: true,
+      waterWaveScale: 8,
+      waterWaveHeight: 0.02,
+      waterZOffset: 0.10,
       wireframe: false,
       showWater: true,
       heightScale: 1,
@@ -115,7 +120,11 @@ export class IslandVisualizer {
     this._frameCount = 0;
     this._gizmoSizeUpdateInterval = 10; // Throttle gizmo size updates
     this.postProcessing = null;
+    this._lastHeightMap = null;
+    this._lastPathTiles = null;
+    this._lastTileSize = null;
     this._lastFrameTime = performance.now();
+    this._waterTime = 0;
   }
 
   setOnPropMeshLoaded(callback) {
@@ -352,20 +361,28 @@ export class IslandVisualizer {
 
     const { heightMap, config } = island;
     this.pathTiles = island.pathTiles ? new Set(island.pathTiles) : new Set();
+    this._lastHeightMap = heightMap;
+    this._lastPathTiles = this.pathTiles;
+    this._lastTileSize = config?.tileSize ?? config?.chunkSize ?? 8;
     const gridSize = config?.gridSize ?? heightMap.length - 1;
     const seaLevel = config?.seaLevel ?? this.config.seaLevel;
     this.config.seaLevel = seaLevel;
     this.config.theme = island.theme ?? config?.theme ?? 'normal';
     const elevationColors = getElevationColors(this.config.theme);
-    const ts = config?.tileSize ?? config?.chunkSize ?? 8;
+    const ts = this._lastTileSize;
     const tilesX = config?.tilesX ?? Math.floor(gridSize / ts);
 
     const size = 1;
     const segments = gridSize;
 
+    // Effective water level in heightmap space: matches water plane Y = -0.02 + waterZOffset
+    const waterPlaneY = -0.02 + (this.config.waterZOffset ?? 0.10);
+    const effectiveWaterLevel = waterPlaneY / Math.max(this.config.heightScale, 0.001);
+
     const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
     const positions = geometry.attributes.position;
     const vertexCount = positions.count;
+    const gridX1 = segments + 1;
 
     const colors = new Float32Array(vertexCount * 3);
 
@@ -373,7 +390,8 @@ export class IslandVisualizer {
       const x = Math.floor(i % (segments + 1));
       const y = Math.floor(i / (segments + 1));
       const h = heightMap[y]?.[x] ?? 0;
-      positions.setZ(i, h * this.config.heightScale);
+      // Clamp terrain below water plane to effective water level (no underwater geometry)
+      positions.setZ(i, Math.max(h, effectiveWaterLevel) * this.config.heightScale);
 
       const tx = Math.floor(x / ts);
       const ty = Math.floor(y / ts);
@@ -385,6 +403,24 @@ export class IslandVisualizer {
       colors[i * 3 + 2] = b;
     }
 
+    // Omit triangles for quads entirely underwater (all 4 corners <= effective water level)
+    const newIndices = [];
+    for (let iy = 0; iy < segments; iy++) {
+      for (let ix = 0; ix < segments; ix++) {
+        const ha = heightMap[iy]?.[ix] ?? 0;
+        const hb = heightMap[iy + 1]?.[ix] ?? 0;
+        const hc = heightMap[iy + 1]?.[ix + 1] ?? 0;
+        const hd = heightMap[iy]?.[ix + 1] ?? 0;
+        const allUnderwater = ha <= effectiveWaterLevel && hb <= effectiveWaterLevel && hc <= effectiveWaterLevel && hd <= effectiveWaterLevel;
+        if (allUnderwater) continue;
+        const a = ix + gridX1 * iy;
+        const b = ix + gridX1 * (iy + 1);
+        const c = (ix + 1) + gridX1 * (iy + 1);
+        const d = (ix + 1) + gridX1 * iy;
+        newIndices.push(a, b, d, b, c, d);
+      }
+    }
+    geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(newIndices), 1));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.computeVertexNormals();
 
@@ -401,15 +437,24 @@ export class IslandVisualizer {
     this.scene.add(this.islandMesh);
 
     if (this.config.showWater) {
-      const waterGeometry = new THREE.PlaneGeometry(size * 1.5, size * 1.5, 1, 1);
-      const waterMaterial = new THREE.MeshLambertMaterial({
-        color: this.config.waterColor,
-        transparent: true,
-        opacity: 0.75,
-      });
+      const waterSize = size * 1.5;
+      const waterSegments = 48;
+      const waterGeometry = new THREE.PlaneGeometry(waterSize, waterSize, waterSegments, waterSegments);
+      const waterMaterial = this.config.waterShader
+        ? createWaterMaterial({
+            waterColor: this.config.waterColor,
+            alpha: 0.85,
+            waveScale: this.config.waterWaveScale ?? 8,
+            waveHeight: this.config.waterWaveHeight ?? 0.02,
+          })
+        : new THREE.MeshLambertMaterial({
+            color: this.config.waterColor,
+            transparent: true,
+            opacity: 0.75,
+          });
       this.waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
       this.waterMesh.rotation.x = -Math.PI / 2;
-      this.waterMesh.position.y = -0.02;
+      this.waterMesh.position.y = -0.02 + (this.config.waterZOffset ?? 0.10);
       this.scene.add(this.waterMesh);
     }
   }
@@ -1103,18 +1148,25 @@ export class IslandVisualizer {
   updateFromHeightMap(heightMap, pathTiles, tileSize) {
     if (!this.islandMesh || !heightMap) return;
     if (pathTiles != null) this.pathTiles = pathTiles instanceof Set ? pathTiles : new Set(pathTiles);
-    const positions = this.islandMesh.geometry.attributes.position;
-    const colors = this.islandMesh.geometry.attributes.color;
+    const geometry = this.islandMesh.geometry;
+    const positions = geometry.attributes.position;
+    const colors = geometry.attributes.color;
     const gridSize = Math.sqrt(positions.count) - 1;
     const seaLevel = this.config.seaLevel;
     const ts = tileSize ?? Math.max(1, Math.floor(gridSize / 16));
     const elevationColors = getElevationColors(this.config.theme ?? 'normal');
+    const gridX1 = gridSize + 1;
+
+    // Effective water level in heightmap space: matches water plane Y = -0.02 + waterZOffset
+    const waterPlaneY = -0.02 + (this.config.waterZOffset ?? 0.10);
+    const effectiveWaterLevel = waterPlaneY / Math.max(this.config.heightScale, 0.001);
 
     for (let i = 0; i < positions.count; i++) {
       const x = Math.floor(i % (gridSize + 1));
       const y = Math.floor(i / (gridSize + 1));
       const h = heightMap[y]?.[x] ?? 0;
-      positions.setZ(i, h * this.config.heightScale);
+      // Clamp terrain below water plane to effective water level (no underwater geometry)
+      positions.setZ(i, Math.max(h, effectiveWaterLevel) * this.config.heightScale);
 
       const tx = Math.floor(x / ts);
       const ty = Math.floor(y / ts);
@@ -1123,12 +1175,35 @@ export class IslandVisualizer {
       const [r, g, b] = hexToRgb(color);
       colors.setXYZ(i, r, g, b);
     }
+
+    // Rebuild index: omit triangles for quads entirely underwater
+    const newIndices = [];
+    for (let iy = 0; iy < gridSize; iy++) {
+      for (let ix = 0; ix < gridSize; ix++) {
+        const ha = heightMap[iy]?.[ix] ?? 0;
+        const hb = heightMap[iy + 1]?.[ix] ?? 0;
+        const hc = heightMap[iy + 1]?.[ix + 1] ?? 0;
+        const hd = heightMap[iy]?.[ix + 1] ?? 0;
+        const allUnderwater = ha <= effectiveWaterLevel && hb <= effectiveWaterLevel && hc <= effectiveWaterLevel && hd <= effectiveWaterLevel;
+        if (allUnderwater) continue;
+        const a = ix + gridX1 * iy;
+        const b = ix + gridX1 * (iy + 1);
+        const c = (ix + 1) + gridX1 * (iy + 1);
+        const d = (ix + 1) + gridX1 * iy;
+        newIndices.push(a, b, d, b, c, d);
+      }
+    }
+    geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(newIndices), 1));
     positions.needsUpdate = true;
     colors.needsUpdate = true;
-    this.islandMesh.geometry.computeVertexNormals();
+    geometry.computeVertexNormals();
   }
 
   setConfig(config) {
+    const waterKeys = ['waterColor', 'waterShader', 'waterWaveScale', 'waterWaveHeight', 'waterZOffset', 'showWater'];
+    const terrainWaterKeys = ['waterZOffset', 'heightScale'];
+    const waterChanged = waterKeys.some((k) => k in config);
+    const terrainWaterChanged = terrainWaterKeys.some((k) => k in config);
     Object.assign(this.config, config);
     if (this.directionalLight && 'shadows' in config) {
       this.directionalLight.castShadow = this.config.shadows !== false;
@@ -1136,6 +1211,62 @@ export class IslandVisualizer {
     if (this.renderer && 'shadows' in config) {
       this.renderer.shadowMap.enabled = this.config.shadows !== false;
     }
+    if (waterChanged) this._updateWaterMaterial();
+    // Rebuild terrain geometry when water Z offset or height scale changes (culling must match water plane)
+    if (terrainWaterChanged && this._lastHeightMap) {
+      this.updateFromHeightMap(this._lastHeightMap, this._lastPathTiles, this._lastTileSize);
+    }
+  }
+
+  /** Update water mesh from config (live tweaking; recreates mesh when shader toggle changes) */
+  _updateWaterMaterial() {
+    if (!this.config.showWater) {
+      if (this.waterMesh?.parent) this.scene.remove(this.waterMesh);
+      return;
+    }
+    const mat = this.waterMesh?.material;
+    const needsRecreate = !this.waterMesh || (this.config.waterShader && !mat?.uniforms) || (!this.config.waterShader && mat?.uniforms);
+    if (needsRecreate) {
+      if (this.waterMesh) {
+        this.scene.remove(this.waterMesh);
+        this.waterMesh.geometry.dispose();
+        this.waterMesh.material.dispose();
+      }
+      const waterSize = 1.5;
+      const waterSegments = 48;
+      const waterGeometry = new THREE.PlaneGeometry(waterSize, waterSize, waterSegments, waterSegments);
+      const waterMaterial = this.config.waterShader
+        ? createWaterMaterial({
+            waterColor: this.config.waterColor,
+            alpha: 0.85,
+            waveScale: this.config.waterWaveScale ?? 8,
+            waveHeight: this.config.waterWaveHeight ?? 0.02,
+          })
+        : new THREE.MeshLambertMaterial({
+            color: this.config.waterColor,
+            transparent: true,
+            opacity: 0.75,
+          });
+      this.waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+      this.waterMesh.rotation.x = -Math.PI / 2;
+      this.waterMesh.position.y = -0.02 + (this.config.waterZOffset ?? 0.10);
+      this.scene.add(this.waterMesh);
+      return;
+    }
+    if (this.waterMesh && !this.waterMesh.parent) this.scene.add(this.waterMesh);
+    if (this.waterMesh) this.waterMesh.position.y = -0.02 + (this.config.waterZOffset ?? 0.10);
+    if (this.config.waterShader && mat?.uniforms) {
+      mat.uniforms.waterColor.value.set(this.config.waterColor);
+      mat.uniforms.waveScale.value = this.config.waterWaveScale ?? 8;
+      mat.uniforms.waveHeight.value = this.config.waterWaveHeight ?? 0.02;
+    } else if (!this.config.waterShader && mat) {
+      mat.color.set(this.config.waterColor);
+    }
+  }
+
+  /** @returns {Object} Shallow copy of config (for UI sync) */
+  getConfig() {
+    return { ...this.config };
   }
 
   getMesh() {
@@ -1238,6 +1369,10 @@ export class IslandVisualizer {
     const now = performance.now();
     const deltaTime = (now - this._lastFrameTime) / 1000;
     this._lastFrameTime = now;
+    this._waterTime += deltaTime;
+    if (this.waterMesh?.material?.uniforms?.time) {
+      updateWaterTime(this.waterMesh.material, this._waterTime);
+    }
     if (this.postProcessing?.isEnabled()) {
       this.postProcessing.render(deltaTime);
     } else {

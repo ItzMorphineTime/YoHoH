@@ -136,6 +136,7 @@ function run() {
     shadows: document.getElementById('shadows')?.checked !== false,
     showWater: true,
   });
+  applyWaterFromUI(); // Sync water Z offset and other water settings from UI before render
   if (island.buildings?.length >= 2) {
     const { pathTiles, heightMap } = computePathsBetweenBuildings(
       island.buildings, island.heightMap, island.config
@@ -1052,6 +1053,7 @@ function loadIslandFromFile() {
         }
         editor.setHeightMap(island.heightMap);
         visualizer.setConfig({ heightScale: (data.display?.heightScale ?? 0.5), wireframe: !!data.display?.wireframe, shadows: data.display?.shadows !== false });
+        applyWaterFromUI(); // Sync water Z offset and other water settings from UI before render
         visualizer.render(island);
         if (island.buildings?.length) {
           const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
@@ -1151,6 +1153,26 @@ const settingsGraphicsCloseBtn = document.getElementById('settings-graphics-clos
 
 function openSettingsGraphics() {
   if (settingsGraphicsModal) settingsGraphicsModal.classList.add('open');
+  // Sync water controls from visualizer
+  const cfg = visualizer.getConfig();
+  const waterShow = document.getElementById('water-show');
+  const waterShader = document.getElementById('water-shader');
+  const waterColor = document.getElementById('water-color');
+  const waterWaveScale = document.getElementById('water-wave-scale');
+  const waterWaveHeight = document.getElementById('water-wave-height');
+  const waterZOffset = document.getElementById('water-z-offset');
+  const valWaveScale = document.getElementById('val-water-wave-scale');
+  const valWaveHeight = document.getElementById('val-water-wave-height');
+  const valWaterZOffset = document.getElementById('val-water-z-offset');
+  if (waterShow) waterShow.checked = cfg.showWater !== false;
+  if (waterShader) waterShader.checked = cfg.waterShader !== false;
+  if (waterColor) waterColor.value = '#' + (cfg.waterColor ?? 0x2563eb).toString(16).padStart(6, '0');
+  if (waterWaveScale) waterWaveScale.value = cfg.waterWaveScale ?? 8;
+  if (waterWaveHeight) waterWaveHeight.value = Math.round((cfg.waterWaveHeight ?? 0.02) * 100);
+  if (waterZOffset) waterZOffset.value = Math.round((cfg.waterZOffset ?? 0.10) * 100);
+  if (valWaveScale) valWaveScale.textContent = cfg.waterWaveScale ?? 8;
+  if (valWaveHeight) valWaveHeight.textContent = (cfg.waterWaveHeight ?? 0.02).toFixed(2);
+  if (valWaterZOffset) valWaterZOffset.textContent = (cfg.waterZOffset ?? 0.10).toFixed(2);
 }
 function closeSettingsGraphics() {
   if (settingsGraphicsModal) settingsGraphicsModal.classList.remove('open');
@@ -1239,6 +1261,7 @@ async function loadPreset() {
     }
     editor.setHeightMap(island.heightMap);
     visualizer.setConfig({ heightScale: data.display?.heightScale ?? 0.5, wireframe: !!data.display?.wireframe, shadows: data.display?.shadows !== false });
+    applyWaterFromUI(); // Sync water Z offset and other water settings from UI before render
     visualizer.render(island);
     if (island.buildings?.length) {
       const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
@@ -1806,6 +1829,39 @@ document.getElementById('shadows')?.addEventListener('change', (e) => {
   visualizer.setConfig({ shadows: e.target.checked });
 });
 
+// Water (Settings: Graphics modal)
+function applyWaterFromUI() {
+  const show = document.getElementById('water-show')?.checked !== false;
+  const shader = document.getElementById('water-shader')?.checked !== false;
+  const colorHex = document.getElementById('water-color')?.value ?? '#2563eb';
+  const color = parseInt(colorHex.slice(1), 16);
+  const waveScale = parseInt(document.getElementById('water-wave-scale')?.value, 10) ?? 8;
+  const waveHeight = (parseInt(document.getElementById('water-wave-height')?.value, 10) ?? 2) / 100;
+  const waterZOffset = (parseInt(document.getElementById('water-z-offset')?.value, 10) ?? 10) / 100;
+  visualizer.setConfig({ showWater: show, waterShader: shader, waterColor: color, waterWaveScale: waveScale, waterWaveHeight: waveHeight, waterZOffset });
+}
+document.getElementById('water-show')?.addEventListener('change', applyWaterFromUI);
+document.getElementById('water-shader')?.addEventListener('change', applyWaterFromUI);
+document.getElementById('water-color')?.addEventListener('input', applyWaterFromUI);
+document.getElementById('water-wave-scale')?.addEventListener('input', () => {
+  const v = parseInt(document.getElementById('water-wave-scale')?.value, 10) ?? 8;
+  const el = document.getElementById('val-water-wave-scale');
+  if (el) el.textContent = v;
+  applyWaterFromUI();
+});
+document.getElementById('water-wave-height')?.addEventListener('input', () => {
+  const v = (parseInt(document.getElementById('water-wave-height')?.value, 10) ?? 2) / 100;
+  const el = document.getElementById('val-water-wave-height');
+  if (el) el.textContent = v.toFixed(2);
+  applyWaterFromUI();
+});
+document.getElementById('water-z-offset')?.addEventListener('input', () => {
+  const v = (parseInt(document.getElementById('water-z-offset')?.value, 10) ?? 10) / 100;
+  const el = document.getElementById('val-water-z-offset');
+  if (el) el.textContent = v.toFixed(2);
+  applyWaterFromUI();
+});
+
 // Graphics: pixel ratio
 document.getElementById('pixel-ratio')?.addEventListener('input', () => {
   const v = (parseInt(document.getElementById('pixel-ratio')?.value, 10) ?? 100) / 100;
@@ -1897,8 +1953,8 @@ document.getElementById('post-tone-exposure')?.addEventListener('input', () => {
   visualizer.getPostProcessing()?.setToneMappingExposure(v);
 });
 
-// Collapsible Display, Graphics, Post-processing
-['collapsible-display', 'collapsible-graphics', 'collapsible-postprocessing'].forEach((id) => {
+// Collapsible Display, Graphics, Water, Post-processing
+['collapsible-display', 'collapsible-graphics', 'collapsible-water', 'collapsible-postprocessing'].forEach((id) => {
   const el = document.getElementById(id);
   const header = el?.querySelector('.collapsible-header');
   if (header) {
@@ -1927,6 +1983,9 @@ bindValueDisplay('pixel-ratio', 'val-pixel-ratio', (v) => {
   const n = (parseInt(v, 10) ?? 100) / 100;
   return n >= 1 ? n.toFixed(0) : n.toFixed(2);
 });
+bindValueDisplay('water-wave-scale', 'val-water-wave-scale', (v) => v);
+bindValueDisplay('water-wave-height', 'val-water-wave-height', (v) => ((parseInt(v, 10) ?? 2) / 100).toFixed(2));
+bindValueDisplay('water-z-offset', 'val-water-z-offset', (v) => ((parseInt(v, 10) ?? 10) / 100).toFixed(2));
 bindValueDisplay('post-bloom-strength', 'val-bloom-strength', (v) => parseFloat(v).toFixed(1));
 bindValueDisplay('post-bloom-radius', 'val-bloom-radius', (v) => parseFloat(v).toFixed(2));
 bindValueDisplay('post-bloom-threshold', 'val-bloom-threshold', (v) => parseFloat(v).toFixed(2));

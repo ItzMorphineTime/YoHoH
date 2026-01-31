@@ -14,7 +14,7 @@
 | **Phase 2** | SSAO pass + graphic/post-process controls | Done |
 | **Phase 3** | LOD for props | Done |
 | **Phase 4** | InstancedMesh for props (optional) | Pending |
-| **Phase 5** | Water shader improvements | Pending |
+| **Phase 5** | Water shader improvements | Done |
 
 ---
 
@@ -81,10 +81,13 @@
 
 ---
 
-## Phase 5: Water Shader (Planned)
+## Phase 5: Water Shader (Done)
 
-- THREE.Water or custom shader
-- Reflection, distortion, animated normals
+- [x] Custom procedural water shader (`WaterShader.js`) — animated waves, Fresnel rim, sun specular
+- [x] Lightweight alternative to THREE.Water (no planar reflection)
+- [x] Integrate into IslandVisualizer: `createWaterMaterial`, `updateWaterTime` per frame
+- [x] Water controls in Settings: Graphics modal — Show water, Shader toggle, Color, Wave scale, Wave height
+- [x] Live tweaking via `setConfig` / `_updateWaterMaterial` without full re-render
 
 ---
 
@@ -93,7 +96,8 @@
 | File | Changes |
 |------|---------|
 | `src/PostProcessing.js` | New — EffectComposer, passes, resize |
-| `src/IslandVisualizer.js` | Integrate PostProcessing, use composer when enabled; renderProps uses getLODPropClone; _clearProps traverses LOD for dispose |
+| `src/IslandVisualizer.js` | Integrate PostProcessing, use composer when enabled; renderProps uses getLODPropClone; _clearProps traverses LOD for dispose; WaterShader integration (updateWaterTime per frame, _updateWaterMaterial from setConfig) |
 | `src/PropMeshLoader.js` | getLODPropClone, createLODPlaceholder — THREE.LOD with 3 levels per prop |
-| `index.html` | Settings: Graphics modal (`#settings-graphics-modal`) with collapsible Display, Graphics, Post-processing sections; 🎨 button (`#settings-graphics-btn`) |
+| `src/WaterShader.js` | Procedural water shader — animated waves, Fresnel, specular; `createWaterMaterial`, `updateWaterTime` |
+| `index.html` | Settings: Graphics modal (`#settings-graphics-modal`) with collapsible Display, Graphics, Water, Post-processing sections; 🎨 button (`#settings-graphics-btn`) |
 | `main.js` | Wire Settings: Graphics modal controls; open/close handlers; collapsible toggle |

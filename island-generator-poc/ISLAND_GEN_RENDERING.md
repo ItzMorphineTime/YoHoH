@@ -404,9 +404,9 @@ composer.addPass(customPass);
 
 ## 3. Water & Ocean Rendering
 
-### 3.1 Current State
+### 3.1 Current State (Implemented)
 
-Flat `PlaneGeometry` with `MeshLambertMaterial` (transparent blue). No reflection, refraction, or waves.
+Custom procedural water shader (`WaterShader.js`): animated waves, Fresnel rim, sun specular. Lightweight alternative to THREE.Water (no planar reflection). Controls in Settings: Graphics modal — Show water, Shader toggle, Color, Wave scale, Wave height.
 
 ### 3.2 THREE.Water (Addon)
 
@@ -479,6 +479,12 @@ Settings: Graphics (modal)
 │   └── Elevation legend (Beach, Grass, Rock, Snow)
 ├── Graphics (collapsible)
 │   └── Pixel ratio [0.5–2]
+├── Water (collapsible)
+│   ├── Show water [ ]
+│   ├── Shader [ ] (animated waves, Fresnel, specular)
+│   ├── Color [color picker]
+│   ├── Wave scale [2–20]
+│   └── Wave height [0–0.01]
 └── Post-processing (collapsible)
     ├── Enable [ ]
     ├── Bloom [ ]  Strength [ ]  Radius [ ]  Threshold [ ]
@@ -494,19 +500,20 @@ Settings: Graphics (modal)
 
 ```
 src/
-  IslandVisualizer.js     — Integrates PostProcessing; composer.render() when enabled
+  IslandVisualizer.js     — Integrates PostProcessing; WaterShader; composer.render() when enabled
   PostProcessing.js       — EffectComposer, RenderPass, SSAOPass, UnrealBloomPass,
                             ShaderPass(FXAAShader), FilmPass, OutputPass; resize, dispose
-  main.js                 — Wire Settings: Graphics modal controls to PostProcessing
+  WaterShader.js          — Procedural water: animated waves, Fresnel, specular; createWaterMaterial, updateWaterTime
+  main.js                 — Wire Settings: Graphics modal controls to PostProcessing, Water
 index.html               — Settings: Graphics modal (#settings-graphics-modal) with
-                            collapsible Display, Graphics, Post-processing sections
+                            collapsible Display, Graphics, Water, Post-processing sections
 ```
 
 ---
 
 ### 4.6 Implementation Tracker
 
-See [ISLAND_GEN_RENDERING_IMPLEMENTATION.md](ISLAND_GEN_RENDERING_IMPLEMENTATION.md) for phase status: Phase 1 (post-processing pipeline), Phase 2 (SSAO, Settings: Graphics modal), and Phase 3 (LOD for props) complete; Phase 4 (InstancedMesh), Phase 5 (water) pending.
+See [ISLAND_GEN_RENDERING_IMPLEMENTATION.md](ISLAND_GEN_RENDERING_IMPLEMENTATION.md) for phase status: Phase 1 (post-processing pipeline), Phase 2 (SSAO, Settings: Graphics modal), Phase 3 (LOD for props), and Phase 5 (water shader) complete; Phase 4 (InstancedMesh) pending.
 
 ---
 

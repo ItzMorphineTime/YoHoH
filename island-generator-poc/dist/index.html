@@ -434,7 +434,7 @@ button.active:hover {
     }
     .controls-help-section li { padding-left: 0; }
   </style>
-  <script type="module" crossorigin src="/assets/index-DlbGsGdl.js"></script>
+  <script type="module" crossorigin src="/assets/index-Dic-6JBn.js"></script>
 </head>
 <body>
   <div id="canvas-container"></div>
@@ -534,6 +534,7 @@ button.active:hover {
         <option value="/examples/flat-building-zone.json">Flat building zone</option>
         <option value="/examples/default-preset.json">Default (full)</option>
         <option value="/examples/full-island-with-buildings.json">Full island + buildings</option>
+        <option value="/examples/dead-mans-sands.json">Dead Man's Sands (example)</option>
       </select>
       <button id="load-preset-btn" style="width: 100%; background: #374151;">Load Preset</button>
     </div>
@@ -969,6 +970,38 @@ button.active:hover {
             <label>Pixel ratio</label>
             <input type="range" id="pixel-ratio" min="50" max="200" value="100" step="25" title="Render resolution (1=normal, 2=HiDPI)">
             <span class="value-display" id="val-pixel-ratio">1</span>
+          </div>
+        </div>
+      </div>
+      <div class="collapsible-control" id="collapsible-water">
+        <div class="collapsible-header">Water</div>
+        <div class="collapsible-content">
+          <div class="control-row">
+            <label>Show water</label>
+            <input type="checkbox" id="water-show" checked title="Display ocean plane">
+          </div>
+          <div class="control-row">
+            <label>Shader</label>
+            <input type="checkbox" id="water-shader" checked title="Animated waves, Fresnel, specular">
+          </div>
+          <div class="control-row" id="water-color-row">
+            <label>Color</label>
+            <input type="color" id="water-color" value="#2563eb" title="Water base color">
+          </div>
+          <div class="control-row" id="water-wave-scale-row">
+            <label>Wave scale</label>
+            <input type="range" id="water-wave-scale" min="2" max="20" value="8" step="1" title="Wave frequency">
+            <span class="value-display" id="val-water-wave-scale">8</span>
+          </div>
+          <div class="control-row" id="water-wave-height-row">
+            <label>Wave height</label>
+            <input type="range" id="water-wave-height" min="0" max="100" value="2" step="1" title="Wave amplitude (×0.01)">
+            <span class="value-display" id="val-water-wave-height">0.02</span>
+          </div>
+          <div class="control-row" id="water-z-offset-row">
+            <label>Z offset</label>
+            <input type="range" id="water-z-offset" min="-100" max="100" value="10" step="5" title="Water plane vertical offset (×0.01)">
+            <span class="value-display" id="val-water-z-offset">0.10</span>
           </div>
         </div>
       </div>

@@ -972,6 +972,38 @@ button.active:hover {
           </div>
         </div>
       </div>
+      <div class="collapsible-control" id="collapsible-water">
+        <div class="collapsible-header">Water</div>
+        <div class="collapsible-content">
+          <div class="control-row">
+            <label>Show water</label>
+            <input type="checkbox" id="water-show" checked title="Display ocean plane">
+          </div>
+          <div class="control-row">
+            <label>Shader</label>
+            <input type="checkbox" id="water-shader" checked title="Animated waves, Fresnel, specular">
+          </div>
+          <div class="control-row" id="water-color-row">
+            <label>Color</label>
+            <input type="color" id="water-color" value="#2563eb" title="Water base color">
+          </div>
+          <div class="control-row" id="water-wave-scale-row">
+            <label>Wave scale</label>
+            <input type="range" id="water-wave-scale" min="2" max="20" value="8" step="1" title="Wave frequency">
+            <span class="value-display" id="val-water-wave-scale">8</span>
+          </div>
+          <div class="control-row" id="water-wave-height-row">
+            <label>Wave height</label>
+            <input type="range" id="water-wave-height" min="0" max="100" value="2" step="1" title="Wave amplitude (×0.01)">
+            <span class="value-display" id="val-water-wave-height">0.02</span>
+          </div>
+          <div class="control-row" id="water-z-offset-row">
+            <label>Z offset</label>
+            <input type="range" id="water-z-offset" min="-100" max="100" value="10" step="5" title="Water plane vertical offset (×0.01)">
+            <span class="value-display" id="val-water-z-offset">0.10</span>
+          </div>
+        </div>
+      </div>
       <div class="collapsible-control" id="collapsible-postprocessing">
         <div class="collapsible-header">Post-processing</div>
         <div class="collapsible-content">
