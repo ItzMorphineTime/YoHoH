@@ -52,6 +52,7 @@
 | Simplex noise terrain | ✓ | Multi-octave, seeded |
 | Island mask | ✓ | Radial falloff, elongation, coast irregularity |
 | Elevation colors | ✓ | Beach, grass, rock, snow by height |
+| **Island themes** | ✓ | Normal, Volcanic, Icey, Swampy — terrain color schemes |
 | **Tile-aligned brush** | ✓ | 1×1–5×5 tiles; snaps to grid |
 | Brush editor | ✓ | Raise, lower, flatten, absolute, set, plateau, smooth |
 | **Building placement** | ✓ | Place, remove, rotate; validation (land, no overlap); terrain flattening on placement |
@@ -491,6 +492,7 @@ Islands have editable properties similar to map-generator-poc nodes:
 |----------|-------------|
 | **name** | Procedurally generated (e.g. "Skull Harbor"); editable |
 | **description** | Flavor text; generated from trait |
+| **theme** | Terrain color scheme: normal, volcanic, icey, swampy |
 | **trait** | normal, dangerous, appealing |
 | **treasureLevel** | 0–3 |
 | **portType** | none, port, harbor, outpost |
@@ -499,6 +501,19 @@ Islands have editable properties similar to map-generator-poc nodes:
 | **rumors** | Quest hooks, custom text |
 
 **Implementation:** `IslandGenerator` generates name and properties on creation; Island Properties panel in right sidebar; persisted in save/load.
+
+### 5.14a Island Themes
+
+The **theme** property adjusts the default terrain color scheme for elevation bands (water, beach, grass, rock, snow):
+
+| Theme | Water | Beach | Grass | Rock | Snow |
+|-------|-------|-------|-------|------|------|
+| **Normal** | Blue | Sand | Green | Gray | White |
+| **Volcanic** | Dark blue | Ash | Brown | Lava | Red |
+| **Icey** | Ice blue | Pale | Light blue-gray | Slate | White |
+| **Swampy** | Dark green | Mud | Dark green | Moss | Ochre |
+
+Theme is selectable in the Island Properties panel; changing it updates terrain colors immediately. Persisted in save/load.
 
 ### 5.15 Building Cargo Size
 
@@ -525,14 +540,14 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 
 | Mode | Contents | Use case |
 |------|----------|----------|
-| **Full** | heightMap + config + display + buildings + island properties + seed | Complete island ✓ |
-| **Config only** | config + display + seed + island properties (no heightMap, no buildings) | Preset for regeneration ✓ |
+| **Full** | heightMap + config + display + buildings + island properties + theme + seed | Complete island ✓ |
+| **Config only** | config + display + seed + island properties + theme (no heightMap, no buildings) | Preset for regeneration ✓ |
 
 ### 6.2 Load Behavior
 
-- **Full load:** Restore height map, config, display, buildings, island properties; sync UI sliders from config; populate Island Properties panel
-- **Config load (no heightMap):** Regenerate terrain from config; merge island properties and buildings from file; paths recomputed if ≥2 buildings
-- **Preset load:** Load example JSON; apply config, display, island properties; regenerate if no heightMap
+- **Full load:** Restore height map, config, display, buildings, island properties, theme; sync UI sliders from config; populate Island Properties panel
+- **Config load (no heightMap):** Regenerate terrain from config; merge island properties, theme, and buildings from file; paths recomputed if ≥2 buildings
+- **Preset load:** Load example JSON; apply config, display, island properties, theme; regenerate if no heightMap
 
 ### 6.3 Example JSON Files
 

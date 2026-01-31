@@ -126,6 +126,7 @@ function run() {
   const island = generateIsland(config);
   island.config = { ...island.config, pathWidth: config.pathWidth };
   island.props = island.props ?? [];
+  island.theme = document.getElementById('island-prop-theme')?.value ?? 'normal';
   currentIsland = island;
   editor.setHeightMap(island.heightMap);
 
@@ -660,6 +661,7 @@ function populateIslandProperties() {
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val ?? ''); };
   set('island-prop-name', currentIsland.name ?? '');
   set('island-prop-description', currentIsland.description ?? '');
+  set('island-prop-theme', currentIsland.theme ?? 'normal');
   const traitEl = document.getElementById('island-prop-trait');
   if (traitEl) traitEl.value = currentIsland.dangerous ? 'dangerous' : currentIsland.appealing ? 'appealing' : 'normal';
   set('island-prop-treasure', currentIsland.treasureLevel ?? 0);
@@ -674,6 +676,7 @@ function applyIslandPropertiesFromUI() {
   const get = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
   currentIsland.name = get('island-prop-name') || '';
   currentIsland.description = get('island-prop-description') || '';
+  currentIsland.theme = get('island-prop-theme') || 'normal';
   const trait = get('island-prop-trait');
   currentIsland.dangerous = trait === 'dangerous';
   currentIsland.appealing = trait === 'appealing';
@@ -682,6 +685,14 @@ function applyIslandPropertiesFromUI() {
   currentIsland.hazard = get('island-prop-hazard') || 'none';
   currentIsland.faction = get('island-prop-faction') || 'neutral';
   currentIsland.rumors = get('island-prop-rumors') || '';
+  // Refresh terrain colors when theme changes
+  if (currentIsland.heightMap && visualizer.getMesh()) {
+    visualizer.setConfig({ theme: currentIsland.theme });
+    const cfg = currentIsland.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const pathTiles = currentIsland.pathTiles ? new Set(currentIsland.pathTiles) : new Set();
+    visualizer.updateFromHeightMap(editor.getHeightMap() ?? currentIsland.heightMap, pathTiles, ts);
+  }
 }
 
 function hexToCss(hex) {
@@ -1011,6 +1022,7 @@ function loadIslandFromFile() {
             hazard: data.hazard ?? 'none',
             faction: data.faction ?? 'neutral',
             rumors: data.rumors ?? '',
+            theme: data.theme ?? 'normal',
           };
         } else {
           island = generateIsland(getConfig());
@@ -1026,6 +1038,7 @@ function loadIslandFromFile() {
           island.hazard = data.hazard ?? island.hazard ?? 'none';
           island.faction = data.faction ?? island.faction ?? 'neutral';
           island.rumors = data.rumors ?? island.rumors ?? '';
+          island.theme = data.theme ?? island.theme ?? 'normal';
         }
         currentIsland = island;
         if (island.buildings?.length >= 2) {
@@ -1196,6 +1209,7 @@ async function loadPreset() {
         hazard: data.hazard ?? 'none',
         faction: data.faction ?? 'neutral',
         rumors: data.rumors ?? '',
+        theme: data.theme ?? 'normal',
       };
     } else {
       island = generateIsland(getConfig());
@@ -1211,6 +1225,7 @@ async function loadPreset() {
       island.hazard = data.hazard ?? island.hazard ?? 'none';
       island.faction = data.faction ?? island.faction ?? 'neutral';
       island.rumors = data.rumors ?? island.rumors ?? '';
+      island.theme = data.theme ?? island.theme ?? 'normal';
     }
     currentIsland = island;
     if (island.buildings?.length >= 2) {
@@ -1252,7 +1267,7 @@ async function loadPreset() {
 }
 document.getElementById('load-preset-btn').addEventListener('click', loadPreset);
 
-['island-prop-name', 'island-prop-description', 'island-prop-trait', 'island-prop-treasure', 'island-prop-port', 'island-prop-hazard', 'island-prop-faction', 'island-prop-rumors'].forEach((id) => {
+['island-prop-name', 'island-prop-description', 'island-prop-theme', 'island-prop-trait', 'island-prop-treasure', 'island-prop-port', 'island-prop-hazard', 'island-prop-faction', 'island-prop-rumors'].forEach((id) => {
   document.getElementById(id)?.addEventListener('change', applyIslandPropertiesFromUI);
 });
 

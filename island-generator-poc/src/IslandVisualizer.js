@@ -13,22 +13,49 @@ import { getPropType } from './PropTypes.js';
 import { getPropMeshClone, loadPropMesh } from './PropMeshLoader.js';
 import { PATH_COLOR } from './IslandPathfinder.js';
 
-/** Vertex colors by elevation band (hex) */
-const ELEVATION_COLORS = {
-  water: 0x3b82f6,
-  beach: 0xfef3c7,
-  grass: 0x4a7c59,
-  rock: 0x6b7280,
-  snow: 0xf0f9ff,
+/** Island themes: terrain color schemes by elevation band (water, beach, grass, rock, snow) */
+export const ISLAND_THEMES = {
+  normal: {
+    water: 0x3b82f6,
+    beach: 0xfef3c7,
+    grass: 0x4a7c59,
+    rock: 0x6b7280,
+    snow: 0xf0f9ff,
+  },
+  volcanic: {
+    water: 0x1e3a5f,
+    beach: 0x2d2d2d,
+    grass: 0x5c4033,
+    rock: 0x8b4513,
+    snow: 0xdc143c,
+  },
+  icey: {
+    water: 0x87ceeb,
+    beach: 0xe0ffff,
+    grass: 0xb0c4de,
+    rock: 0x708090,
+    snow: 0xfffaf0,
+  },
+  swampy: {
+    water: 0x2f4f4f,
+    beach: 0x6b4423,
+    grass: 0x2d5016,
+    rock: 0x4a5d23,
+    snow: 0x8b7355,
+  },
 };
 
-function heightToColor(height, seaLevel) {
-  if (height <= seaLevel) return ELEVATION_COLORS.water;
+function getElevationColors(theme = 'normal') {
+  return ISLAND_THEMES[theme] ?? ISLAND_THEMES.normal;
+}
+
+function heightToColor(height, seaLevel, colors = ISLAND_THEMES.normal) {
+  if (height <= seaLevel) return colors.water;
   const h = (height - seaLevel) / (1.2 - seaLevel);
-  if (h < 0.12) return ELEVATION_COLORS.beach;
-  if (h < 0.4) return ELEVATION_COLORS.grass;
-  if (h < 0.7) return ELEVATION_COLORS.rock;
-  return ELEVATION_COLORS.snow;
+  if (h < 0.12) return colors.beach;
+  if (h < 0.4) return colors.grass;
+  if (h < 0.7) return colors.rock;
+  return colors.snow;
 }
 
 function hexToRgb(hex) {
@@ -73,6 +100,7 @@ export class IslandVisualizer {
       pathColor: PATH_COLOR,
       shadows: true,
       antialias: true,
+      theme: 'normal',
     };
     this.pathTiles = new Set();
     this._onPropMeshLoaded = null;
@@ -327,6 +355,8 @@ export class IslandVisualizer {
     const gridSize = config?.gridSize ?? heightMap.length - 1;
     const seaLevel = config?.seaLevel ?? this.config.seaLevel;
     this.config.seaLevel = seaLevel;
+    this.config.theme = island.theme ?? config?.theme ?? 'normal';
+    const elevationColors = getElevationColors(this.config.theme);
     const ts = config?.tileSize ?? config?.chunkSize ?? 8;
     const tilesX = config?.tilesX ?? Math.floor(gridSize / ts);
 
@@ -348,7 +378,7 @@ export class IslandVisualizer {
       const tx = Math.floor(x / ts);
       const ty = Math.floor(y / ts);
       const pathKey = `${tx},${ty}`;
-      const color = this.pathTiles.has(pathKey) ? this.config.pathColor : heightToColor(h, seaLevel);
+      const color = this.pathTiles.has(pathKey) ? this.config.pathColor : heightToColor(h, seaLevel, elevationColors);
       const [r, g, b] = hexToRgb(color);
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;
@@ -1076,6 +1106,7 @@ export class IslandVisualizer {
     const gridSize = Math.sqrt(positions.count) - 1;
     const seaLevel = this.config.seaLevel;
     const ts = tileSize ?? Math.max(1, Math.floor(gridSize / 16));
+    const elevationColors = getElevationColors(this.config.theme ?? 'normal');
 
     for (let i = 0; i < positions.count; i++) {
       const x = Math.floor(i % (gridSize + 1));
@@ -1086,7 +1117,7 @@ export class IslandVisualizer {
       const tx = Math.floor(x / ts);
       const ty = Math.floor(y / ts);
       const pathKey = `${tx},${ty}`;
-      const color = this.pathTiles.has(pathKey) ? this.config.pathColor : heightToColor(h, seaLevel);
+      const color = this.pathTiles.has(pathKey) ? this.config.pathColor : heightToColor(h, seaLevel, elevationColors);
       const [r, g, b] = hexToRgb(color);
       colors.setXYZ(i, r, g, b);
     }

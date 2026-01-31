@@ -23,6 +23,7 @@ export function serialize(island) {
     hazard: island.hazard ?? 'none',
     faction: island.faction ?? 'neutral',
     rumors: island.rumors ?? '',
+    theme: island.theme ?? 'normal',
   };
   if (island.heightMap != null) out.heightMap = island.heightMap;
   return JSON.stringify(out);
@@ -55,5 +56,6 @@ export function deserialize(json) {
     hazard: data.hazard ?? 'none',
     faction: data.faction ?? 'neutral',
     rumors: data.rumors ?? '',
+    theme: data.theme ?? 'normal',
   };
 }
