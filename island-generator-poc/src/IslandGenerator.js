@@ -7,6 +7,13 @@
 import { createNoise2D } from 'simplex-noise';
 import { SeededRNG } from './SeededRNG.js';
 
+/** Pirate-themed island name parts for procedural generation */
+const ISLAND_NAME_PARTS = {
+  prefix: ['Dead Man\'s', 'Skull', 'Devil\'s', 'Black', 'Blood', 'Rum', 'Treasure', 'Ghost', 'Cursed', 'Hidden'],
+  body: ['Cay', 'Island', 'Key', 'Reef', 'Harbor', 'Cove', 'Port', 'Bay', 'Sands', 'Rock'],
+  safe: ['Port', 'Safe', 'Calm', 'Golden', 'Merchant', 'Trading', 'Friendly', 'Paradise'],
+};
+
 /** Default elevation bands for color mapping (0–1 normalized) */
 export const ELEVATION_BANDS = {
   water: 0,
@@ -124,6 +131,18 @@ export function generateIsland(config = {}) {
     heightMap.push(row);
   }
 
+  const dangerous = rng.next() < 0.15;
+  const appealing = !dangerous && rng.next() < 0.25;
+  const name = `${ISLAND_NAME_PARTS.prefix[Math.floor(rng.next() * ISLAND_NAME_PARTS.prefix.length)]} ${ISLAND_NAME_PARTS.body[Math.floor(rng.next() * ISLAND_NAME_PARTS.body.length)]}`;
+  const description = dangerous ? 'A treacherous place. Sailors speak of it in hushed tones.' : appealing ? 'A welcoming port with fair winds and friendly faces.' : 'An unremarkable stop along the trade routes.';
+  const treasureLevel = dangerous ? Math.min(3, 1 + Math.floor(rng.next() * 2)) : appealing ? Math.floor(rng.next() * 2) : Math.floor(rng.next() * 2);
+  const portRoll = rng.next();
+  const portType = appealing && portRoll < 0.6 ? (portRoll < 0.3 ? 'harbor' : 'outpost') : portRoll < 0.2 ? 'outpost' : 'none';
+  const hazards = ['none', 'reefs', 'storms', 'treacherous'];
+  const hazard = dangerous && rng.next() < 0.6 ? hazards[1 + Math.floor(rng.next() * 3)] : 'none';
+  const factions = ['neutral', 'british', 'spanish', 'french', 'pirate'];
+  const faction = factions[Math.floor(rng.next() * factions.length)];
+
   return {
     heightMap,
     config: {
@@ -146,5 +165,14 @@ export function generateIsland(config = {}) {
       chunkSize: ts,
     },
     seed: actualSeed,
+    name,
+    description,
+    dangerous,
+    appealing,
+    treasureLevel,
+    portType,
+    hazard,
+    faction,
+    rumors: '',
   };
 }

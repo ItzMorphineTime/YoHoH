@@ -5,16 +5,18 @@
 
 /** @typedef {{ id: string, width: number, height: number, name: string, color: number }} BuildingType */
 
-/** Pirate building definitions */
+/** Pirate building definitions — varied sizes per type */
 export const BUILDING_TYPES = {
-  tavern: { id: 'tavern', width: 1, height: 1, name: 'Tavern', color: 0xd97706 },
-  shipwright: { id: 'shipwright', width: 1, height: 1, name: 'Shipwright', color: 0x64748b },
-  market: { id: 'market', width: 1, height: 1, name: 'Market', color: 0x16a34a },
+  tavern: { id: 'tavern', width: 2, height: 1, name: 'Tavern', color: 0xd97706 },
+  shipwright: { id: 'shipwright', width: 2, height: 1, name: 'Shipwright', color: 0x64748b },
+  market: { id: 'market', width: 2, height: 1, name: 'Market', color: 0x16a34a },
   lighthouse: { id: 'lighthouse', width: 1, height: 1, name: 'Lighthouse', color: 0xfbbf24 },
-  warehouse: { id: 'warehouse', width: 2, height: 1, name: 'Warehouse', color: 0x78716c },
-  fort: { id: 'fort', width: 2, height: 2, name: 'Fort', color: 0x6b7280 },
-  docks: { id: 'docks', width: 2, height: 1, name: 'Docks', color: 0x0ea5e9 },
-  dragon_sanctuary: { id: 'dragon_sanctuary', width: 2, height: 2, name: 'Dragon Sanctuary', color: 0x7c3aed },
+  warehouse: { id: 'warehouse', width: 2, height: 2, name: 'Warehouse', color: 0x78716c },
+  fort: { id: 'fort', width: 3, height: 2, name: 'Fort', color: 0x6b7280 },
+  docks: { id: 'docks', width: 3, height: 1, name: 'Docks', color: 0x0ea5e9, allowOverWater: true },
+  dragon_sanctuary: { id: 'dragon_sanctuary', width: 3, height: 3, name: 'Dragon Sanctuary', color: 0x7c3aed },
+  castle: { id: 'castle', width: 3, height: 3, name: 'Castle', color: 0x374151, description: 'Store cargo, gold/pieces-of-eight for crew wages, receive tax from buildings and player trading' },
+  blacksmith: { id: 'blacksmith', width: 2, height: 1, name: 'Blacksmith', color: 0xb45309, description: 'Craft and sell cannons, cannonballs, and swords' },
 };
 
 /** @param {string} type */
@@ -26,6 +28,12 @@ export function getBuildingType(type) {
 export function getBuildingSize(type) {
   const def = getBuildingType(type);
   return def ? { width: def.width, height: def.height } : { width: 1, height: 1 };
+}
+
+/** @param {string} type @returns {boolean} */
+export function canPlaceOverWater(type) {
+  const def = getBuildingType(type);
+  return !!(def && def.allowOverWater);
 }
 
 /** Runtime dimension overrides: { [typeId]: { width, height } } */
@@ -50,4 +58,17 @@ export function getEffectiveBuildingSize(type) {
   return over
     ? { width: over.width ?? base.width, height: over.height ?? base.height }
     : base;
+}
+
+/**
+ * Get size for a building object — uses saved width/height if present, else type default.
+ * Use when rendering/loading; ensures loaded buildings render at correct sizes.
+ * @param {{ type: string, width?: number, height?: number }} building
+ * @returns {{ width: number, height: number }}
+ */
+export function getBuildingSizeFromObject(building) {
+  if (building && building.width != null && building.height != null) {
+    return { width: building.width, height: building.height };
+  }
+  return getEffectiveBuildingSize(building?.type ?? '');
 }

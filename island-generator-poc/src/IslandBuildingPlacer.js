@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { BUILDING_TYPES, getBuildingType, getEffectiveBuildingSize } from './BuildingTypes.js';
+import { BUILDING_TYPES, getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject, canPlaceOverWater } from './BuildingTypes.js';
 
 export class IslandBuildingPlacer {
   constructor(visualizer) {
@@ -26,6 +26,7 @@ export class IslandBuildingPlacer {
     this.onHeightMapChange = null; // (newHeightMap) => void — called after flattening terrain
     this.onPlacementHover = null;   // (tx, ty, isValid) => void — hover over empty tile
     this.onBuildingHover = null;   // (building | null) => void — hover over building
+    this.onBuildingSelect = null;  // (building | null) => void — click to select building
     this._boundHandleMouseMove = this._handleMouseMove.bind(this);
   }
 
@@ -44,8 +45,11 @@ export class IslandBuildingPlacer {
     this.seaLevel = level ?? 0.12;
   }
 
-  setBuildings(buildings) {
-    this.buildings = Array.isArray(buildings) ? buildings.map(b => ({ ...b })) : [];
+  /** @param {Object[]} buildings @param {{ shared?: boolean }} [opts] shared = use same refs (for selection-only mode) */
+  setBuildings(buildings, opts = {}) {
+    this.buildings = Array.isArray(buildings)
+      ? (opts.shared ? buildings : buildings.map(b => ({ ...b })))
+      : [];
   }
 
   getBuildings() {
@@ -56,11 +60,13 @@ export class IslandBuildingPlacer {
     if (BUILDING_TYPES[type]) this.selectedType = type;
   }
 
-  enable(domElement) {
+  /** @param {HTMLElement} domElement @param {{ selectionOnly?: boolean }} [opts] */
+  enable(domElement, opts = {}) {
     this.domElement = domElement;
+    this._selectionOnly = !!opts.selectionOnly;
     domElement.addEventListener('mousedown', this._boundHandleMouse);
     domElement.addEventListener('mousemove', this._boundHandleMouseMove);
-    this.isPlacing = true;
+    this.isPlacing = !this._selectionOnly;
   }
 
   disable() {
@@ -69,6 +75,7 @@ export class IslandBuildingPlacer {
       this.domElement.removeEventListener('mousemove', this._boundHandleMouseMove);
     }
     this.isPlacing = false;
+    this._selectionOnly = false;
     if (this.onPlacementHover) this.onPlacementHover(null, null, false);
     if (this.onBuildingHover) this.onBuildingHover(null);
   }
@@ -97,8 +104,12 @@ export class IslandBuildingPlacer {
       if (this.onPlacementHover) this.onPlacementHover(null, null, false);
       if (this.onBuildingHover) this.onBuildingHover(existing);
     } else {
-      const canPlace = this._canPlace(this.selectedType, tx, ty);
-      if (this.onPlacementHover) this.onPlacementHover(tx, ty, canPlace);
+      if (!this._selectionOnly) {
+        const canPlace = this._canPlace(this.selectedType, tx, ty);
+        if (this.onPlacementHover) this.onPlacementHover(tx, ty, canPlace);
+      } else if (this.onPlacementHover) {
+        this.onPlacementHover(null, null, false);
+      }
       if (this.onBuildingHover) this.onBuildingHover(null);
     }
   }
@@ -143,15 +154,13 @@ export class IslandBuildingPlacer {
   }
 
   /**
-   * Flatten terrain under building footprint to average height.
+   * Flatten terrain under a region (chunkX, chunkY, width, height).
    * Modifies this.heightMap in place and calls onHeightMapChange with a copy.
+   * @param {number} chunkX @param {number} chunkY @param {number} w @param {number} h @param {string} type
    */
-  _flattenUnderBuilding(type, chunkX, chunkY) {
+  flattenRegion(chunkX, chunkY, w, h, type) {
     const def = getBuildingType(type);
     if (!def || !this.heightMap) return;
-    const size = getEffectiveBuildingSize(type);
-    const w = size.width;
-    const h = size.height;
     const ts = this.tileSize;
     const gridSize = this.heightMap.length - 1;
     const x0 = Math.max(0, chunkX * ts);
@@ -160,25 +169,75 @@ export class IslandBuildingPlacer {
     const y1 = Math.min(gridSize, (chunkY + h) * ts);
 
     let sum = 0;
-    let count = 0;
+    let landCount = 0;
     for (let gy = y0; gy <= y1; gy++) {
       for (let gx = x0; gx <= x1; gx++) {
         const val = this.heightMap[gy]?.[gx] ?? 0;
-        sum += val;
-        count++;
+        if (val > this.seaLevel) {
+          sum += val;
+          landCount++;
+        }
       }
     }
-    if (count === 0) return;
-    const avg = sum / count;
+    const avg = landCount > 0 ? sum / landCount : this.seaLevel + 0.02;
+    const dockHeight = this.seaLevel + 0.02;
 
     for (let gy = y0; gy <= y1; gy++) {
       for (let gx = x0; gx <= x1; gx++) {
-        if (this.heightMap[gy]) this.heightMap[gy][gx] = avg;
+        if (!this.heightMap[gy]) continue;
+        const val = this.heightMap[gy][gx] ?? 0;
+        if (canPlaceOverWater(type) && val <= this.seaLevel) {
+          this.heightMap[gy][gx] = dockHeight;
+        } else {
+          this.heightMap[gy][gx] = avg;
+        }
       }
     }
     if (this.onHeightMapChange) {
       this.onHeightMapChange(this.heightMap.map(row => [...row]));
     }
+  }
+
+  /**
+   * Flatten terrain under building footprint using type default size.
+   */
+  _flattenUnderBuilding(type, chunkX, chunkY) {
+    const size = getEffectiveBuildingSize(type);
+    this.flattenRegion(chunkX, chunkY, size.width, size.height, type);
+  }
+
+  /**
+   * Check if a footprint (chunkX, chunkY, width, height) is valid: no overlap with other buildings, on land.
+   * @param {number} chunkX @param {number} chunkY @param {number} w @param {number} h @param {string} type
+   * @param {{ chunkX: number, chunkY: number }} excludeBuilding Building to exclude from overlap check (for editing)
+   */
+  canPlaceAtFootprint(chunkX, chunkY, w, h, type, excludeBuilding = null) {
+    const overWater = canPlaceOverWater(type);
+    if (!overWater && (chunkX + w > this.tilesX || chunkY + h > this.tilesY || chunkX < 0 || chunkY < 0)) return false;
+    const ts = this.tileSize;
+    let landTiles = 0;
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) {
+        const tx = chunkX + dx;
+        const ty = chunkY + dy;
+        if (tx < 0 || tx >= this.tilesX || ty < 0 || ty >= this.tilesY) continue;
+        const gx = Math.min(this.gridSize, tx * ts);
+        const gy = Math.min(this.gridSize, ty * ts);
+        const hVal = this.heightMap[gy]?.[gx] ?? 0;
+        if (hVal > this.seaLevel) landTiles++;
+        else if (!overWater) return false;
+      }
+    }
+    if (landTiles === 0) return false;
+    if (overWater && (chunkX + w <= 0 || chunkY + h <= 0 || chunkX >= this.tilesX || chunkY >= this.tilesY)) return false;
+    for (const b of this.buildings) {
+      if (excludeBuilding && b.chunkX === excludeBuilding.chunkX && b.chunkY === excludeBuilding.chunkY) continue;
+      const bSize = getBuildingSizeFromObject(b);
+      const bx1 = b.chunkX + bSize.width;
+      const by1 = b.chunkY + bSize.height;
+      if (chunkX < bx1 && chunkX + w > b.chunkX && chunkY < by1 && chunkY + h > b.chunkY) return false;
+    }
+    return true;
   }
 
   _canPlace(type, chunkX, chunkY) {
@@ -187,20 +246,28 @@ export class IslandBuildingPlacer {
     const size = getEffectiveBuildingSize(type);
     const w = size.width;
     const h = size.height;
-    if (chunkX + w > this.tilesX || chunkY + h > this.tilesY || chunkX < 0 || chunkY < 0) return false;
+    const overWater = canPlaceOverWater(type);
+    if (!overWater && (chunkX + w > this.tilesX || chunkY + h > this.tilesY || chunkX < 0 || chunkY < 0)) return false;
 
     const ts = this.tileSize;
+    let landTiles = 0;
     for (let dy = 0; dy < h; dy++) {
       for (let dx = 0; dx < w; dx++) {
-        const gx = Math.min(this.gridSize, (chunkX + dx) * ts);
-        const gy = Math.min(this.gridSize, (chunkY + dy) * ts);
+        const tx = chunkX + dx;
+        const ty = chunkY + dy;
+        if (tx < 0 || tx >= this.tilesX || ty < 0 || ty >= this.tilesY) continue;
+        const gx = Math.min(this.gridSize, tx * ts);
+        const gy = Math.min(this.gridSize, ty * ts);
         const hVal = this.heightMap[gy]?.[gx] ?? 0;
-        if (hVal <= this.seaLevel) return false;
+        if (hVal > this.seaLevel) landTiles++;
+        else if (!overWater) return false;
       }
     }
+    if (landTiles === 0) return false;
+    if (overWater && (chunkX + w <= 0 || chunkY + h <= 0 || chunkX >= this.tilesX || chunkY >= this.tilesY)) return false;
 
     for (const b of this.buildings) {
-      const bSize = getEffectiveBuildingSize(b.type);
+      const bSize = getBuildingSizeFromObject(b);
       const bx1 = b.chunkX + bSize.width;
       const by1 = b.chunkY + bSize.height;
       if (chunkX < bx1 && chunkX + w > b.chunkX && chunkY < by1 && chunkY + h > b.chunkY) return false;
@@ -219,7 +286,12 @@ export class IslandBuildingPlacer {
     const { tx, ty } = info;
     const existing = this._getBuildingAtTile(tx, ty);
     if (existing) {
-      if (e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (this._selectionOnly) {
+        if (this.onBuildingSelect) this.onBuildingSelect(existing);
+      } else if (e.shiftKey) {
         this.buildings = this.buildings.filter(b => b !== existing);
       } else {
         const def = getBuildingType(existing.type);
@@ -228,16 +300,31 @@ export class IslandBuildingPlacer {
           const idx = rots.indexOf(existing.rotation ?? 0);
           existing.rotation = rots[(idx + 1) % 4];
         }
+        if (this.onBuildingSelect) this.onBuildingSelect(existing);
       }
     } else {
-      const def = getBuildingType(this.selectedType);
-      if (def && this._canPlace(this.selectedType, tx, ty)) {
-        this._flattenUnderBuilding(this.selectedType, tx, ty);
-        const id = 'b' + Date.now();
-        this.buildings.push({ id, type: this.selectedType, chunkX: tx, chunkY: ty, rotation: 0 });
+      if (!this._selectionOnly) {
+        const def = getBuildingType(this.selectedType);
+        if (def && this._canPlace(this.selectedType, tx, ty)) {
+          this._flattenUnderBuilding(this.selectedType, tx, ty);
+          const size = getEffectiveBuildingSize(this.selectedType);
+          const cargoSize = size.width * size.height * 10;
+          this.buildings.push({
+            id: 'b' + Date.now(),
+            type: this.selectedType,
+            chunkX: tx,
+            chunkY: ty,
+            rotation: 0,
+            width: size.width,
+            height: size.height,
+            cargoSize,
+          });
+        }
       }
     }
-    this.visualizer.renderBuildings(this.buildings, this.heightMap, this.tileSize, this.tilesX, this.tilesY);
-    if (this.onBuildingsChange) this.onBuildingsChange(this.getBuildings());
+    if (!this._selectionOnly) {
+      this.visualizer.renderBuildings(this.buildings, this.heightMap, this.tileSize, this.tilesX, this.tilesY);
+      if (this.onBuildingsChange) this.onBuildingsChange(this.getBuildings());
+    }
   }
 }

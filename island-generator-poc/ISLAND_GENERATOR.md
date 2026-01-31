@@ -2,8 +2,10 @@
 
 **Document status:** Planning & Implementation Reference  
 **Last updated:** 2026-01-31  
-*Added: Automatic paths between buildings (terrain smoothing + path color)*  
+*Added: Ramp tool; contour overlay; brush icon bar; keyboard shortcuts; elevation HUD; min/max clamp; ISLAND_RESEARCH.md for Edit/Prop UX plan*  
 **Target:** YoHoH island-generator-poc — procedural island terrain with building placement  
+
+> **See [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md)** for detailed research, Edit mode vision, and Prop placement GUI/UX plan.
 
 ---
 
@@ -21,7 +23,7 @@
 - Tile-based design aligns with a navigation grid; each tile is a potential step.
 - Flat tiles and terrain flattening on placement ensure buildings sit on walkable ground.
 - **Automatic paths between buildings** — Paths connect placed buildings; terrain along paths is smoothed and recolored for easier navigation and visual clarity.
-- Future: pathfinding (A* on tile graph), walkability flags, ramp/slope tools for connectivity.
+- Pathfinding: A* on tile graph ✓; Future: walkability flags, ramp/slope tools for connectivity.
 - Generation parameters (roughness, elevation, island shape) should favor navigable land over impassable terrain.
 
 ---
@@ -35,6 +37,7 @@
 5. [Building Placement](#5-building-placement) (incl. Props & Decorations)
 6. [Save/Load — Config & Example JSON](#6-saveload--config--example-json)
 7. [Implementation Roadmap](#7-implementation-roadmap) (incl. Phase H: Props, Phase G: Paths)
+8. [Edit Mode & Prop Placement Plan](#8-edit-mode--prop-placement-plan) (→ ISLAND_RESEARCH.md)
 
 ---
 
@@ -53,9 +56,13 @@
 | **Building placement** | ✓ | Place, remove, rotate; validation (land, no overlap); terrain flattening on placement |
 | **Terrain flattening** | ✓ | Buildings placed on flat ground (average height of footprint) |
 | **Controls modal** | ✓ | Settings (⚙) button opens mouse/keyboard input help |
-| Save/Load | ✓ | JSON height map + config + buildings |
+| **Placement preview** | ✓ | Ghost building at cursor; red overlay for invalid tile |
+| **Island properties** | ✓ | Name, description, trait, treasure, port type, hazard, faction, rumors (like map-generator-poc) |
+| **Building selection** | ✓ | Click building to select; properties panel with Rotate/Remove |
+| **Cargo size** | ✓ | Buildings get cargoSize = width × height × 10 when placed |
+| Save/Load | ✓ | JSON height map + config + buildings + island properties |
 | Orbit controls | ✓ | Pan, zoom, rotate |
-| **Automatic paths** | ✓ | A* pathfinding between buildings; terrain smoothing; path color (dirt) |
+| **Automatic paths** | ✓ | A* pathfinding (MST); terrain smoothing; path color (dirt); path width (1–5 tiles) |
 
 ### 1.2 Recent fixes
 - Edit mode hover overlay: fixed missing `ts` (tileSize) in onHoverTile callback — highlight now displays correctly
@@ -71,7 +78,7 @@
 - ~~Elevation controls are coarse (brush only; no level presets)~~ ✓ Phase B
 - ~~Save/Load does not restore UI state~~ ✓ Phase C
 - ~~No example JSON templates for common presets~~ ✓ Phase C
-- **Paths & navigation** — Automatic paths between buildings ✓; remaining: ramp tool, connectivity check, path width config, generation tuning for path-friendly terrain (Phase G)
+- **Paths & navigation** — Automatic paths (MST) ✓; path width (1–5 tiles) ✓; remaining: ramp tool, connectivity check, generation tuning (Phase G)
 
 ---
 
@@ -112,12 +119,17 @@ The island is divided into a **tile grid**. Each tile is a flat (or near-flat) u
 
 ### 2.5 Building Sizes (Pirate Game)
 
-| Building | Tiles | Brush size |
-|----------|-------|------------|
-| Tavern, Shipwright, Market, Lighthouse | 1×1 | 1×1 |
-| Warehouse, Docks | 2×1 | 2×2 |
-| Fort, Dragon Sanctuary | 2×2 | 2×2 |
-| Custom large | 3×3 | 3×3 |
+| Building | Tiles | Brush size | Notes |
+|----------|-------|------------|-------|
+| Tavern, Shipwright, Market | 2×1 | 2×2 | Port buildings |
+| Lighthouse | 1×1 | 1×1 | Tall, narrow |
+| Warehouse | 2×2 | 2×2 | Cargo storage |
+| Fort | 3×2 | 3×3 | Defense structure |
+| Docks | 3×1 | 3×3 | **Can extend over water/edge** |
+| Dragon Sanctuary | 3×3 | 3×3 | Large refuge |
+| Castle | 3×3 | 3×3 | Store cargo, gold, receive tax |
+| Blacksmith | 2×1 | 2×1 | Cannons, cannonballs, swords |
+| Custom | 1×1–5×5 | — | User-defined |
 
 ### 2.6 Prop Sizes (Decorations)
 
@@ -143,6 +155,7 @@ Default settings (matching reference UI). Parameters are tuned to produce **navi
 | Sea level | 0.12 | Water level |
 | Tile size | 16 | Vertices per tile (building grid) |
 | Tile variation | 0% | Per-vertex noise within tile (0 = flat) |
+| Path width | 1 | Path width in tiles (1–5); slider in Buildings section |
 | Octaves | 3 | Noise detail layers |
 | Frequency | 1.0 | Base noise frequency |
 | Persistence | 0.75 | Octave amplitude falloff |
@@ -186,10 +199,10 @@ Default settings (matching reference UI). Parameters are tuned to produce **navi
 | **Plateau brush** | Flatten to height at cursor (click point) within brush |
 | **Smooth mode** | Laplacian-style blend with neighbors |
 | **Apply mode** | Click-only (one per click) or Drag (continuous) |
-| **Ramp tool** | Click A, click B — create smooth slope between |
+| **Ramp tool** | ✓ Click A, click B — create smooth slope between |
 | **Undo/Redo** | Stack of height-map states (limit N) |
 | **Elevation readout** | Show height under cursor (HUD) |
-| **Contour overlay** | Optional wireframe/contour lines at fixed intervals |
+| **Contour overlay** | ✓ Toggle contour lines at fixed intervals (0.1) |
 | **Min/Max clamp** | Sliders to clamp elevation range (e.g. 0.1–0.8) |
 
 **Elevation band reference:**
@@ -208,12 +221,17 @@ The **Settings (⚙)** button (bottom-left) opens a modal documenting all mouse/
 | **View** | Left drag | Orbit camera |
 | | Right drag | Pan camera |
 | | Scroll | Zoom |
-| **Edit** | Left drag | Paint terrain |
+| **Edit** | E | Toggle Edit mode |
+| | 1–8 | Select brush tool (Raise, Lower, Flatten, Absolute, Set, Plateau, Smooth, Ramp) |
+| | B | Cycle brush size |
+| | Ctrl+Z / Ctrl+Y | Undo / Redo |
+| | Left drag | Paint terrain |
+| | Left click (Ramp) | Click A, then B — create slope; Right-click or Esc to cancel |
 | | Right drag | Orbit camera |
 | | Space + Left drag | Temporarily orbit |
 | | Scroll | Zoom |
 | **Build** | Left click | Place building |
-| | Left click on building | Rotate building |
+| | Left click on building | Select building (opens properties panel) |
 | | Shift + Left click on building | Remove building |
 | | Right drag | Orbit camera |
 | | Scroll | Zoom |
@@ -228,15 +246,17 @@ Buildings for the **YoHoH** pirate game — islands in the Shattered Seas where 
 
 | Type | Size (tiles) | Purpose | Pirate Theme |
 |------|--------------|---------|--------------|
-| **Tavern** | 1×1 | Port hub, crew morale | Rum shack, gathering spot |
-| **Shipwright** | 1×1 | Repairs, ship upgrades | Dry dock, hull repairs |
-| **Market** | 1×1 | Trade, supplies | Black market, trading post |
+| **Tavern** | 2×1 | Port hub, crew morale | Rum shack, gathering spot |
+| **Shipwright** | 2×1 | Repairs, ship upgrades | Dry dock, hull repairs |
+| **Market** | 2×1 | Trade, supplies | Black market, trading post |
 | **Lighthouse** | 1×1 | Navigation, visibility | Beacon, fog warning |
-| **Warehouse** | 2×1 | Cargo, supplies | Cargo hold, loot storage |
-| **Fort** | 2×2 | Defense, garrison | Watchtower, cannon battery |
-| **Docks** | 2×1 | Ship mooring | Pier, landing stage |
-| **Dragon Sanctuary** | 2×2 | Dragon refuge | Hatchery, protected cove |
-| **Custom** | 1×1 to 3×3 | User-defined | — |
+| **Warehouse** | 2×2 | Cargo, supplies | Cargo hold, loot storage |
+| **Fort** | 3×2 | Defense, garrison | Watchtower, cannon battery |
+| **Docks** | 3×1 | Ship mooring | Pier, landing stage — **can extend over water** |
+| **Dragon Sanctuary** | 3×3 | Dragon refuge | Hatchery, protected cove |
+| **Castle** | 3×3 | Island owner HQ | Store cargo for building; gold/pieces-of-eight for crew wages; receive tax from buildings and player trading |
+| **Blacksmith** | 2×1 | Crafting, arms | Cannons, cannonballs, swords |
+| **Custom** | 1×1 to 5×5 | User-defined | — |
 
 ### 5.2 Placeable Props & Decorations
 
@@ -260,30 +280,42 @@ Natural and decorative objects for island atmosphere. All are **1×1 tile**; no 
 ### 5.3 Placement Rules
 
 - Buildings snap to chunk grid
-- Placement only on land (height &gt; sea level)
-- **Terrain flattening:** On placement, terrain under the building footprint is flattened to the average height of covered tiles — buildings sit on flat ground
+- Placement only on land (height &gt; sea level) — **except Docks**
+- **Docks over water:** Docks (`allowOverWater: true`) may extend over water tiles and beyond the grid edge; at least one tile must be on land; water tiles in footprint are raised to dock deck height
+- **Terrain flattening:** On placement, terrain under the building footprint is flattened to the average height of land tiles; water tiles (docks only) set to sea level + 0.02
 - Collision: no overlap with existing buildings
 - Visual: simple placeholder meshes (box) per type
-- **Navigation context:** Placed buildings become path endpoints. Future: connectivity validation, path visualization.
+- **Navigation context:** Placed buildings become path endpoints; automatic paths connect them. Future: connectivity validation.
 
 ### 5.4 Data Model
 
 ```js
 {
+  "name": "Skull Harbor",
+  "description": "A treacherous place. Sailors speak of it in hushed tones.",
+  "dangerous": true,
+  "appealing": false,
+  "treasureLevel": 2,
+  "portType": "outpost",
+  "hazard": "reefs",
+  "faction": "pirate",
+  "rumors": "",
   "buildings": [
     {
       "id": "b1",
       "type": "tavern",
       "chunkX": 4,
       "chunkY": 3,
-      "rotation": 0  // 0, 90, 180, 270
+      "rotation": 0,
+      "cargoSize": 20  // width × height × 10 (based on placed size)
     },
     {
       "id": "b2",
       "type": "dragon_sanctuary",
       "chunkX": 8,
       "chunkY": 6,
-      "rotation": 90
+      "rotation": 90,
+      "cargoSize": 90
     }
   ],
   // pathTiles: ["tx,ty", ...] — derived at runtime from buildings; not saved
@@ -302,6 +334,8 @@ Natural and decorative objects for island atmosphere. All are **1×1 tile**; no 
 | **Fort** | Defend against King raids; cannon batteries for naval defense. |
 | **Docks** | Moor ships; embark for rescue missions. |
 | **Dragon Sanctuary** | Safe haven for rescued eggs and young dragons; core of player mission. |
+| **Castle** | Island owner's seat. Store cargo for building, gold/pieces-of-eight for crew wages, receive tax from buildings and player trading. |
+| **Blacksmith** | Craft and sell cannons, cannonballs, and swords. |
 
 ### 5.6 UI
 
@@ -310,7 +344,10 @@ Natural and decorative objects for island atmosphere. All are **1×1 tile**; no 
 - **Building palette** — visual colored buttons per type (Tavern, Shipwright, Market, etc.)
 - **Size** — width × height (tiles, 1–5) — configurable per building type; overrides default dimensions
 - **Grid** checkbox — optional tile grid overlay
-- Click tile to place; click building to rotate; Shift+click building to remove
+- **Path width** — Slider 1–5 tiles (wider paths = more vertices smoothed and colored)
+- **Placement preview** — Ghost building at cursor; red overlay on invalid tile (water, overlap)
+- **Building properties** — Click building to select; panel shows type, position, size, cargo; Rotate/Remove buttons
+- Click tile to place; click building to select (properties panel); Shift+click building to remove; Rotate/Remove in panel
 - Validation: placement blocked on water or overlap
 
 ### 5.7 Implementation Architecture
@@ -318,9 +355,9 @@ Natural and decorative objects for island atmosphere. All are **1×1 tile**; no 
 | Module | File | Responsibility |
 |--------|------|----------------|
 | **BuildingTypes** | `BuildingTypes.js` | Defines building types: `id`, `width`, `height`, `name`, `color` (hex). Exports `BUILDING_TYPES`, `getBuildingType()`, `getBuildingSize()`. |
-| **IslandBuildingPlacer** | `IslandBuildingPlacer.js` | Handles mouse input, tile hit-testing (raycaster), placement/remove/rotate logic, terrain flattening, validation. Calls `visualizer.renderBuildings()` and callbacks. |
-| **IslandPathfinder** | `IslandPathfinder.js` | A* pathfinding between building centers; `computePathTiles`, `smoothPathTerrain`, `computePathsBetweenBuildings`. Exports `PATH_COLOR`, `computePathsBetweenBuildings`. |
-| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`). Buildings are `BoxGeometry` meshes parented to **island mesh** (not scene). `_clearBuildings` must remove from `mesh.parent`, not `scene`. |
+| **IslandBuildingPlacer** | `IslandBuildingPlacer.js` | Handles mouse input, tile hit-testing (raycaster), placement/remove/select logic, terrain flattening, validation. `onBuildingSelect` fires on click; cargoSize = width×height×10 on place. Calls `visualizer.renderBuildings()` and callbacks. |
+| **IslandPathfinder** | `IslandPathfinder.js` | A* pathfinding between building centers; MST (Prim's) for building connectivity; `expandPathTiles` (path width 1–5); `computePathTiles`, `smoothPathTerrain`, `computePathsBetweenBuildings`. Exports `PATH_COLOR`, `computePathsBetweenBuildings`. |
+| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`), placement preview (`setPlacementPreview` — ghost building or invalid overlay). Buildings are `BoxGeometry` meshes parented to **island mesh** (not scene). `_clearBuildings` must remove from `mesh.parent`, not `scene`. |
 | **main.js** | `main.js` | Wires Build Mode UI, `onBuildingsChange`, `onHeightMapChange`; calls `computePathsBetweenBuildings` when buildings change; updates `currentIsland`, editor, visualizer when buildings or terrain change. |
 
 **Data flow:**
@@ -355,13 +392,15 @@ Result: building sits on a flat platform; terrain is modified in place before th
 ```js
 // Each building type (default dimensions)
 {
-  id: string,      // e.g. "tavern"
-  width: number,   // tiles (1–5)
-  height: number,  // tiles (1–5)
-  name: string,   // display name
-  color: number   // Three.js hex (0xd97706 = amber for Tavern)
+  id: string,         // e.g. "tavern"
+  width: number,      // tiles (1–5)
+  height: number,     // tiles (1–5)
+  name: string,       // display name
+  color: number,      // Three.js hex (0xd97706 = amber for Tavern)
+  allowOverWater?: boolean  // if true, can extend over water/edge (e.g. Docks)
 }
 
+// canPlaceOverWater(type) — returns true for Docks
 // Runtime dimension overrides: setBuildingDimensionOverride(type, width?, height?)
 // getEffectiveBuildingSize(type) returns override or default
 ```
@@ -389,23 +428,45 @@ Result: building sits on a flat platform; terrain is modified in place before th
 | **Path generation** | When buildings are placed, compute paths between them (e.g. A* on tile graph). Paths connect building entrances or tile centers. |
 | **Terrain smoothing** | Smooth the terrain along each path — flatten or gently slope vertices under the path so navigation is easier (no steep steps, consistent walkable surface). |
 | **Path color** | Apply a distinct color to path tiles (e.g. dirt, sand, stone) so paths are visually distinguishable from grass/rock. Override elevation-based vertex colors for path vertices. |
-| **Path width** | Configurable path width (1–2 tiles); wider paths = more vertices smoothed. |
+| **Path width** | ✓ Configurable path width (1–5 tiles); iteratively expands path tiles by cardinal neighbors; wider paths = more vertices smoothed and colored. |
 | **Update on change** | Recompute paths when buildings are added, removed, or moved. |
 
 **Implementation notes (implemented):**
-- Pathfinding: A* on tile grid (`IslandPathfinder.findPath`); walkable = land above sea level; 8-directional movement.
+- Pathfinding: A* on tile grid (`IslandPathfinder.findPath`) between building pairs; Prim's MST selects which pairs to connect (minimal total path length); walkable = land above sea level; 8-directional movement.
 - Terrain smoothing: `smoothPathTerrain` sets vertex heights to average of each path tile footprint (in-place heightmap modification).
 - Path color: `pathTiles` (Set of `"tx,ty"` keys); `IslandVisualizer` uses `config.pathColor` (default `0x8B7355` dirt) for path vertices instead of elevation band color.
+- Path width: `config.pathWidth` (1–5); `expandPathTiles` iteratively adds cardinal neighbors; UI slider in Buildings section; persisted in config on save.
 - Data model: Paths derived at runtime from buildings; `pathTiles` stored in `currentIsland` for undo/redo/height-scale; not persisted in save (recomputed on load from buildings).
 
-### 5.13 Future Building & Props Enhancements
+### 5.14 Island Properties (like map-generator-poc)
+
+Islands have editable properties similar to map-generator-poc nodes:
+
+| Property | Description |
+|----------|-------------|
+| **name** | Procedurally generated (e.g. "Skull Harbor"); editable |
+| **description** | Flavor text; generated from trait |
+| **trait** | normal, dangerous, appealing |
+| **treasureLevel** | 0–3 |
+| **portType** | none, port, harbor, outpost |
+| **hazard** | none, reefs, storms, treacherous |
+| **faction** | neutral, british, spanish, french, pirate |
+| **rumors** | Quest hooks, custom text |
+
+**Implementation:** `IslandGenerator` generates name and properties on creation; Island Properties panel in right sidebar; persisted in save/load.
+
+### 5.15 Building Cargo Size
+
+When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 units). Stored on building; migrated for old saves without cargoSize.
+
+### 5.16 Future Building & Props Enhancements
 
 | Enhancement | Description |
 |-------------|-------------|
 | **Building icons** | Visual palette with icons per type instead of dropdown |
-| **Placement preview** | Ghost/outline of building at cursor before click |
-| **Invalid feedback** | Red highlight when hovering over invalid tile (water, overlap) |
-| **Building properties panel** | Edit position, rotation, type of selected building |
+| **Placement preview** | ✓ Ghost building at cursor before click; invalid overlay (red) when water/overlap |
+| **Invalid feedback** | ✓ Red overlay when hovering over invalid tile (water, overlap) |
+| **Building properties panel** | ✓ Click building to select; panel shows type, position, size, cargo; Rotate/Remove buttons |
 | **Distinct meshes** | Per-type geometry (cylinder for lighthouse, etc.) instead of boxes |
 | **Undo/Redo for buildings** | Stack of building placement/removal actions |
 | **Path-aware placement** | Validate that new buildings remain reachable from existing ones |
@@ -419,15 +480,14 @@ Result: building sits on a flat platform; terrain is modified in place before th
 
 | Mode | Contents | Use case |
 |------|----------|----------|
-| **Full** | heightMap + config + buildings + props | Complete island |
-| **Config only** | config + display + seed | Preset for regeneration ✓ |
-| **Buildings only** | buildings | Reuse layout on new terrain |
+| **Full** | heightMap + config + display + buildings + island properties + seed | Complete island ✓ |
+| **Config only** | config + display + seed + island properties (no heightMap, no buildings) | Preset for regeneration ✓ |
 
 ### 6.2 Load Behavior
 
-- **Full load:** Restore height map, config, buildings; sync UI sliders from config
-- **Config load:** Apply config, regenerate terrain, keep/clear buildings (user choice)
-- **Preset load:** Load example JSON; apply and regenerate
+- **Full load:** Restore height map, config, display, buildings, island properties; sync UI sliders from config; populate Island Properties panel
+- **Config load (no heightMap):** Regenerate terrain from config; merge island properties and buildings from file; paths recomputed if ≥2 buildings
+- **Preset load:** Load example JSON; apply config, display, island properties; regenerate if no heightMap
 
 ### 6.3 Example JSON Files
 
@@ -449,10 +509,13 @@ Result: building sits on a flat platform; terrain is modified in place before th
     "noiseOctaves": 4,
     "frequency": 2.5,
     "persistence": 0.5,
-    "lacunarity": 2.0
+    "lacunarity": 2.0,
+    "pathWidth": 1
   },
   "display": { "heightScale": 1.0, "wireframe": false },
-  "seed": 42
+  "seed": 42,
+  "name": "", "description": "", "dangerous": false, "appealing": false,
+  "treasureLevel": 0, "portType": "none", "hazard": "none", "faction": "neutral", "rumors": ""
 }
 ```
 
@@ -474,18 +537,20 @@ Result: building sits on a flat platform; terrain is modified in place before th
     "noiseOctaves": 3,
     "frequency": 1.5,
     "persistence": 0.6,
-    "lacunarity": 2.2
+    "lacunarity": 2.2,
+    "pathWidth": 1
   },
   "display": { "heightScale": 0.6, "wireframe": false },
-  "seed": 123
+  "seed": 123,
+  "name": "", "description": "", "dangerous": false, "appealing": false,
+  "treasureLevel": 0, "portType": "none", "hazard": "none", "faction": "neutral", "rumors": ""
 }
 ```
 
-**`examples/full-island-with-buildings.json`** — Complete island + buildings:
+**`examples/full-island-with-buildings.json`** — Complete preset with buildings + island properties:
 ```json
 {
   "version": 1,
-  "heightMap": [],
   "config": {
     "gridSize": 128,
     "elevationScale": 1.44,
@@ -500,51 +565,54 @@ Result: building sits on a flat platform; terrain is modified in place before th
     "noiseOctaves": 5,
     "frequency": 1.0,
     "persistence": 0.75,
-    "lacunarity": 2.6
+    "lacunarity": 2.6,
+    "pathWidth": 2
   },
   "display": { "heightScale": 0.5, "wireframe": false },
   "buildings": [
-    { "id": "b1", "type": "tavern", "chunkX": 6, "chunkY": 6, "rotation": 0 },
-    { "id": "b2", "type": "shipwright", "chunkX": 8, "chunkY": 6, "rotation": 0 },
-    { "id": "b3", "type": "market", "chunkX": 7, "chunkY": 7, "rotation": 90 },
-    { "id": "b4", "type": "dragon_sanctuary", "chunkX": 4, "chunkY": 4, "rotation": 0 }
+    { "id": "b1", "type": "tavern", "chunkX": 6, "chunkY": 6, "rotation": 0, "cargoSize": 20 },
+    { "id": "b2", "type": "shipwright", "chunkX": 8, "chunkY": 6, "rotation": 0, "cargoSize": 20 },
+    { "id": "b3", "type": "market", "chunkX": 7, "chunkY": 7, "rotation": 90, "cargoSize": 20 },
+    { "id": "b4", "type": "dragon_sanctuary", "chunkX": 4, "chunkY": 4, "rotation": 0, "cargoSize": 90 }
   ],
-  "seed": 1
+  "seed": 1,
+  "name": "Skull Harbor",
+  "description": "A treacherous place. Sailors speak of it in hushed tones.",
+  "dangerous": true,
+  "appealing": false,
+  "treasureLevel": 2,
+  "portType": "outpost",
+  "hazard": "reefs",
+  "faction": "pirate",
+  "rumors": "Rumors of a hidden cove to the east."
 }
 ```
 
-*Note: `heightMap` omitted in examples for brevity; full saves include it.*
+*Note: Presets omit `heightMap` (regenerate on load). Full saves include `heightMap` for exact terrain restore.*
 
-### 6.4 Config Schema (Future)
+### 6.4 Save/Load Schema
 
-```ts
-interface IslandConfig {
-  gridSize: number;
-  tileSize: number;
-  elevationScale: number;
-  islandRadius: number;
-  coastFalloff: number;
-  coastIrregularity: number;
-  elongation: number;
-  seaLevel: number;
-  terrainRoughness: number;
-  tileVariation: number;
-  noiseOctaves: number;
-  frequency: number;
-  persistence: number;
-  lacunarity: number;
-}
+**Serialized fields (IslandSerializer):**
 
-interface IslandSave {
-  version: number;
-  heightMap?: number[][];
-  config: IslandConfig;
-  display?: { heightScale: number; wireframe: boolean };
-  buildings?: Building[];
-  props?: Prop[];  // rock, palm_tree, tree, bush, sign
-  seed: number | null;
-}
-```
+| Field | Full save | Config save | Description |
+|-------|-----------|-------------|-------------|
+| `version` | ✓ | ✓ | Schema version (1) |
+| `heightMap` | ✓ | — | Terrain vertices (omitted = regenerate) |
+| `config` | ✓ | ✓ | Generation config (gridSize, tileSize, pathWidth, etc.) |
+| `display` | ✓ | ✓ | heightScale, wireframe |
+| `buildings` | ✓ | — | Building list with id, type, chunkX, chunkY, rotation, cargoSize |
+| `seed` | ✓ | ✓ | RNG seed |
+| `name` | ✓ | ✓ | Island name |
+| `description` | ✓ | ✓ | Flavor text |
+| `dangerous` | ✓ | ✓ | Trait |
+| `appealing` | ✓ | ✓ | Trait |
+| `treasureLevel` | ✓ | ✓ | 0–3 |
+| `portType` | ✓ | ✓ | none, port, harbor, outpost |
+| `hazard` | ✓ | ✓ | none, reefs, storms, treacherous |
+| `faction` | ✓ | ✓ | neutral, british, spanish, french, pirate |
+| `rumors` | ✓ | ✓ | Quest hooks |
+
+**Load behavior:** Before serialize, `applyIslandPropertiesFromUI()` captures latest form values. On load without heightMap, island properties from file override procedural defaults.
 
 ---
 
@@ -583,23 +651,29 @@ interface IslandSave {
 - [x] Include buildings in save/load
 
 ### Phase F: Polish
+
+*See [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md) §7 for phased implementation plan.*
+
 - [x] Settings (⚙) button — opens Controls modal with mouse/keyboard input help
 - [x] Controls modal documents View, Edit, and Build mode inputs
 - [x] Buildings section moved to top-level in right panel (no Edit Mode required)
-- [ ] Ramp tool
-- [ ] Contour overlay toggle
-- [ ] Min/Max elevation clamp
+- [x] Placement preview — ghost building at cursor; red overlay for invalid tile (water, overlap)
+- [x] Ramp tool (click A, click B — smooth slope)
+- [x] Contour overlay toggle
+- [x] Min/Max elevation clamp
+- [x] Brush tool bar as compact icon row; keyboard shortcuts (1–7, E, Z, Y, B)
 - [ ] Performance: LOD or reduced grid for large sizes
 
 ### Phase H: Props & Decorations (Design Target)
 
-*Placeable natural and decorative objects for island atmosphere.*
+*Placeable natural and decorative objects for island atmosphere. Full UX plan: [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md) §4.*
 
 - [ ] **Prop types** — Rock, Palm Tree, Tree, Bush, Sign (all 1×1)
-- [ ] **Props palette** — Visual selection in Build Mode (alongside or separate from buildings)
-- [ ] **Placement** — Click tile to place; no terrain flattening; land-only validation
-- [ ] **Rendering** — Distinct meshes per prop type (cylinder for palm, sphere for bush, etc.)
-- [ ] **Save/Load** — Include props in island JSON
+- [ ] **Place Mode** — [Buildings] [Props] tabs; visual palette for props
+- [ ] **Placement** — Click tile to place; ghost preview; land-only; no terrain flattening
+- [ ] **Selection** — Click prop → properties panel (Rotate, Remove); Shift+click to remove
+- [ ] **Rendering** — Placeholder meshes per type (cylinder palm, sphere bush, etc.)
+- [ ] **Save/Load** — Include `props` array in island JSON
 
 ### Phase G: Paths & Navigation (Partial ✓)
 
@@ -608,11 +682,48 @@ interface IslandSave {
 - [x] **Walkability model** — Land above sea level is walkable; used by A* pathfinding
 - [x] **Pathfinding** — A* on tile graph (`IslandPathfinder.findPath`); 8-directional
 - [x] **Path visualization** — Automatic paths rendered via path color on terrain
-- [x] **Automatic paths between buildings** — `computePathsBetweenBuildings`; star topology from first building; update on add/remove/move, load, regeneration
+- [x] **Automatic paths between buildings** — `computePathsBetweenBuildings`; minimum spanning tree (Prim's) ensures all buildings connected; update on add/remove/move, load, regeneration
 - [x] **Path terrain smoothing** — `smoothPathTerrain` flattens path tiles to average height
 - [x] **Path color** — `pathColor` (dirt `0x8B7355`) applied to path vertices in `IslandVisualizer`
-- [ ] **Ramp tool** — Create traversable slopes between elevation levels
+- [x] **Ramp tool** — Create traversable slopes between elevation levels (click A, click B)
 - [ ] **Building zone hints** — Highlight contiguous flat land suitable for placement
 - [ ] **Connectivity check** — Warn when placing building would isolate it (no path to others)
-- [ ] **Path width** — Configurable path width (1–2 tiles)
 - [ ] **Generation tuning** — Parameters that favor navigable, path-friendly terrain
+
+---
+
+## 8. Edit Mode & Prop Placement Plan
+
+**Full research and UX plan:** [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md)
+
+### 8.1 Edit Mode Vision (Summary)
+
+| Enhancement | Description |
+|-------------|-------------|
+| **Brush tool bar** | Compact icon row (↑↓≡▣▭∿↗); shortcuts 1–8 |
+| **Ramp tool** | ✓ Click A, click B — smooth slope between tiles |
+| **Contour overlay** | ✓ Toggle contour lines at fixed elevation intervals (0.1) |
+| **Min/Max clamp** | Sliders to clamp elevation range |
+| **Elevation HUD** | Tile coords + band name (e.g. "Elev: 0.35 \| Tile: (12,8) \| Grass") |
+| **Keyboard shortcuts** | E=Edit, 1–8=tools, Z/Y=undo/redo, B=brush size cycle |
+
+### 8.2 Prop Placement Vision (Summary)
+
+| Aspect | Plan |
+|--------|------|
+| **Mode** | Place Mode with [Buildings] [Props] tabs; mutually exclusive |
+| **Prop types** | Rock, Palm Tree, Tree, Bush, Sign (all 1×1) |
+| **Palette** | Visual icon row; click to select; click tile to place |
+| **Placement** | Land only; no terrain flattening; ghost preview |
+| **Selection** | Click prop → properties panel (Rotate, Remove) |
+| **Remove** | Shift+click prop or Eraser mode |
+| **Save/Load** | `props` array in island JSON |
+
+### 8.3 Implementation Phases (from ISLAND_RESEARCH.md)
+
+1. **Edit Mode Polish** — Icon row, shortcuts, HUD, min/max clamp
+2. **Edit Mode New Tools** — Ramp tool, contour overlay
+3. **Prop Mode Foundation** — PropTypes, data model, placer, rendering
+4. **Prop Mode UI** — Place Mode tabs, palette, preview, properties
+5. **Prop Mode Polish** — Selection, eraser, optional Sign text
+6. **Unified UX Pass** — Layout consolidation, mode indicator, tooltips

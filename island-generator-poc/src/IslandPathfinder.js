@@ -4,7 +4,7 @@
  * and returns path tiles for vertex coloring.
  */
 
-import { getEffectiveBuildingSize } from './BuildingTypes.js';
+import { getBuildingSizeFromObject } from './BuildingTypes.js';
 
 /** Default path color (dirt brown) */
 export const PATH_COLOR = 0x8b7355;
@@ -15,7 +15,7 @@ export const PATH_COLOR = 0x8b7355;
  * @returns {{ tx: number, ty: number }}
  */
 function getBuildingCenter(building) {
-  const size = getEffectiveBuildingSize(building.type);
+  const size = getBuildingSizeFromObject(building);
   const w = size.width;
   const h = size.height;
   return {
@@ -109,7 +109,37 @@ function findPath(startTx, startTy, endTx, endTy, heightMap, seaLevel, tilesX, t
 }
 
 /**
- * Compute path tiles between all buildings (minimum spanning tree style)
+ * Expand path tiles by width (1 = no expansion, 2+ = add cardinal neighbors iteratively)
+ * @param {Set<string>} pathTiles
+ * @param {number} pathWidth 1–5 tiles
+ * @param {number} tilesX
+ * @param {number} tilesY
+ * @returns {Set<string>}
+ */
+function expandPathTiles(pathTiles, pathWidth, tilesX, tilesY) {
+  if (!pathTiles || pathWidth <= 1) return pathTiles;
+  let expanded = new Set(pathTiles);
+  const dirs = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+  for (let r = 0; r < pathWidth - 1; r++) {
+    const next = new Set(expanded);
+    for (const key of expanded) {
+      const [tx, ty] = key.split(',').map(Number);
+      for (const [dx, dy] of dirs) {
+        const ntx = tx + dx;
+        const nty = ty + dy;
+        if (ntx >= 0 && ntx < tilesX && nty >= 0 && nty < tilesY) {
+          next.add(`${ntx},${nty}`);
+        }
+      }
+    }
+    expanded = next;
+  }
+  return expanded;
+}
+
+/**
+ * Compute path tiles between all buildings using minimum spanning tree.
+ * Ensures every building is connected to the path network.
  * @param {Array} buildings
  * @param {number[][]} heightMap
  * @param {Object} config
@@ -124,29 +154,75 @@ export function computePathTiles(buildings, heightMap, config) {
   const tilesX = config?.tilesX ?? Math.floor(gridSize / ts);
   const tilesY = config?.tilesY ?? Math.floor(gridSize / ts);
   const seaLevel = config?.seaLevel ?? 0.12;
+  const pathWidth = Math.max(1, Math.min(5, parseInt(config?.pathWidth, 10) || 1));
 
   const centers = buildings.map((b) => getBuildingCenter(b));
+  const n = centers.length;
 
   for (const c of centers) {
     pathTiles.add(`${c.tx},${c.ty}`);
   }
 
-  if (centers.length < 2) return pathTiles;
+  if (n < 2) {
+    return expandPathTiles(pathTiles, pathWidth, tilesX, tilesY);
+  }
 
-  for (let i = 1; i < centers.length; i++) {
+  // Build edges: { i, j, path, len } for each pair where path exists
+  const edges = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const path = findPath(
+        centers[i].tx, centers[i].ty,
+        centers[j].tx, centers[j].ty,
+        heightMap, seaLevel, tilesX, tilesY
+      );
+      if (path && path.length > 0) {
+        edges.push({ i, j, path, len: path.length });
+      }
+    }
+  }
+
+  // Prim's MST: connect all nodes with minimal total path length
+  const inMst = new Set([0]);
+  const mstEdges = [];
+
+  while (inMst.size < n) {
+    let best = null;
+    for (const e of edges) {
+      const hasI = inMst.has(e.i);
+      const hasJ = inMst.has(e.j);
+      if (hasI !== hasJ && (best === null || e.len < best.len)) {
+        best = e;
+      }
+    }
+    if (best === null) break;
+
+    mstEdges.push(best);
+    inMst.add(best.i);
+    inMst.add(best.j);
+  }
+
+  // Fallback: any building still disconnected, try path from building 0
+  for (let i = 1; i < n; i++) {
+    if (inMst.has(i)) continue;
     const path = findPath(
       centers[0].tx, centers[0].ty,
       centers[i].tx, centers[i].ty,
       heightMap, seaLevel, tilesX, tilesY
     );
     if (path) {
-      for (const { tx, ty } of path) {
-        pathTiles.add(`${tx},${ty}`);
-      }
+      mstEdges.push({ i: 0, j: i, path, len: path.length });
+      inMst.add(i);
     }
   }
 
-  return pathTiles;
+  for (const e of mstEdges) {
+    for (const { tx, ty } of e.path) {
+      pathTiles.add(`${tx},${ty}`);
+    }
+  }
+
+  return expandPathTiles(pathTiles, pathWidth, tilesX, tilesY);
 }
 
 /**

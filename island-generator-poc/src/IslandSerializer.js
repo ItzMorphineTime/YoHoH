@@ -13,6 +13,15 @@ export function serialize(island) {
     display: island.display ?? {},
     buildings: island.buildings ?? [],
     seed: island.seed,
+    name: island.name ?? '',
+    description: island.description ?? '',
+    dangerous: island.dangerous ?? false,
+    appealing: island.appealing ?? false,
+    treasureLevel: island.treasureLevel ?? 0,
+    portType: island.portType ?? 'none',
+    hazard: island.hazard ?? 'none',
+    faction: island.faction ?? 'neutral',
+    rumors: island.rumors ?? '',
   };
   if (island.heightMap != null) out.heightMap = island.heightMap;
   return JSON.stringify(out);
@@ -35,5 +44,14 @@ export function deserialize(json) {
     display: data.display ?? {},
     buildings: Array.isArray(data.buildings) ? data.buildings : [],
     seed: data.seed ?? null,
+    name: data.name ?? '',
+    description: data.description ?? '',
+    dangerous: data.dangerous ?? false,
+    appealing: data.appealing ?? false,
+    treasureLevel: data.treasureLevel ?? 0,
+    portType: data.portType ?? 'none',
+    hazard: data.hazard ?? 'none',
+    faction: data.faction ?? 'neutral',
+    rumors: data.rumors ?? '',
   };
 }

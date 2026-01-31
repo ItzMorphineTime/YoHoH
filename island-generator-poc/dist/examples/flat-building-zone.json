@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "config": {
+    "gridSize": 128,
+    "elevationScale": 1.0,
+    "islandRadius": 0.7,
+    "coastFalloff": 3.0,
+    "coastIrregularity": 0.15,
+    "elongation": 0.5,
+    "seaLevel": 0.12,
+    "terrainRoughness": 0.4,
+    "tileSize": 8,
+    "tileVariation": 0,
+    "noiseOctaves": 3,
+    "frequency": 1.5,
+    "persistence": 0.6,
+    "lacunarity": 2.2,
+    "pathWidth": 1
+  },
+  "display": { "heightScale": 0.6, "wireframe": false },
+  "seed": 123,
+  "name": "",
+  "description": "",
+  "dangerous": false,
+  "appealing": false,
+  "treasureLevel": 0,
+  "portType": "none",
+  "hazard": "none",
+  "faction": "neutral",
+  "rumors": ""
+}

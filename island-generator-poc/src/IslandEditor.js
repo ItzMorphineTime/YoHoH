@@ -33,9 +33,20 @@ export class IslandEditor {
     this._boundHandleMouse = this._handleMouse.bind(this);
     this.onHeightAtCursor = null;
     this.onBeforeBrush = null;
+    this.onAfterBrush = null;
     this.onHoverTile = null; // callback({ t0x, t0y, t1x, t1y, x0, y0, x1, y1 }) or null
     this.applyOnClickOnly = false; // true = apply only on mousedown, not while dragging
     this.canPaint = null; // () => boolean; when set, brush only applies if true (e.g. when Space not held)
+    this.elevMin = 0;   // 0 = no clamp
+    this.elevMax = 1;   // 1 = no clamp
+    this.rampPointA = null;  // { gx, gy, h } when ramp mode, first point set
+    this.onRampPreview = null;  // (pointA, pointB) or null — for line preview
+  }
+
+  /** @param {number} [min] @param {number} [max] */
+  setElevationClamp(min, max) {
+    this.elevMin = min != null ? Math.max(0, Math.min(1, min)) : 0;
+    this.elevMax = max != null ? Math.max(0, Math.min(1, max)) : 1;
   }
 
   setHeightMap(heightMap) {
@@ -63,6 +74,7 @@ export class IslandEditor {
 
   setBrushMode(mode) {
     this.brushMode = mode;
+    if (mode !== 'ramp') this.rampPointA = null;
   }
 
   setBrushTargetHeight(height) {
@@ -113,6 +125,11 @@ export class IslandEditor {
       if (e.type === 'mouseleave') {
         if (this.onHeightAtCursor) this.onHeightAtCursor(null);
         if (this.onHoverTile) this.onHoverTile(null);
+        if (this.onRampPreview) this.onRampPreview(null, null);
+      }
+      if (e.type === 'mouseup' && e.buttons === 2 && this.brushMode === 'ramp') {
+        this.rampPointA = null;
+        if (this.onRampPreview) this.onRampPreview(null, null);
       }
       return;
     }
@@ -120,7 +137,12 @@ export class IslandEditor {
     if (e.type === 'mousemove') {
       const info = this._getTileAtCursor();
       const h = info ? this.heightMap[info.gy][info.gx] : null;
-      if (this.onHeightAtCursor) this.onHeightAtCursor(h);
+      if (this.onHeightAtCursor) this.onHeightAtCursor(h, info);
+      if (this.brushMode === 'ramp' && this.rampPointA && info && this.onRampPreview) {
+        this.onRampPreview(this.rampPointA, { gx: info.gx, gy: info.gy, h });
+      } else if (this.brushMode === 'ramp' && !this.rampPointA && this.onRampPreview) {
+        this.onRampPreview(null, null);
+      }
       if (this.onHoverTile && info) {
         const size = this.brushSizeInTiles;
         const ts = this.tileSize;
@@ -137,12 +159,54 @@ export class IslandEditor {
       } else if (this.onHoverTile) {
         this.onHoverTile(null);
       }
-      if (e.buttons === 1 && !this.applyOnClickOnly && (!this.canPaint || this.canPaint())) this._applyBrush(false);
+      if (this.brushMode !== 'ramp' && e.buttons === 1 && !this.applyOnClickOnly && (!this.canPaint || this.canPaint())) this._applyBrush(false);
       return;
     }
 
     if (e.type === 'mousedown' && e.buttons === 1 && (!this.canPaint || this.canPaint())) {
-      this._applyBrush(true);
+      const clickInfo = this._getTileAtCursor();
+      if (this.brushMode === 'ramp') {
+        this._handleRampClick(clickInfo);
+      } else {
+        this._applyBrush(true);
+      }
+    }
+  }
+
+  _handleRampClick(info) {
+    if (!info || !this.heightMap) return;
+    const h = this.heightMap[info.gy][info.gx];
+    if (!this.rampPointA) {
+      this.rampPointA = { gx: info.gx, gy: info.gy, h };
+      return;
+    }
+    const A = this.rampPointA;
+    const B = { gx: info.gx, gy: info.gy, h: this.heightMap[info.gy][info.gx] };
+    if (A.gx === B.gx && A.gy === B.gy) return;
+    if (this.onBeforeBrush) this.onBeforeBrush();
+    this._applyRamp(A, B);
+    this.rampPointA = null;
+    if (this.onRampPreview) this.onRampPreview(null, null);
+    this.visualizer.updateFromHeightMap(this.heightMap);
+    if (this.onAfterBrush) this.onAfterBrush();
+  }
+
+  _applyRamp(A, B) {
+    const dx = Math.abs(B.gx - A.gx);
+    const dy = Math.abs(B.gy - A.gy);
+    const steps = Math.max(dx, dy, 1);
+    const distAB = Math.sqrt((B.gx - A.gx) ** 2 + (B.gy - A.gy) ** 2) || 1;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const gx = Math.round(A.gx + (B.gx - A.gx) * t);
+      const gy = Math.round(A.gy + (B.gy - A.gy) * t);
+      if (gx < 0 || gx > this.gridSize || gy < 0 || gy > this.gridSize) continue;
+      const h = A.h + (B.h - A.h) * t;
+      let newH = Math.max(0, Math.min(2, h));
+      if (this.elevMin > 0 || this.elevMax < 1) {
+        newH = Math.max(this.elevMin > 0 ? this.elevMin : 0, Math.min(this.elevMax < 1 ? this.elevMax : 2, newH));
+      }
+      this.heightMap[gy][gx] = newH;
     }
   }
 
@@ -232,7 +296,11 @@ export class IslandEditor {
           }
           const avg = count > 0 ? sum / count : this.heightMap[y][x];
           const blend = this.brushStrength * 5;
-          temp[y][x] = Math.max(0, Math.min(2, this.heightMap[y][x] + (avg - this.heightMap[y][x]) * blend));
+          let v = Math.max(0, Math.min(2, this.heightMap[y][x] + (avg - this.heightMap[y][x]) * blend));
+          if (this.elevMin > 0 || this.elevMax < 1) {
+            v = Math.max(this.elevMin > 0 ? this.elevMin : 0, Math.min(this.elevMax < 1 ? this.elevMax : 2, v));
+          }
+          temp[y][x] = v;
           modified = true;
         }
       }
@@ -262,6 +330,10 @@ export class IslandEditor {
             newH = newH + (plateauTarget - newH) * this.brushStrength * 8;
             newH = Math.max(0, Math.min(2, newH));
           }
+          // Apply elevation clamp
+          if (this.elevMin > 0 || this.elevMax < 1) {
+            newH = Math.max(this.elevMin > 0 ? this.elevMin : 0, Math.min(this.elevMax < 1 ? this.elevMax : 2, newH));
+          }
           this.heightMap[y][x] = newH;
           modified = true;
         }
@@ -270,6 +342,7 @@ export class IslandEditor {
 
     if (modified) {
       this.visualizer.updateFromHeightMap(this.heightMap);
+      if (this.onAfterBrush) this.onAfterBrush();
     }
   }
 }

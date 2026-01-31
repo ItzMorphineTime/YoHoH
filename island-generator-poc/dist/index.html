@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YoHoH — Island Terrain Generator (POC)</title>
+  <style>
+    :root {
+      --block-border: 2px solid #2a3548;
+      --block-radius: 0;
+      --block-bg: #1a2332;
+      --block-accent: #0ea5e9;
+      --block-paper: #fef3c7;
+      --block-paper-dark: #e5d9a8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+      background: #0a0e17;
+      color: #e8e6e3;
+      overflow: hidden;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    #canvas-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #elevation-hud, #build-mode-hud {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26, 35, 50, 0.95);
+      border: var(--block-border);
+      padding: 8px 16px;
+      font-size: 12px;
+      color: var(--block-accent);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #build-mode-hud { bottom: 48px; }
+    #controls, #controls-save-load {
+      position: absolute;
+      top: 16px;
+      background: var(--block-bg);
+      border: var(--block-border);
+      border-radius: var(--block-radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 260px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    #controls { left: 16px; }
+    #controls-save-load { right: 16px; min-width: 220px; }
+    #controls h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--block-accent);
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+    .control-section {
+      padding-bottom: 8px;
+      border-bottom: var(--block-border);
+    }
+    .control-section:last-of-type { border-bottom: none; }
+    .control-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .control-row:last-child { margin-bottom: 0; }
+    .control-row label {
+      flex: 0 0 100px;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+    .control-row input[type="number"],
+    .control-row input[type="text"],
+    .control-row select {
+      flex: 1;
+      min-width: 0;
+      padding: 6px 8px;
+      background: #0f1419;
+      border: var(--block-border);
+      border-radius: var(--block-radius);
+      color: #e8e6e3;
+      font-size: 12px;
+    }
+    .control-row input[type="range"] {
+      flex: 1;
+      min-width: 60px;
+      accent-color: var(--block-accent);
+    }
+    .control-row .value-display {
+      flex: 0 0 40px;
+      font-size: 11px;
+      color: #6b7280;
+      text-align: right;
+    }
+    button {
+      padding: 10px 16px;
+      background: var(--block-accent);
+      border: var(--block-border);
+      border-radius: var(--block-radius);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    button:hover {
+      background: #38bdf8;
+    }
+    button.active {
+      background: #059669;
+      border-color: #10b981;
+    }
+    button.active:hover {
+      background: #10b981;
+    }
+    #stats {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+    .level-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .level-preset-btn {
+      padding: 6px 10px;
+      font-size: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+    .level-preset-btn[data-level="sea"] { background: #3b82f6; }
+    .level-preset-btn[data-level="beach"] { background: #d97706; }
+    .level-preset-btn[data-level="grass"] { background: #4a7c59; }
+    .level-preset-btn[data-level="rock"] { background: #6b7280; }
+    .level-preset-btn[data-level="snow"] { background: #94a3b8; }
+    .building-palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .building-palette-btn {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      padding: 0;
+      border: 2px solid transparent;
+      position: relative;
+      font-size: 0;
+      line-height: 1;
+    }
+    .building-palette-btn:hover { border-color: var(--block-accent); }
+    .building-palette-btn.selected { border-color: var(--block-accent); box-shadow: 0 0 0 1px var(--block-accent); }
+    .building-palette-btn.selected::after {
+      content: '✓';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+    .building-palette-btn[title] { cursor: pointer; }
+    .building-properties-panel {
+      background: #0f1419;
+      border: var(--block-border);
+      border-radius: var(--block-radius);
+      padding: 12px;
+      margin-top: 8px;
+    }
+    .building-properties-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: var(--block-border);
+    }
+    .building-properties-swatch {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .building-properties-name { font-size: 14px; font-weight: 700; color: var(--block-accent); }
+    .building-properties-empty {
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .building-properties-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      font-size: 12px;
+    }
+    .building-properties-grid .label { color: #6b7280; }
+    .building-properties-grid .value { color: #e8e6e3; }
+    .building-properties-cargo {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: rgba(14, 165, 233, 0.15);
+      border: 1px solid rgba(14, 165, 233, 0.3);
+      margin-top: 4px;
+      margin-bottom: 4px;
+    }
+    .building-properties-cargo-icon { font-size: 18px; }
+    .building-properties-cargo-value { font-size: 16px; font-weight: 700; color: var(--block-accent); }
+    .building-properties-cargo-label { font-size: 11px; color: #6b7280; }
+    .building-properties-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .building-properties-actions button { flex: 1; }
+    .save-load-btns { display: flex; gap: 8px; }
+    .save-load-btns button { flex: 1; min-width: 0; }
+    .undo-redo-btns { display: flex; gap: 4px; margin-top: 4px; }
+    .undo-redo-btns button { flex: 1; font-size: 11px; padding: 6px 8px; }
+    .brush-tool-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .brush-tool-btn {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
+      background: #0f1419;
+      border: var(--block-border);
+      color: #9ca3af;
+      cursor: pointer;
+    }
+    .brush-tool-btn:hover { color: var(--block-accent); border-color: var(--block-accent); }
+    .brush-tool-btn[aria-pressed="true"] { background: var(--block-accent); color: white; border-color: var(--block-accent); }
+    .hint { font-size: 10px; color: #6b7280; margin-top: 4px; }
+    /* Settings modal */
+    #settings-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #settings-modal.open { display: flex; }
+    #settings-modal-content {
+      background: var(--block-bg);
+      border: var(--block-border);
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    #settings-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: var(--block-border);
+    }
+    #settings-modal-header h2 { margin: 0; font-size: 16px; color: var(--block-accent); }
+    #settings-close-btn {
+      padding: 6px 12px;
+      background: #374151;
+      font-size: 12px;
+    }
+    #settings-btn {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      padding: 10px 14px;
+      background: var(--block-bg);
+      border: var(--block-border);
+      z-index: 20;
+      font-size: 18px;
+      line-height: 1;
+    }
+    #settings-btn:hover { background: #2a3548; }
+    .controls-help-section {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: var(--block-border);
+    }
+    .controls-help-section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+    .controls-help-section h3 {
+      font-size: 12px;
+      color: var(--block-accent);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .controls-help-section ul {
+      list-style: none;
+      font-size: 12px;
+      color: #9ca3af;
+      line-height: 1.8;
+    }
+    .controls-help-section li { padding-left: 0; }
+  </style>
+  <script type="module" crossorigin src="/assets/index-rIaLLx_O.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <button id="settings-btn" title="Controls">⚙</button>
+  <div id="elevation-hud" style="display: none;">Elev: —</div>
+  <div id="build-mode-hud" style="display: none;">Building: — · 0 buildings</div>
+
+  <div id="controls-save-load">
+    <div class="control-section-title">Save</div>
+    <div class="control-row" style="margin-bottom: 8px;">
+      <select id="save-mode" style="flex: 1; margin-right: 4px;" title="Full = height map + config; Config only = preset for regeneration">
+        <option value="full">Full</option>
+        <option value="config">Config only</option>
+      </select>
+      <button id="save-btn" style="flex: 0;">Save</button>
+    </div>
+    <div class="control-section-title">Load</div>
+    <div class="save-load-btns">
+      <button id="load-btn" style="background: #374151;">Load</button>
+    </div>
+    <div class="control-section" id="island-properties-section">
+      <div class="control-section-title">Island Properties</div>
+      <div class="control-row">
+        <label>Name</label>
+        <input type="text" id="island-prop-name" placeholder="Island name" style="flex: 1;">
+      </div>
+      <div class="control-row">
+        <label>Description</label>
+        <input type="text" id="island-prop-description" placeholder="Flavor text" style="flex: 1;">
+      </div>
+      <div class="control-row">
+        <label>Trait</label>
+        <select id="island-prop-trait" style="flex: 1;">
+          <option value="normal">Normal</option>
+          <option value="dangerous">Dangerous</option>
+          <option value="appealing">Appealing</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Treasure</label>
+        <select id="island-prop-treasure" style="flex: 1;">
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Port type</label>
+        <select id="island-prop-port" style="flex: 1;">
+          <option value="none">None</option>
+          <option value="port">Port</option>
+          <option value="harbor">Harbor</option>
+          <option value="outpost">Outpost</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Hazard</label>
+        <select id="island-prop-hazard" style="flex: 1;">
+          <option value="none">None</option>
+          <option value="reefs">Reefs</option>
+          <option value="storms">Storms</option>
+          <option value="treacherous">Treacherous</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Faction</label>
+        <select id="island-prop-faction" style="flex: 1;">
+          <option value="neutral">Neutral</option>
+          <option value="british">British</option>
+          <option value="spanish">Spanish</option>
+          <option value="french">French</option>
+          <option value="pirate">Pirate</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>Rumors</label>
+        <input type="text" id="island-prop-rumors" placeholder="Quest hooks" style="flex: 1;">
+      </div>
+    </div>
+    <div class="control-section">
+      <div class="control-section-title">Presets</div>
+      <select id="preset-select" style="width: 100%; margin-bottom: 4px;">
+        <option value="">— Load preset —</option>
+        <option value="/default-config.json">Default</option>
+        <option value="/examples/compact-island.json">Compact island</option>
+        <option value="/examples/flat-building-zone.json">Flat building zone</option>
+        <option value="/examples/default-preset.json">Default (full)</option>
+        <option value="/examples/full-island-with-buildings.json">Full island + buildings</option>
+      </select>
+      <button id="load-preset-btn" style="width: 100%; background: #374151;">Load Preset</button>
+    </div>
+    <div class="control-section">
+      <div class="control-section-title">Buildings</div>
+      <button id="build-mode-btn" style="width: 100%; margin-bottom: 8px; background: #374151;">Build Mode (Off)</button>
+      <div id="build-panel" style="display: none;">
+        <div class="control-section-title" style="margin-bottom: 6px;">Select building</div>
+        <select id="building-type" style="display: none;" aria-hidden="true">
+          <option value="tavern">Tavern</option>
+          <option value="shipwright">Shipwright</option>
+          <option value="market">Market</option>
+          <option value="lighthouse">Lighthouse</option>
+          <option value="warehouse">Warehouse</option>
+          <option value="fort">Fort</option>
+          <option value="docks">Docks</option>
+          <option value="dragon_sanctuary">Dragon Sanctuary</option>
+        </select>
+        <div class="building-palette" id="building-palette">
+          <button type="button" class="building-palette-btn selected" data-type="tavern" title="Tavern" style="background:#d97706;"></button>
+          <button type="button" class="building-palette-btn" data-type="shipwright" title="Shipwright" style="background:#64748b;"></button>
+          <button type="button" class="building-palette-btn" data-type="market" title="Market" style="background:#16a34a;"></button>
+          <button type="button" class="building-palette-btn" data-type="lighthouse" title="Lighthouse" style="background:#fbbf24;"></button>
+          <button type="button" class="building-palette-btn" data-type="warehouse" title="Warehouse" style="background:#78716c;"></button>
+          <button type="button" class="building-palette-btn" data-type="fort" title="Fort" style="background:#6b7280;"></button>
+          <button type="button" class="building-palette-btn" data-type="docks" title="Docks" style="background:#0ea5e9;"></button>
+          <button type="button" class="building-palette-btn" data-type="dragon_sanctuary" title="Dragon Sanctuary" style="background:#7c3aed;"></button>
+        </div>
+        <div class="control-row" id="building-dimensions-row">
+          <label>Size</label>
+          <input type="number" id="building-width" min="1" max="5" value="1" style="width: 48px;" title="Width (tiles)">
+          <span style="color: #6b7280;">×</span>
+          <input type="number" id="building-height" min="1" max="5" value="1" style="width: 48px;" title="Height (tiles)">
+        </div>
+        <div class="control-row">
+          <label>Grid</label>
+          <input type="checkbox" id="show-grid-overlay" title="Show tile grid">
+        </div>
+        <div class="control-row">
+          <label>Path width</label>
+          <input type="range" id="path-width" min="1" max="5" value="1" step="1" title="Path width in tiles (1–5)">
+          <span class="value-display" id="val-path-width">1</span>
+        </div>
+        <div id="buildings-list" class="buildings-list" style="display: none;">
+          <div class="control-section-title" style="margin-top: 8px;">Placed (0)</div>
+          <div id="buildings-list-items" class="hint" style="font-size: 11px; max-height: 80px; overflow-y: auto;"></div>
+        </div>
+        <div id="building-properties-panel" class="building-properties-panel" style="display: none;">
+          <div id="building-properties-empty" class="building-properties-empty">
+            Click a building to select
+          </div>
+          <div id="building-properties-content" style="display: none;">
+            <div class="building-properties-header">
+              <div class="building-properties-swatch" id="building-prop-swatch"></div>
+              <div>
+                <div class="building-properties-name" id="building-prop-type">—</div>
+                <div style="font-size: 10px; color: #6b7280;" id="building-prop-id">—</div>
+              </div>
+            </div>
+            <div class="building-properties-grid">
+              <span class="label">Position</span>
+              <span class="value" id="building-prop-position">—</span>
+              <span class="label">Size</span>
+              <span class="value" id="building-prop-size">—</span>
+              <span class="label">Rotation</span>
+              <span class="value" id="building-prop-rotation">—</span>
+              <div class="building-properties-cargo">
+                <span class="building-properties-cargo-icon" title="Cargo capacity">📦</span>
+                <div>
+                  <div class="building-properties-cargo-value" id="building-prop-cargo">—</div>
+                  <div class="building-properties-cargo-label">cargo units</div>
+                </div>
+              </div>
+            </div>
+            <div class="building-properties-actions">
+              <button type="button" id="building-rotate-btn" style="background: #374151;">↻ Rotate</button>
+              <button type="button" id="building-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top: 8px;">Click tile to place · Click building to select · Shift+Click to remove</div>
+      </div>
+    </div>
+    <div class="control-section">
+      <div class="control-section-title">Map Editor</div>
+      <button id="edit-mode-btn" style="width: 100%; margin-bottom: 8px;">Edit Mode (Off)</button>
+      <div id="edit-panel" style="display: none;">
+        <div class="control-section-title" style="margin-bottom: 6px;">Level presets</div>
+        <div class="level-presets">
+          <button type="button" class="level-preset-btn" data-level="sea" title="Sea level (0.12)">Sea</button>
+          <button type="button" class="level-preset-btn" data-level="beach" title="Beach (0.2)">Beach</button>
+          <button type="button" class="level-preset-btn" data-level="grass" title="Grass (0.35)">Grass</button>
+          <button type="button" class="level-preset-btn" data-level="rock" title="Rock (0.55)">Rock</button>
+          <button type="button" class="level-preset-btn" data-level="snow" title="Snow (0.75)">Snow</button>
+        </div>
+        <div class="control-section-title" style="margin-bottom: 6px;">Brush tools</div>
+        <div class="brush-tool-bar" role="toolbar" aria-label="Brush tools">
+          <button type="button" class="brush-tool-btn" data-mode="raise" title="Raise (1)" aria-pressed="true">↑</button>
+          <button type="button" class="brush-tool-btn" data-mode="lower" title="Lower (2)" aria-pressed="false">↓</button>
+          <button type="button" class="brush-tool-btn" data-mode="flatten" title="Flatten (3)" aria-pressed="false">≡</button>
+          <button type="button" class="brush-tool-btn" data-mode="absolute" title="Absolute gradual (4)" aria-pressed="false">▣</button>
+          <button type="button" class="brush-tool-btn" data-mode="set" title="Set instant (5)" aria-pressed="false">▣!</button>
+          <button type="button" class="brush-tool-btn" data-mode="plateau" title="Plateau (6)" aria-pressed="false">▭</button>
+          <button type="button" class="brush-tool-btn" data-mode="smooth" title="Smooth (7)" aria-pressed="false">∿</button>
+          <button type="button" class="brush-tool-btn" data-mode="ramp" title="Ramp: click A, click B (8)" aria-pressed="false">↗</button>
+        </div>
+        <select id="brush-mode" style="display:none;" aria-hidden="true">
+          <option value="raise">raise</option><option value="lower">lower</option><option value="flatten">flatten</option>
+          <option value="absolute">absolute</option><option value="set">set</option><option value="plateau">plateau</option><option value="smooth">smooth</option><option value="ramp">ramp</option>
+        </select>
+        <div class="control-row">
+          <label>Target</label>
+          <input type="number" id="brush-target" min="0" max="1" step="0.01" value="0.35" title="Target height for Flatten, Absolute, Set modes">
+          <span class="value-display" id="val-brush-target">0.35</span>
+        </div>
+        <div class="control-row">
+          <label>Clamp</label>
+          <input type="number" id="elev-min" min="0" max="1" step="0.01" value="0" title="Min elevation (0=off)" style="width:56px;">
+          <span style="color:#6b7280;">–</span>
+          <input type="number" id="elev-max" min="0" max="1" step="0.01" value="1" title="Max elevation (1=off)" style="width:56px;">
+        </div>
+        <div class="control-row">
+          <label>Size (tiles)</label>
+          <select id="brush-size-tiles" style="flex: 1;">
+            <option value="1">1×1</option>
+            <option value="2">2×2</option>
+            <option value="3">3×3</option>
+            <option value="4">4×4</option>
+            <option value="5">5×5</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label>Strength</label>
+          <input type="range" id="brush-strength" min="1" max="40" value="16" step="1" title="1–40 → 0.5%–20% per stroke">
+          <span class="value-display" id="val-brush-strength">8%</span>
+        </div>
+        <div class="control-row">
+          <label>Apply</label>
+          <select id="brush-apply-mode" style="flex: 1;" title="Click = one per click; Drag = continuous while painting">
+            <option value="drag">Drag (continuous)</option>
+            <option value="click">Click only</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label>Contour</label>
+          <input type="checkbox" id="contour-overlay" title="Show contour lines at elevation intervals">
+        </div>
+        <div class="control-section-title" style="margin-top: 8px;">History</div>
+        <div class="undo-redo-btns">
+          <button type="button" id="undo-btn" style="background: #374151;">↶ Undo</button>
+          <button type="button" id="redo-btn" style="background: #374151;">↷ Redo</button>
+        </div>
+      </div>
+    </div>
+    <div class="hint" id="input-hint">Left=orbit · Right=pan · Scroll=zoom · E=Edit · 1–7=tools · Z/Y=undo/redo · B=brush size</div>
+  </div>
+
+  <div id="controls">
+    <h2>YoHoH Island Generator</h2>
+
+    <div class="control-section">
+      <div class="control-section-title">Terrain</div>
+      <div class="control-row">
+        <label>Grid size</label>
+        <input type="number" id="grid-size" value="1080" min="16" max="2048" step="8" title="Resolution (vertices per side)">
+        <span class="value-display" id="val-grid">128</span>
+      </div>
+      <div class="control-row">
+        <label>Elevation</label>
+        <input type="range" id="elevation-scale" min="50" max="300" value="80" step="10" title="Max height multiplier (%)">
+        <span class="value-display" id="val-elevation">80%</span>
+      </div>
+      <div class="control-row">
+        <label>Roughness</label>
+        <input type="range" id="terrain-roughness" min="20" max="100" value="70" step="5" title="Overall terrain bumpiness (%)">
+        <span class="value-display" id="val-roughness">70%</span>
+      </div>
+      <div class="control-row">
+        <label>Island radius</label>
+        <input type="range" id="island-radius" min="20" max="80" value="70" step="5" title="Island size (0–1 scale)">
+        <span class="value-display" id="val-radius">70%</span>
+      </div>
+      <div class="control-row">
+        <label>Coast falloff</label>
+        <input type="range" id="coast-falloff" min="10" max="50" value="35" step="5" title="How steep the coast drops">
+        <span class="value-display" id="val-coast">3.5</span>
+      </div>
+      <div class="control-row">
+        <label>Coast irregularity</label>
+        <input type="range" id="coast-irregularity" min="0" max="80" value="25" step="5" title="Coastline wobble from noise">
+        <span class="value-display" id="val-coast-irreg">25%</span>
+      </div>
+      <div class="control-row">
+        <label>Elongation</label>
+        <input type="range" id="elongation" min="20" max="80" value="80" step="5" title="0.5=round, &lt;0.5=wider, &gt;0.5=taller">
+        <span class="value-display" id="val-elongation">80%</span>
+      </div>
+      <div class="control-row">
+        <label>Sea level</label>
+        <input type="range" id="sea-level" min="0" max="30" value="12" step="1" title="Base water level">
+        <span class="value-display" id="val-sea">0.12</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Tiles (building grid)</div>
+      <div class="control-row">
+        <label>Tile size</label>
+        <input type="number" id="tile-size" value="16" min="4" max="32" step="4" title="Vertices per tile (grid divisible)">
+        <span class="value-display" id="val-tile">8</span>
+      </div>
+      <div class="control-row">
+        <label>Tile variation</label>
+        <input type="range" id="tile-variation" min="0" max="15" value="0" step="1" title="Per-vertex noise within tile (0=flat)">
+        <span class="value-display" id="val-tile-var">0%</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Noise</div>
+      <div class="control-row">
+        <label>Octaves</label>
+        <input type="range" id="noise-octaves" min="1" max="8" value="3" step="1" title="Detail layers">
+        <span class="value-display" id="val-octaves">3</span>
+      </div>
+      <div class="control-row">
+        <label>Frequency</label>
+        <input type="range" id="noise-frequency" min="10" max="80" value="10" step="5" title="Base frequency">
+        <span class="value-display" id="val-freq">1.0</span>
+      </div>
+      <div class="control-row">
+        <label>Persistence</label>
+        <input type="range" id="noise-persistence" min="20" max="80" value="75" step="5" title="Octave amplitude falloff">
+        <span class="value-display" id="val-persist">0.75</span>
+      </div>
+      <div class="control-row">
+        <label>Lacunarity</label>
+        <input type="range" id="noise-lacunarity" min="15" max="35" value="26" step="1" title="Octave frequency multiplier">
+        <span class="value-display" id="val-lac">2.6</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Display</div>
+      <div class="control-row">
+        <label>Height scale</label>
+        <input type="range" id="height-scale" min="50" max="200" value="50" step="10" title="Visual height multiplier">
+        <span class="value-display" id="val-height-scale">50%</span>
+      </div>
+      <div class="control-row">
+        <label>Wireframe</label>
+        <input type="checkbox" id="wireframe" title="Show wireframe">
+      </div>
+      <div class="elevation-legend" style="margin-top: 8px; font-size: 10px; color: #6b7280;">
+        <span style="background:#fef3c7;padding:2px 6px;border-radius:2px;margin-right:4px;">Beach</span>
+        <span style="background:#4a7c59;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Grass</span>
+        <span style="background:#6b7280;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Rock</span>
+        <span style="background:#f0f9ff;padding:2px 6px;border-radius:2px;">Snow</span>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="control-section-title">Randomness</div>
+      <div class="control-row">
+        <label>Seed</label>
+        <input type="text" id="seed" value="1" placeholder="Random">
+      </div>
+    </div>
+
+    <button id="regenerate">Regenerate Island</button>
+    <button id="randomize" style="background: #374151; margin-top: 4px;">New Random Island</button>
+    <div id="stats"></div>
+  </div>
+
+  <div id="settings-modal">
+    <div id="settings-modal-content">
+      <div id="settings-modal-header">
+        <h2>Controls</h2>
+        <button id="settings-close-btn">Close</button>
+      </div>
+      <div class="controls-help-section">
+        <h3>View mode (default)</h3>
+        <ul>
+          <li><strong>Left drag</strong> — Orbit camera around island</li>
+          <li><strong>Right drag</strong> — Pan camera</li>
+          <li><strong>Scroll</strong> — Zoom in / out</li>
+        </ul>
+      </div>
+      <div class="controls-help-section">
+        <h3>Edit mode (terrain painting)</h3>
+        <ul>
+          <li><strong>E</strong> — Toggle Edit mode</li>
+          <li><strong>1–8</strong> — Select brush tool (Raise, Lower, Flatten, Absolute, Set, Plateau, Smooth, Ramp)</li>
+          <li><strong>B</strong> — Cycle brush size (1×1 → 5×5)</li>
+          <li><strong>Ctrl+Z / Ctrl+Y</strong> — Undo / Redo</li>
+          <li><strong>Left drag</strong> — Paint terrain with brush</li>
+          <li><strong>Right drag</strong> — Orbit camera</li>
+          <li><strong>Space + Left drag</strong> — Temporarily orbit (hold Space while dragging)</li>
+          <li><strong>Scroll</strong> — Zoom in / out</li>
+          <li><strong>Ramp tool (8)</strong> — Click tile A, then tile B to create smooth slope. Right-click or Esc to cancel.</li>
+        </ul>
+      </div>
+      <div class="controls-help-section">
+        <h3>Build mode (place buildings)</h3>
+        <ul>
+          <li><strong>Left click</strong> — Place building on tile</li>
+          <li><strong>Left click</strong> on building — Select building (properties panel)</li>
+          <li><strong>Shift + Left click</strong> on building — Remove building</li>
+          <li><strong>Right drag</strong> — Orbit camera</li>
+          <li><strong>Scroll</strong> — Zoom in / out</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { MOUSE } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { getBuildingType, getEffectiveBuildingSize } from './BuildingTypes.js';
+import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject } from './BuildingTypes.js';
 import { PATH_COLOR } from './IslandPathfinder.js';
 
 /** Vertex colors by elevation band (hex) */
@@ -49,6 +49,7 @@ export class IslandVisualizer {
     this.gridOverlayMesh = null;
     this.placementPreviewMesh = null;
     this.buildingHighlightMesh = null;
+    this.rampPreviewMesh = null;
     this._inputMode = 'view';
     this._spaceHeld = false;
     this.ambientLight = null;
@@ -124,6 +125,8 @@ export class IslandVisualizer {
       this.hoverOverlayMesh.material.dispose();
       this.hoverOverlayMesh = null;
     }
+    this._clearRampPreview();
+    this._clearContourOverlay();
     this._clearBuildings();
     this._clearGridOverlay();
     if (this.islandMesh) {
@@ -285,6 +288,99 @@ export class IslandVisualizer {
     }
   }
 
+  _clearRampPreview() {
+    if (this.rampPreviewMesh && this.islandMesh) {
+      this.islandMesh.remove(this.rampPreviewMesh);
+      this.rampPreviewMesh.geometry?.dispose();
+      this.rampPreviewMesh.material?.dispose();
+      this.rampPreviewMesh = null;
+    }
+  }
+
+  setRampPreview(pointA, pointB, gridSize) {
+    this._clearRampPreview();
+    if (!pointA || !pointB || !this.islandMesh || gridSize <= 0) return;
+    const scale = 1 / gridSize;
+    const xA = (pointA.gx * scale) - 0.5;
+    const yA = 0.5 - (pointA.gy * scale);
+    const zA = (pointA.h ?? 0) * this.config.heightScale + 0.01;
+    const xB = (pointB.gx * scale) - 0.5;
+    const yB = 0.5 - (pointB.gy * scale);
+    const zB = (pointB.h ?? 0) * this.config.heightScale + 0.01;
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(xA, yA, zA),
+      new THREE.Vector3(xB, yB, zB),
+    ]);
+    const material = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2 });
+    this.rampPreviewMesh = new THREE.Line(geometry, material);
+    this.rampPreviewMesh.layers.set(1);
+    this.islandMesh.add(this.rampPreviewMesh);
+  }
+
+  _clearContourOverlay() {
+    if (this.contourOverlayMesh && this.islandMesh) {
+      this.islandMesh.remove(this.contourOverlayMesh);
+      this.contourOverlayMesh.geometry?.dispose();
+      this.contourOverlayMesh.material?.dispose();
+      this.contourOverlayMesh = null;
+    }
+  }
+
+  /**
+   * Show contour lines at fixed elevation intervals (marching squares per cell)
+   * @param {boolean} show
+   * @param {number[][]} heightMap
+   * @param {number} [interval] Contour interval (default 0.1)
+   */
+  setContourOverlay(show, heightMap, interval = 0.1) {
+    this._clearContourOverlay();
+    if (!show || !heightMap || !this.islandMesh || interval <= 0) return;
+    const gridSize = heightMap.length - 1;
+    if (gridSize <= 0) return;
+    const scale = 1 / gridSize;
+    const positions = [];
+    const addSeg = (x1, y1, z1, x2, y2, z2) => {
+      positions.push(x1, y1, z1, x2, y2, z2);
+    };
+    for (let C = interval; C < 1; C += interval) {
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          const h00 = heightMap[y]?.[x] ?? 0;
+          const h10 = heightMap[y]?.[x + 1] ?? 0;
+          const h01 = heightMap[y + 1]?.[x] ?? 0;
+          const h11 = heightMap[y + 1]?.[x + 1] ?? 0;
+          const cross = (a, b) => (a <= C && C <= b) || (b <= C && C <= a);
+          const pts = [];
+          if (cross(h00, h10)) {
+            const t = (C - h00) / (h10 - h00 || 1e-9);
+            pts.push([(x + t) * scale - 0.5, 0.5 - y * scale, C * this.config.heightScale + 0.005]);
+          }
+          if (cross(h10, h11)) {
+            const t = (C - h10) / (h11 - h10 || 1e-9);
+            pts.push([(x + 1) * scale - 0.5, 0.5 - (y + t) * scale, C * this.config.heightScale + 0.005]);
+          }
+          if (cross(h11, h01)) {
+            const t = (C - h11) / (h01 - h11 || 1e-9);
+            pts.push([(x + 1 - t) * scale - 0.5, 0.5 - (y + 1) * scale, C * this.config.heightScale + 0.005]);
+          }
+          if (cross(h01, h00)) {
+            const t = (C - h01) / (h00 - h01 || 1e-9);
+            pts.push([x * scale - 0.5, 0.5 - (y + 1 - t) * scale, C * this.config.heightScale + 0.005]);
+          }
+          if (pts.length >= 2) addSeg(pts[0][0], pts[0][1], pts[0][2], pts[1][0], pts[1][1], pts[1][2]);
+        }
+      }
+    }
+    if (positions.length < 6) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setDrawRange(0, positions.length / 3);
+    const material = new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.6 });
+    this.contourOverlayMesh = new THREE.LineSegments(geometry, material);
+    this.contourOverlayMesh.layers.set(1);
+    this.islandMesh.add(this.contourOverlayMesh);
+  }
+
   /**
    * Show placement preview (ghost building) or invalid overlay at tile
    * @param {number|null} tx
@@ -366,7 +462,7 @@ export class IslandVisualizer {
 
     const def = getBuildingType(building.type);
     if (!def) return;
-    const size = getEffectiveBuildingSize(building.type);
+    const size = getBuildingSizeFromObject(building);
     const w = size.width;
     const h = size.height;
 
@@ -426,7 +522,7 @@ export class IslandVisualizer {
     for (const b of buildings) {
       const def = getBuildingType(b.type);
       if (!def) continue;
-      const size = getEffectiveBuildingSize(b.type);
+      const size = getBuildingSizeFromObject(b);
       const w = size.width;
       const h = size.height;
       const chunkX = b.chunkX ?? 0;

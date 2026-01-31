@@ -14,8 +14,18 @@
     "noiseOctaves": 3,
     "frequency": 1.5,
     "persistence": 0.6,
-    "lacunarity": 2.2
+    "lacunarity": 2.2,
+    "pathWidth": 1
   },
   "display": { "heightScale": 0.6, "wireframe": false },
-  "seed": 123
+  "seed": 123,
+  "name": "",
+  "description": "",
+  "dangerous": false,
+  "appealing": false,
+  "treasureLevel": 0,
+  "portType": "none",
+  "hazard": "none",
+  "faction": "neutral",
+  "rumors": ""
 }
