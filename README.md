@@ -198,7 +198,7 @@ Two proof-of-concept tools for procedural content:
 
 **Island Generator** — 3D terrain meshes with Perlin/Simplex noise; beach/grass/rock/snow colors; chunk-based building zones; brush elevation editing; config presets. See [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md).
 <p align="center">
-  <img src="Images/Island/IslandEditor_01.png" alt="Procedural map layout" width="400">
+  <img src="Images/Islands/IslandEditor_01.png" alt="Procedural map layout" width="400">
 </p>
 <p align="center">
   <img src="Images/Maps/MapLayout.png" alt="Procedural map layout" width="400">
