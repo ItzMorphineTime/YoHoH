@@ -80,6 +80,39 @@
       letter-spacing: 1px;
       margin-bottom: 8px;
     }
+    .collapsible-control {
+      border-bottom: var(--block-border);
+    }
+    .collapsible-control:last-of-type { border-bottom: none; }
+    .collapsible-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      cursor: pointer;
+      user-select: none;
+      font-size: 10px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .collapsible-header:hover { color: var(--block-accent); }
+    .collapsible-header::after {
+      content: '▼';
+      font-size: 8px;
+      transition: transform 0.2s;
+    }
+    .collapsible-control.collapsed .collapsible-header::after {
+      transform: rotate(-90deg);
+    }
+    .collapsible-content {
+      padding-bottom: 12px;
+      overflow: hidden;
+    }
+    .collapsible-control.collapsed .collapsible-content {
+      display: none;
+    }
     .control-row {
       display: flex;
       align-items: center;
@@ -347,6 +380,39 @@ button.active:hover {
       line-height: 1;
     }
     #settings-btn:hover { background: #2a3548; }
+    #settings-graphics-btn {
+      position: absolute;
+      bottom: 64px;
+      left: 16px;
+      padding: 10px 14px;
+      background: var(--block-bg);
+      border: var(--block-border);
+      z-index: 20;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    #settings-graphics-btn:hover { background: #2a3548; }
+    /* Settings: Graphics modal (same pattern as settings modal) */
+    #settings-graphics-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #settings-graphics-modal.open { display: flex; }
+    #settings-graphics-modal-content {
+      background: var(--block-bg);
+      border: var(--block-border);
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
     .controls-help-section {
       margin-top: 16px;
       padding-top: 12px;
@@ -372,6 +438,7 @@ button.active:hover {
 <body>
   <div id="canvas-container"></div>
   <button id="settings-btn" title="Controls">⚙</button>
+  <button id="settings-graphics-btn" title="Settings: Graphics">🎨</button>
   <div id="elevation-hud" style="display: none;">Elev: —</div>
   <div id="build-mode-hud" style="display: none;">Building: — · 0 buildings</div>
 
@@ -794,29 +861,6 @@ button.active:hover {
     </div>
 
     <div class="control-section">
-      <div class="control-section-title">Display</div>
-      <div class="control-row">
-        <label>Height scale</label>
-        <input type="range" id="height-scale" min="50" max="200" value="50" step="10" title="Visual height multiplier">
-        <span class="value-display" id="val-height-scale">50%</span>
-      </div>
-      <div class="control-row">
-        <label>Wireframe</label>
-        <input type="checkbox" id="wireframe" title="Show wireframe">
-      </div>
-      <div class="control-row">
-        <label>Shadows</label>
-        <input type="checkbox" id="shadows" checked title="Enable shadows (disable for FPS boost)">
-      </div>
-      <div class="elevation-legend" style="margin-top: 8px; font-size: 10px; color: #6b7280;">
-        <span style="background:#fef3c7;padding:2px 6px;border-radius:2px;margin-right:4px;">Beach</span>
-        <span style="background:#4a7c59;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Grass</span>
-        <span style="background:#6b7280;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Rock</span>
-        <span style="background:#f0f9ff;padding:2px 6px;border-radius:2px;">Snow</span>
-      </div>
-    </div>
-
-    <div class="control-section">
       <div class="control-section-title">Randomness</div>
       <div class="control-row">
         <label>Seed</label>
@@ -874,6 +918,108 @@ button.active:hover {
           <li><strong>Right drag</strong> — Orbit camera</li>
           <li><strong>Scroll</strong> — Zoom in / out</li>
         </ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-graphics-modal">
+    <div id="settings-graphics-modal-content">
+      <div id="settings-graphics-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: var(--block-border);">
+        <h2 style="margin: 0; font-size: 16px; color: var(--block-accent);">Settings: Graphics</h2>
+        <button id="settings-graphics-close-btn" style="padding: 6px 12px; background: #374151; font-size: 12px;">Close</button>
+      </div>
+      <div class="collapsible-control" id="collapsible-display">
+        <div class="collapsible-header">Display</div>
+        <div class="collapsible-content">
+          <div class="control-row">
+            <label>Height scale</label>
+            <input type="range" id="height-scale" min="50" max="200" value="50" step="10" title="Visual height multiplier">
+            <span class="value-display" id="val-height-scale">50%</span>
+          </div>
+          <div class="control-row">
+            <label>Wireframe</label>
+            <input type="checkbox" id="wireframe" title="Show wireframe">
+          </div>
+          <div class="control-row">
+            <label>Shadows</label>
+            <input type="checkbox" id="shadows" checked title="Enable shadows (disable for FPS boost)">
+          </div>
+          <div class="elevation-legend" style="margin-top: 8px; font-size: 10px; color: #6b7280;">
+            <span style="background:#fef3c7;padding:2px 6px;border-radius:2px;margin-right:4px;">Beach</span>
+            <span style="background:#4a7c59;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Grass</span>
+            <span style="background:#6b7280;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Rock</span>
+            <span style="background:#f0f9ff;padding:2px 6px;border-radius:2px;">Snow</span>
+          </div>
+        </div>
+      </div>
+      <div class="collapsible-control" id="collapsible-graphics">
+        <div class="collapsible-header">Graphics</div>
+        <div class="collapsible-content">
+          <div class="control-row">
+            <label>Pixel ratio</label>
+            <input type="range" id="pixel-ratio" min="50" max="200" value="100" step="25" title="Render resolution (1=normal, 2=HiDPI)">
+            <span class="value-display" id="val-pixel-ratio">1</span>
+          </div>
+        </div>
+      </div>
+      <div class="collapsible-control" id="collapsible-postprocessing">
+        <div class="collapsible-header">Post-processing</div>
+        <div class="collapsible-content">
+          <div class="control-row">
+            <label>Enable</label>
+            <input type="checkbox" id="post-processing" title="Bloom, SSAO, FXAA, Film effects">
+          </div>
+          <div class="control-row" id="post-processing-detail" style="opacity: 0.6;">
+            <label>Bloom</label>
+            <input type="checkbox" id="post-bloom" title="Glow on bright areas">
+          </div>
+          <div class="control-row" id="post-bloom-strength-row" style="opacity: 0.6; display: none;">
+            <label>Bloom strength</label>
+            <input type="range" id="post-bloom-strength" min="0" max="3" value="1" step="0.1">
+            <span class="value-display" id="val-bloom-strength">1</span>
+          </div>
+          <div class="control-row" id="post-bloom-radius-row" style="opacity: 0.6; display: none;">
+            <label>Bloom radius</label>
+            <input type="range" id="post-bloom-radius" min="0" max="1" value="0.4" step="0.05">
+            <span class="value-display" id="val-bloom-radius">0.4</span>
+          </div>
+          <div class="control-row" id="post-bloom-threshold-row" style="opacity: 0.6; display: none;">
+            <label>Bloom threshold</label>
+            <input type="range" id="post-bloom-threshold" min="0" max="1" value="0.85" step="0.05">
+            <span class="value-display" id="val-bloom-threshold">0.85</span>
+          </div>
+          <div class="control-row" id="post-processing-detail-ssao" style="opacity: 0.6;">
+            <label>SSAO</label>
+            <input type="checkbox" id="post-ssao" title="Ambient occlusion (depth)">
+          </div>
+          <div class="control-row" id="post-ssao-radius-row" style="opacity: 0.6; display: none;">
+            <label>SSAO radius</label>
+            <input type="range" id="post-ssao-radius" min="1" max="32" value="8" step="1">
+            <span class="value-display" id="val-ssao-radius">8</span>
+          </div>
+          <div class="control-row" id="post-processing-detail2" style="opacity: 0.6;">
+            <label>FXAA</label>
+            <input type="checkbox" id="post-fxaa" title="Smooth edges">
+          </div>
+          <div class="control-row" id="post-processing-detail3" style="opacity: 0.6;">
+            <label>Film</label>
+            <input type="checkbox" id="post-film" title="Film grain effect">
+          </div>
+          <div class="control-row" id="post-film-intensity-row" style="opacity: 0.6; display: none;">
+            <label>Film intensity</label>
+            <input type="range" id="post-film-intensity" min="0" max="1" value="0.5" step="0.05">
+            <span class="value-display" id="val-film-intensity">0.5</span>
+          </div>
+          <div class="control-row" id="post-film-grayscale-row" style="opacity: 0.6; display: none;">
+            <label>Film grayscale</label>
+            <input type="checkbox" id="post-film-grayscale" title="Black & white">
+          </div>
+          <div class="control-row" id="post-tone-exposure-row" style="opacity: 0.6; display: none;">
+            <label>Tone exposure</label>
+            <input type="range" id="post-tone-exposure" min="0.25" max="2" value="1" step="0.05">
+            <span class="value-display" id="val-tone-exposure">1</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { MOUSE } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { PostProcessing } from './PostProcessing.js';
 import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject } from './BuildingTypes.js';
 import { getPropType } from './PropTypes.js';
 import { getPropMeshClone, loadPropMesh } from './PropMeshLoader.js';
@@ -85,6 +86,8 @@ export class IslandVisualizer {
     this._gizmoPos = new THREE.Vector3();
     this._frameCount = 0;
     this._gizmoSizeUpdateInterval = 10; // Throttle gizmo size updates
+    this.postProcessing = null;
+    this._lastFrameTime = performance.now();
   }
 
   setOnPropMeshLoaded(callback) {
@@ -150,6 +153,8 @@ export class IslandVisualizer {
     });
     this.transformControls.addEventListener('objectChange', () => this._onGizmoObjectChange());
     // Gizmo added to scene only when attached — reduces per-frame work when idle
+
+    this.postProcessing = new PostProcessing(this.renderer, this.scene, this.camera);
 
     window.addEventListener('resize', () => this.onResize());
   }
@@ -263,7 +268,11 @@ export class IslandVisualizer {
 
     this._onPropTransformChange?.(prop, data);
     // Immediate render during drag so visual follows mouse accurately (no frame delay)
-    this.renderer?.render(this.scene, this.camera);
+    if (this.postProcessing?.isEnabled()) {
+      this.postProcessing.render();
+    } else {
+      this.renderer?.render(this.scene, this.camera);
+    }
   }
 
   onResize() {
@@ -272,6 +281,17 @@ export class IslandVisualizer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    this.postProcessing?.setSize(width, height);
+  }
+
+  /** Set pixel ratio (0.5–2). Affects render resolution and post-processing. */
+  setPixelRatio(value) {
+    const ratio = Math.max(0.5, Math.min(2, parseFloat(value) || 1));
+    this.renderer.setPixelRatio(ratio);
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    this.renderer.setSize(width, height);
+    this.postProcessing?.setSize(width, height);
   }
 
   /**
@@ -1105,6 +1125,11 @@ export class IslandVisualizer {
     return this.controls;
   }
 
+  /** @returns {PostProcessing|null} */
+  getPostProcessing() {
+    return this.postProcessing ?? null;
+  }
+
   /**
    * Set input mode: 'view' (default) or 'edit'.
    * View: Left=orbit, Right=pan, Middle=zoom.
@@ -1177,6 +1202,13 @@ export class IslandVisualizer {
       const s = this._gizmoBaseSize * (dist / this._gizmoRefDistance);
       this.transformControls.setSize(Math.max(0.3, Math.min(1.5, s)));
     }
-    this.renderer?.render(this.scene, this.camera);
+    const now = performance.now();
+    const deltaTime = (now - this._lastFrameTime) / 1000;
+    this._lastFrameTime = now;
+    if (this.postProcessing?.isEnabled()) {
+      this.postProcessing.render(deltaTime);
+    } else {
+      this.renderer?.render(this.scene, this.camera);
+    }
   }
 }

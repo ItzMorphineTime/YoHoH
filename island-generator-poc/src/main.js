@@ -179,6 +179,14 @@ function run() {
   populateBuildingProperties();
   populatePropProperties();
   syncContourOverlay();
+  // Sync pixel ratio slider to current renderer
+  const pr = visualizer.getRenderer()?.getPixelRatio?.();
+  if (pr != null) {
+    const prEl = document.getElementById('pixel-ratio');
+    const prVal = document.getElementById('val-pixel-ratio');
+    if (prEl) prEl.value = Math.round(pr * 100);
+    if (prVal) prVal.textContent = pr >= 1 ? pr.toFixed(0) : pr.toFixed(2);
+  }
   if (!buildMode) {
     buildingPlacer.disable();
     buildingPlacer.onBuildingsChange = null;
@@ -836,10 +844,54 @@ function normalizeBuildingsForSave(buildings) {
     const size = getBuildingSizeFromObject(b);
     const cargo = b.cargoSize ?? size.width * size.height * 10;
     return {
-      ...b,
+      id: b.id ?? 'b' + Date.now(),
+      type: b.type ?? 'tavern',
+      chunkX: b.chunkX ?? 0,
+      chunkY: b.chunkY ?? 0,
+      rotation: b.rotation ?? 0,
       width: size.width,
       height: size.height,
       cargoSize: cargo,
+    };
+  });
+}
+
+/** Ensure loaded props have all required properties with defaults */
+function migratePropsForLoad(props) {
+  if (!Array.isArray(props)) return [];
+  return props.map((p, i) => {
+    const def = getPropType(p.type);
+    const defaultScale = def?.defaultScale ?? 1;
+    return {
+      id: p.id ?? 'p' + (Date.now() + i),
+      type: p.type ?? 'rock_01',
+      chunkX: p.chunkX ?? 0,
+      chunkY: p.chunkY ?? 0,
+      offsetX: p.offsetX ?? 0,
+      offsetY: p.offsetY ?? 0,
+      offsetZ: p.offsetZ ?? 0,
+      rotation: p.rotation ?? 0,
+      scale: p.scale ?? defaultScale,
+    };
+  });
+}
+
+/** Ensure props are saved with all properties explicitly */
+function normalizePropsForSave(props) {
+  if (!Array.isArray(props)) return props;
+  return props.map((p) => {
+    const def = getPropType(p.type);
+    const defaultScale = def?.defaultScale ?? 1;
+    return {
+      id: p.id ?? 'p' + Date.now(),
+      type: p.type ?? 'rock_01',
+      chunkX: p.chunkX ?? 0,
+      chunkY: p.chunkY ?? 0,
+      offsetX: p.offsetX ?? 0,
+      offsetY: p.offsetY ?? 0,
+      offsetZ: p.offsetZ ?? 0,
+      rotation: p.rotation ?? 0,
+      scale: p.scale ?? defaultScale,
     };
   });
 }
@@ -943,10 +995,12 @@ function loadIslandFromFile() {
         const buildings = migrateBuildingCargoSize(data.buildings ?? []);
         let island;
         if (data.heightMap) {
+          const props = migratePropsForLoad(data.props ?? []);
           island = {
             heightMap: data.heightMap,
             config,
             buildings,
+            props,
             seed: data.seed,
             name: data.name ?? '',
             description: data.description ?? '',
@@ -961,7 +1015,7 @@ function loadIslandFromFile() {
         } else {
           island = generateIsland(getConfig());
           island.buildings = buildings;
-          island.props = data.props ?? [];
+          island.props = migratePropsForLoad(data.props ?? []);
           island.config = { ...island.config, pathWidth: config.pathWidth };
           island.name = data.name ?? island.name ?? '';
           island.description = data.description ?? island.description ?? '';
@@ -988,21 +1042,57 @@ function loadIslandFromFile() {
         visualizer.render(island);
         if (island.buildings?.length) {
           const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
-          const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
-          visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesX);
+          const tilesX = island.config?.tilesX ?? Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+          const tilesY = island.config?.tilesY ?? tilesX;
+          visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesY);
         }
         if (island.props?.length) {
           const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
-          const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
-          visualizer.renderProps(island.props, island.heightMap, ts, tilesX, tilesX);
+          const tilesX = island.config?.tilesX ?? Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+          const tilesY = island.config?.tilesY ?? tilesX;
+          visualizer.renderProps(island.props, island.heightMap, ts, tilesX, tilesY);
         }
         updateStats(island);
         populateIslandProperties();
         selectedBuilding = null;
+        selectedProp = null;
         populateBuildingProperties();
+        populatePropProperties();
+        syncPropGizmo();
         document.getElementById('seed').value = island.seed ?? '';
         setEditMode(true);
         syncContourOverlay();
+        // Enable placers for selection when not in build mode
+        const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
+        const tilesX = island.config?.tilesX ?? Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+        const tilesY = island.config?.tilesY ?? tilesX;
+        if (island.buildings?.length > 0) {
+          buildingPlacer.setHeightMap(island.heightMap);
+          buildingPlacer.setTileConfig(ts, tilesX, tilesY);
+          buildingPlacer.setSeaLevel(island.config?.seaLevel ?? 0.12);
+          buildingPlacer.setBuildings(island.buildings, { shared: true });
+          buildingPlacer.onBuildingHover = (b) => {
+            if (b && island.heightMap) visualizer.setBuildingHighlight(b, island.heightMap, ts, tilesX, tilesY);
+            else visualizer.clearBuildingHighlight();
+          };
+          buildingPlacer.onBuildingSelect = (b) => { selectedBuilding = b; populateBuildingProperties(); };
+          buildingPlacer.onPlacementHover = () => visualizer.clearPlacementPreview();
+          buildingPlacer.enable(container, { selectionOnly: true });
+        }
+        if (island.props?.length > 0) {
+          propPlacer.setHeightMap(island.heightMap);
+          propPlacer.setTileConfig(ts, tilesX, tilesY);
+          propPlacer.setSeaLevel(island.config?.seaLevel ?? 0.12);
+          propPlacer.setProps(island.props);
+          propPlacer.setBuildings(island.buildings ?? []);
+          propPlacer.onPropHover = (p) => {
+            if (p && island.heightMap) visualizer.setPropHighlight(p, island.heightMap, ts, tilesX, tilesY);
+            else visualizer.clearPropHighlight();
+          };
+          propPlacer.onPropSelect = (p) => { selectedProp = p; selectedBuilding = null; populatePropProperties(); populateBuildingProperties(); syncPropGizmo(); };
+          propPlacer.onPlacementHover = () => visualizer.clearPropPlacementPreview();
+          propPlacer.enable(container, { selectionOnly: true });
+        }
       } catch (err) {
         alert('Invalid island file: ' + err.message);
       }
@@ -1040,8 +1130,30 @@ settingsCloseBtn?.addEventListener('click', closeSettings);
 settingsModal?.addEventListener('click', (e) => {
   if (e.target === settingsModal) closeSettings();
 });
+
+// Settings: Graphics modal (Display, Graphics, Post-processing)
+const settingsGraphicsModal = document.getElementById('settings-graphics-modal');
+const settingsGraphicsBtn = document.getElementById('settings-graphics-btn');
+const settingsGraphicsCloseBtn = document.getElementById('settings-graphics-close-btn');
+
+function openSettingsGraphics() {
+  if (settingsGraphicsModal) settingsGraphicsModal.classList.add('open');
+}
+function closeSettingsGraphics() {
+  if (settingsGraphicsModal) settingsGraphicsModal.classList.remove('open');
+}
+
+settingsGraphicsBtn?.addEventListener('click', openSettingsGraphics);
+settingsGraphicsCloseBtn?.addEventListener('click', closeSettingsGraphics);
+settingsGraphicsModal?.addEventListener('click', (e) => {
+  if (e.target === settingsGraphicsModal) closeSettingsGraphics();
+});
+
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && settingsModal?.classList.contains('open')) closeSettings();
+  if (e.key === 'Escape') {
+    if (settingsGraphicsModal?.classList.contains('open')) closeSettingsGraphics();
+    else if (settingsModal?.classList.contains('open')) closeSettings();
+  }
 });
 
 regenerateBtn.addEventListener('click', run);
@@ -1068,10 +1180,12 @@ async function loadPreset() {
     const buildings = migrateBuildingCargoSize(data.buildings ?? []);
     let island;
     if (data.heightMap) {
+      const props = migratePropsForLoad(data.props ?? []);
       island = {
         heightMap: data.heightMap,
         config,
         buildings,
+        props,
         seed: data.seed,
         name: data.name ?? '',
         description: data.description ?? '',
@@ -1086,6 +1200,7 @@ async function loadPreset() {
     } else {
       island = generateIsland(getConfig());
       island.buildings = buildings;
+      island.props = migratePropsForLoad(data.props ?? []);
       island.config = { ...island.config, pathWidth: config.pathWidth };
       island.name = data.name ?? island.name ?? '';
       island.description = data.description ?? island.description ?? '';
@@ -1115,10 +1230,19 @@ async function loadPreset() {
       const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
       visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesX);
     }
+    if (island.props?.length) {
+      const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
+      const tilesX = island.config?.tilesX ?? Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+      const tilesY = island.config?.tilesY ?? tilesX;
+      visualizer.renderProps(island.props, island.heightMap, ts, tilesX, tilesY);
+    }
     updateStats(island);
     populateIslandProperties();
     selectedBuilding = null;
+    selectedProp = null;
     populateBuildingProperties();
+    populatePropProperties();
+    syncPropGizmo();
     setEditMode(true);
     syncContourOverlay();
     select.value = '';
@@ -1667,6 +1791,108 @@ document.getElementById('shadows')?.addEventListener('change', (e) => {
   visualizer.setConfig({ shadows: e.target.checked });
 });
 
+// Graphics: pixel ratio
+document.getElementById('pixel-ratio')?.addEventListener('input', () => {
+  const v = (parseInt(document.getElementById('pixel-ratio')?.value, 10) ?? 100) / 100;
+  const el = document.getElementById('val-pixel-ratio');
+  if (el) el.textContent = v.toFixed(v >= 1 ? 0 : 2);
+  visualizer.setPixelRatio(v);
+});
+
+// Post-processing
+function applyPostProcessingFromUI() {
+  const pp = visualizer.getPostProcessing();
+  if (!pp) return;
+  const enabled = document.getElementById('post-processing')?.checked ?? false;
+  pp.setEnabled(enabled);
+  const detail = document.getElementById('post-processing-detail');
+  const detail2 = document.getElementById('post-processing-detail2');
+  const detail3 = document.getElementById('post-processing-detail3');
+  const detailSsao = document.getElementById('post-processing-detail-ssao');
+  const bloomStrengthRow = document.getElementById('post-bloom-strength-row');
+  const bloomRadiusRow = document.getElementById('post-bloom-radius-row');
+  const bloomThresholdRow = document.getElementById('post-bloom-threshold-row');
+  const ssaoRadiusRow = document.getElementById('post-ssao-radius-row');
+  const filmIntensityRow = document.getElementById('post-film-intensity-row');
+  const filmGrayscaleRow = document.getElementById('post-film-grayscale-row');
+  const toneExposureRow = document.getElementById('post-tone-exposure-row');
+  [detail, detail2, detail3, detailSsao].forEach((el) => { if (el) el.style.opacity = enabled ? '1' : '0.6'; });
+  const bloomOn = enabled && (document.getElementById('post-bloom')?.checked ?? false);
+  if (bloomStrengthRow) bloomStrengthRow.style.display = bloomOn ? '' : 'none';
+  if (bloomRadiusRow) bloomRadiusRow.style.display = bloomOn ? '' : 'none';
+  if (bloomThresholdRow) bloomThresholdRow.style.display = bloomOn ? '' : 'none';
+  const ssaoOn = enabled && (document.getElementById('post-ssao')?.checked ?? false);
+  if (ssaoRadiusRow) ssaoRadiusRow.style.display = ssaoOn ? '' : 'none';
+  const filmOn = enabled && (document.getElementById('post-film')?.checked ?? false);
+  if (filmIntensityRow) filmIntensityRow.style.display = filmOn ? '' : 'none';
+  if (filmGrayscaleRow) filmGrayscaleRow.style.display = filmOn ? '' : 'none';
+  if (toneExposureRow) toneExposureRow.style.display = enabled ? '' : 'none';
+  pp.setBloom(bloomOn);
+  pp.setFXAA(enabled && (document.getElementById('post-fxaa')?.checked ?? false));
+  pp.setFilm(filmOn);
+  pp.setSSAO(ssaoOn);
+  pp.setBloomStrength(parseFloat(document.getElementById('post-bloom-strength')?.value) ?? 1);
+  pp.setBloomRadius(parseFloat(document.getElementById('post-bloom-radius')?.value) ?? 0.4);
+  pp.setBloomThreshold(parseFloat(document.getElementById('post-bloom-threshold')?.value) ?? 0.85);
+  pp.setSSAOKernelRadius(parseFloat(document.getElementById('post-ssao-radius')?.value) ?? 8);
+  pp.setFilmIntensity(parseFloat(document.getElementById('post-film-intensity')?.value) ?? 0.5);
+  pp.setFilmGrayscale(document.getElementById('post-film-grayscale')?.checked ?? false);
+  pp.setToneMappingExposure(parseFloat(document.getElementById('post-tone-exposure')?.value) ?? 1);
+}
+document.getElementById('post-processing')?.addEventListener('change', applyPostProcessingFromUI);
+document.getElementById('post-bloom')?.addEventListener('change', applyPostProcessingFromUI);
+document.getElementById('post-ssao')?.addEventListener('change', applyPostProcessingFromUI);
+document.getElementById('post-fxaa')?.addEventListener('change', applyPostProcessingFromUI);
+document.getElementById('post-film')?.addEventListener('change', applyPostProcessingFromUI);
+document.getElementById('post-film-grayscale')?.addEventListener('change', applyPostProcessingFromUI);
+document.getElementById('post-bloom-strength')?.addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('post-bloom-strength')?.value) ?? 1;
+  const el = document.getElementById('val-bloom-strength');
+  if (el) el.textContent = v.toFixed(1);
+  visualizer.getPostProcessing()?.setBloomStrength(v);
+});
+document.getElementById('post-bloom-radius')?.addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('post-bloom-radius')?.value) ?? 0.4;
+  const el = document.getElementById('val-bloom-radius');
+  if (el) el.textContent = v.toFixed(2);
+  visualizer.getPostProcessing()?.setBloomRadius(v);
+});
+document.getElementById('post-bloom-threshold')?.addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('post-bloom-threshold')?.value) ?? 0.85;
+  const el = document.getElementById('val-bloom-threshold');
+  if (el) el.textContent = v.toFixed(2);
+  visualizer.getPostProcessing()?.setBloomThreshold(v);
+});
+document.getElementById('post-ssao-radius')?.addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('post-ssao-radius')?.value) ?? 8;
+  const el = document.getElementById('val-ssao-radius');
+  if (el) el.textContent = v;
+  visualizer.getPostProcessing()?.setSSAOKernelRadius(v);
+});
+document.getElementById('post-film-intensity')?.addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('post-film-intensity')?.value) ?? 0.5;
+  const el = document.getElementById('val-film-intensity');
+  if (el) el.textContent = v.toFixed(2);
+  visualizer.getPostProcessing()?.setFilmIntensity(v);
+});
+document.getElementById('post-tone-exposure')?.addEventListener('input', () => {
+  const v = parseFloat(document.getElementById('post-tone-exposure')?.value) ?? 1;
+  const el = document.getElementById('val-tone-exposure');
+  if (el) el.textContent = v.toFixed(2);
+  visualizer.getPostProcessing()?.setToneMappingExposure(v);
+});
+
+// Collapsible Display, Graphics, Post-processing
+['collapsible-display', 'collapsible-graphics', 'collapsible-postprocessing'].forEach((id) => {
+  const el = document.getElementById(id);
+  const header = el?.querySelector('.collapsible-header');
+  if (header) {
+    header.addEventListener('click', () => {
+      el?.classList.toggle('collapsed');
+    });
+  }
+});
+
 bindValueDisplay('grid-size', 'val-grid');
 bindValueDisplay('elevation-scale', 'val-elevation', (v) => `${v}%`);
 bindValueDisplay('terrain-roughness', 'val-roughness', (v) => `${v}%`);
@@ -1682,6 +1908,16 @@ bindValueDisplay('noise-frequency', 'val-freq', (v) => (parseInt(v, 10) / 10).to
 bindValueDisplay('noise-persistence', 'val-persist', (v) => (parseInt(v, 10) / 100).toFixed(2));
 bindValueDisplay('noise-lacunarity', 'val-lac', (v) => (parseInt(v, 10) / 10).toFixed(1));
 bindValueDisplay('height-scale', 'val-height-scale', (v) => `${v}%`);
+bindValueDisplay('pixel-ratio', 'val-pixel-ratio', (v) => {
+  const n = (parseInt(v, 10) ?? 100) / 100;
+  return n >= 1 ? n.toFixed(0) : n.toFixed(2);
+});
+bindValueDisplay('post-bloom-strength', 'val-bloom-strength', (v) => parseFloat(v).toFixed(1));
+bindValueDisplay('post-bloom-radius', 'val-bloom-radius', (v) => parseFloat(v).toFixed(2));
+bindValueDisplay('post-bloom-threshold', 'val-bloom-threshold', (v) => parseFloat(v).toFixed(2));
+bindValueDisplay('post-ssao-radius', 'val-ssao-radius', (v) => v);
+bindValueDisplay('post-film-intensity', 'val-film-intensity', (v) => parseFloat(v).toFixed(2));
+bindValueDisplay('post-tone-exposure', 'val-tone-exposure', (v) => parseFloat(v).toFixed(2));
 bindValueDisplay('path-width', 'val-path-width');
 bindValueDisplay('brush-target', 'val-brush-target');
 bindValueDisplay('brush-strength', 'val-brush-strength', (v) => `${((parseInt(v, 10) || 16) / 40 * 20).toFixed(0)}%`);
