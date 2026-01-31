@@ -185,15 +185,18 @@ npm run dev
 
 Open **http://localhost:5173**
 
-### Map Generator POC (Standalone)
+### Standalone POCs
 
-Procedural archipelago map editor with visualization and Save/Load:
+Two proof-of-concept tools for procedural content:
 
-```bash
-cd Demo/map-generator-poc
-npm install
-npm run dev
-```
+| POC | Description | Run |
+|-----|-------------|-----|
+| **[Map Generator](map-generator-poc/)** | Procedural archipelago — Delaunay planar graph, island nodes, routes, pirate data, editor | `cd map-generator-poc && npm install && npm run dev` |
+| **[Island Generator](island-generator-poc/)** | Procedural island terrain — Simplex noise meshes, elevation colors, chunk flattening, brush editor | `cd island-generator-poc && npm install && npm run dev` |
+
+**Map Generator** — Center-out planar graph; islands and routes; edit mode (add/remove nodes, routes); Save/Load JSON. See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §5.
+
+**Island Generator** — 3D terrain meshes with Perlin/Simplex noise; beach/grass/rock/snow colors; chunk-based building zones; brush elevation editing; config presets. See [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md).
 
 <p align="center">
   <img src="Images/Maps/MapLayout.png" alt="Procedural map layout" width="400">
@@ -245,8 +248,9 @@ Demo/
 │   └── ui/                 # HUD, MapUI, BigMapUI, Minimap, PortUI
 ├── public/data/
 │   └── goods.json          # 8 trade goods
-├── map-generator-poc/      # Standalone map editor
-└── IMPLEMENTATION_PLAN.md  # Detailed design doc
+├── map-generator-poc/       # Standalone archipelago map editor (Delaunay, routes)
+├── island-generator-poc/    # Standalone island terrain generator (noise, elevation, chunks)
+└── IMPLEMENTATION_PLAN.md   # Detailed design doc
 ```
 
 ---
