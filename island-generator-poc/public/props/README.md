@@ -1,32 +1,22 @@
 # Prop Assets (from 3D_Models/Props)
 
-FBX models from `3D_Models/Props` for island decoration. Copy the folder structure here so the island generator can load them at runtime.
+FBX models from `3D_Models/Props` for island decoration. **Copied automatically** by `npm run copy-props` (runs before dev/build).
 
-## Expected structure (from 3D_Models/Props)
+## Structure
 
-| Prop type      | Folder          | FBX file          | Fallback        |
-|----------------|-----------------|-------------------|-----------------|
-| berry_bush_01  | BerryBush_01/   | BerryBush_01.fbx  | Green sphere    |
-| oak_tree_01    | OakTree_01/     | OakTree_01.fbx    | Green cone      |
-| palm_tree_01   | PalmTree_01/    | PalmTree_01.fbx   | Green cylinder  |
-| palm_tree_02   | PalmTree_02/    | PalmTree_02.fbx   | Green cylinder  |
-| rock_01        | Rock_01/        | Rock_01.fbx       | Gray sphere     |
-| rock_06        | Rock_06/        | Rock_06.fbx       | Dark sphere     |
-| sign           | —               | (no model)        | Thin box        |
+| Prop type      | Folder          | FBX file          |
+|----------------|-----------------|-------------------|
+| berry_bush_01  | BerryBush_01/   | BerryBush_01.fbx  |
+| oak_tree_01    | OakTree_01/     | OakTree_01.fbx    |
+| palm_tree_01   | PalmTree_01/    | PalmTree_01.fbx   |
+| palm_tree_02   | PalmTree_02/    | PalmTree_02.fbx   |
+| rock_01        | Rock_01/        | Rock_01.fbx       |
+| rock_06        | Rock_06/        | Rock_06.fbx       |
+| sign           | —               | (placeholder)     |
 
-## Copy command
+## Manual copy (if needed)
 
-From the Demo root:
-
-```
-cp -r 3D_Models/Props/* public/props/
-```
-
-Or on Windows (PowerShell):
-
-```powershell
-Copy-Item -Path "..\..\3D_Models\Props\*" -Destination "." -Recurse
-```
+From island-generator-poc root: `npm run copy-props`
 
 ## Format
 

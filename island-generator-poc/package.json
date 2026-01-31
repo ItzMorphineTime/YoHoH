@@ -4,6 +4,9 @@
   "description": "YoHoH procedural island terrain mesh generator - standalone proof of concept",
   "type": "module",
   "scripts": {
+    "copy-props": "node scripts/copy-props.js",
+    "predev": "npm run copy-props",
+    "prebuild": "npm run copy-props",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

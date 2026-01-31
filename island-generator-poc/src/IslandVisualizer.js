@@ -6,8 +6,10 @@
 import * as THREE from 'three';
 import { MOUSE } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject } from './BuildingTypes.js';
 import { getPropType } from './PropTypes.js';
+import { getPropMeshClone, loadPropMesh } from './PropMeshLoader.js';
 import { PATH_COLOR } from './IslandPathfinder.js';
 
 /** Vertex colors by elevation band (hex) */
@@ -48,11 +50,13 @@ export class IslandVisualizer {
     this.hoverOverlayMesh = null;
     this.buildingMeshes = [];
     this.gridOverlayMesh = null;
+    this.zoneHintsOverlayMesh = null;
     this.placementPreviewMesh = null;
     this.buildingHighlightMesh = null;
     this.propMeshes = [];
     this.propPlacementPreviewMesh = null;
     this.propHighlightMesh = null;
+    this._lastHighlightedProp = null;
     this.rampPreviewMesh = null;
     this._inputMode = 'view';
     this._spaceHeld = false;
@@ -66,8 +70,30 @@ export class IslandVisualizer {
       useVertexColors: true,
       seaLevel: 0.12,
       pathColor: PATH_COLOR,
+      shadows: true,
+      antialias: true,
     };
     this.pathTiles = new Set();
+    this._onPropMeshLoaded = null;
+    this.transformControls = null;
+    this._onPropTransformChange = null;
+    this._gizmoTileConfig = null;
+    this._gizmoHeightMap = null;
+    this._gizmoSnapEnabled = false;
+    this._gizmoBaseSize = 0.8;
+    this._gizmoRefDistance = 1.5;
+    this._gizmoPos = new THREE.Vector3();
+    this._frameCount = 0;
+    this._gizmoSizeUpdateInterval = 10; // Throttle gizmo size updates
+  }
+
+  setOnPropMeshLoaded(callback) {
+    this._onPropMeshLoaded = callback;
+  }
+
+  /** Called when prop is transformed via gizmo: (prop, data) => void */
+  setOnPropTransformChange(callback) {
+    this._onPropTransformChange = callback;
   }
 
   init() {
@@ -82,11 +108,14 @@ export class IslandVisualizer {
     this.camera.lookAt(0, 0, 0);
     this.camera.layers.enable(1); // Render layer 1 (grid, preview, highlight overlays)
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: this.config.antialias !== false,
+      powerPreference: 'high-performance',
+    });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = this.config.shadows !== false;
+    this.renderer.shadowMap.type = THREE.BasicShadowMap;
     this.container.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -100,12 +129,141 @@ export class IslandVisualizer {
 
     this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.85);
     this.directionalLight.position.set(2, 4, 2);
-    this.directionalLight.castShadow = true;
-    this.directionalLight.shadow.mapSize.width = 1024;
-    this.directionalLight.shadow.mapSize.height = 1024;
+    this.directionalLight.castShadow = this.config.shadows !== false;
+    this.directionalLight.shadow.mapSize.width = 512;
+    this.directionalLight.shadow.mapSize.height = 512;
+    // Tighten shadow frustum to island bounds (~1 unit) for better quality and FPS
+    const sc = this.directionalLight.shadow.camera;
+    sc.left = sc.bottom = -1.2;
+    sc.right = sc.top = 1.2;
+    sc.near = 0.1;
+    sc.far = 8;
     this.scene.add(this.directionalLight);
 
+    this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
+    this.transformControls.setMode('translate');
+    this.transformControls.setSpace('world');
+    this.transformControls.setSize(this._gizmoBaseSize);
+    this.transformControls.layers.enableAll(); // Ensure gizmo visible regardless of object layers
+    this.transformControls.addEventListener('dragging-changed', (e) => {
+      this.controls.enabled = !e.value;
+    });
+    this.transformControls.addEventListener('objectChange', () => this._onGizmoObjectChange());
+    // Gizmo added to scene only when attached — reduces per-frame work when idle
+
     window.addEventListener('resize', () => this.onResize());
+  }
+
+  /** Find prop mesh with userData.prop === prop */
+  getPropMeshForProp(prop) {
+    for (const mesh of this.propMeshes) {
+      if (mesh.userData?.prop === prop) return mesh;
+    }
+    return null;
+  }
+
+  /** Attach gizmo to prop mesh; pass tile config for coordinate conversion */
+  setPropGizmoAttached(prop, tileConfig, heightMap) {
+    this.detachPropGizmo();
+    if (!prop || !this.transformControls) return;
+    const mesh = this.getPropMeshForProp(prop);
+    if (!mesh) return;
+    this._gizmoTileConfig = tileConfig;
+    this._gizmoHeightMap = heightMap;
+    this.transformControls.attach(mesh);
+    this._applyGizmoSnap();
+    if (!this.transformControls.parent) this.scene.add(this.transformControls);
+  }
+
+  detachPropGizmo() {
+    if (this.transformControls) {
+      this.transformControls.detach();
+      if (this.transformControls.parent) this.scene.remove(this.transformControls);
+    }
+    this._gizmoTileConfig = null;
+    this._gizmoHeightMap = null;
+  }
+
+  setGizmoMode(mode) {
+    if (this.transformControls) this.transformControls.setMode(mode);
+  }
+
+  setGizmoSpace(space) {
+    if (this.transformControls) this.transformControls.setSpace(space);
+  }
+
+  setGizmoSnap(enabled) {
+    this._gizmoSnapEnabled = !!enabled;
+    this._applyGizmoSnap();
+  }
+
+  isGizmoSnapEnabled() {
+    return this._gizmoSnapEnabled;
+  }
+
+  _applyGizmoSnap() {
+    if (!this.transformControls) return;
+    if (!this._gizmoSnapEnabled) {
+      this.transformControls.translationSnap = null;
+      this.transformControls.rotationSnap = null;
+      this.transformControls.scaleSnap = null;
+      return;
+    }
+    const cfg = this._gizmoTileConfig;
+    const txCount = cfg?.tilesX ?? 8;
+    const tyCount = cfg?.tilesY ?? txCount;
+    const tileSize = Math.min(1 / txCount, 1 / tyCount);
+    this.transformControls.translationSnap = tileSize;
+    this.transformControls.rotationSnap = Math.PI / 12; // 15°
+    this.transformControls.scaleSnap = 0.1;
+  }
+
+  _onGizmoObjectChange() {
+    const obj = this.transformControls?.object;
+    if (!obj || !obj.userData?.prop || !this._gizmoTileConfig || !this._gizmoHeightMap) return;
+    const prop = obj.userData.prop;
+    const { tileSize, tilesX, tilesY } = this._gizmoTileConfig;
+    const txCount = tilesX ?? 1;
+    const tyCount = tilesY ?? 1;
+    const gridSize = this._gizmoHeightMap.length - 1;
+
+    const pos = obj.position;
+    const valX = (pos.x + 0.5) * txCount;
+    const valY = (0.5 - pos.y) * tyCount;
+    const chunkX = Math.max(0, Math.min(tilesX - 1, Math.floor(valX - 0.5)));
+    const chunkY = Math.max(0, Math.min(tilesY - 1, Math.floor(valY - 0.5)));
+    const offsetX = valX - chunkX - 0.5;
+    const offsetY = valY - chunkY - 0.5;
+
+    const rotDeg = ((-obj.rotation.z * 180) / Math.PI + 360) % 360;
+    const def = getPropType(prop.type);
+    const defScale = def?.defaultScale ?? 1;
+    const tileScale = 1 / txCount;
+    const rawScale = obj.scale.x / tileScale;
+    const scale = Math.max(0.25, Math.min(100, rawScale));
+
+    const ts = tileSize ?? 8;
+    const gx = Math.min(gridSize, Math.max(0, Math.floor((chunkX + 0.5) * ts)));
+    const gy = Math.min(gridSize, Math.max(0, Math.floor((chunkY + 0.5) * ts)));
+    const terrainH = (this._gizmoHeightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+    const offsetZ = Math.max(-0.5, Math.min(0.5, (obj.position.z - terrainH - 0.01) / this.config.heightScale));
+
+    const data = {
+      chunkX,
+      chunkY,
+      offsetX,
+      offsetY,
+      offsetZ,
+      rotation: rotDeg,
+      scale,
+    };
+    Object.assign(prop, data);
+
+    obj.position.z = terrainH + 0.01 + offsetZ * this.config.heightScale;
+
+    this._onPropTransformChange?.(prop, data);
+    // Immediate render during drag so visual follows mouse accurately (no frame delay)
+    this.renderer?.render(this.scene, this.camera);
   }
 
   onResize() {
@@ -387,6 +545,7 @@ export class IslandVisualizer {
 
   /**
    * Show placement preview (ghost building) or invalid overlay at tile
+   * Phase G: isConnected=false shows amber preview (valid but isolated)
    * @param {number|null} tx
    * @param {number|null} ty
    * @param {string} buildingType
@@ -395,8 +554,9 @@ export class IslandVisualizer {
    * @param {number} tileSize
    * @param {number} tilesX
    * @param {number} tilesY
+   * @param {boolean} [isConnected=true] — false = valid but isolated (amber preview)
    */
-  setPlacementPreview(tx, ty, buildingType, isValid, heightMap, tileSize, tilesX, tilesY) {
+  setPlacementPreview(tx, ty, buildingType, isValid, heightMap, tileSize, tilesX, tilesY, isConnected = true) {
     this._clearPlacementPreview();
     if (tx == null || ty == null || !this.islandMesh || !heightMap) return;
 
@@ -423,8 +583,9 @@ export class IslandVisualizer {
     if (isValid) {
       const boxH = Math.max(terrainH * 0.5, 0.08);
       const geometry = new THREE.BoxGeometry(normW, normH, boxH);
+      const color = isConnected ? def.color : 0xf59e0b; // amber when isolated
       const material = new THREE.MeshBasicMaterial({
-        color: def.color,
+        color,
         transparent: true,
         opacity: 0.6,
         depthTest: true,
@@ -518,8 +679,10 @@ export class IslandVisualizer {
   _clearPropPlacementPreview() {
     if (this.propPlacementPreviewMesh && this.islandMesh) {
       this.islandMesh.remove(this.propPlacementPreviewMesh);
-      this.propPlacementPreviewMesh.geometry?.dispose();
-      this.propPlacementPreviewMesh.material?.dispose();
+      this.propPlacementPreviewMesh.traverse((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
       this.propPlacementPreviewMesh = null;
     }
   }
@@ -527,10 +690,13 @@ export class IslandVisualizer {
   _clearPropHighlight() {
     if (this.propHighlightMesh && this.islandMesh) {
       this.islandMesh.remove(this.propHighlightMesh);
-      this.propHighlightMesh.geometry?.dispose();
-      this.propHighlightMesh.material?.dispose();
+      this.propHighlightMesh.traverse((c) => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+      });
       this.propHighlightMesh = null;
     }
+    this._lastHighlightedProp = null;
   }
 
   _createPropPlaceholderGeometry(shape, scale = 0.08) {
@@ -543,15 +709,19 @@ export class IslandVisualizer {
         return new THREE.ConeGeometry(scale * 0.6, scale * 1.2, 8);
       case 'box':
         return new THREE.BoxGeometry(scale * 0.4, scale * 1.2, scale * 0.2);
+      case 'signpost':
+        return new THREE.CylinderGeometry(scale * 0.15, scale * 0.2, scale * 1.2, 8);
       default:
         return new THREE.SphereGeometry(scale, 8, 6);
     }
   }
 
   /**
-   * Render prop meshes on terrain (placeholder geometry per type)
+   * Render prop meshes on terrain (FBX from 3D_Models, fallback to placeholder)
+   * @param {Object} [opts] - { onMeshLoaded: () => void } called when an FBX loads (for re-render)
    */
-  renderProps(props, heightMap, tileSize, tilesX, tilesY) {
+  renderProps(props, heightMap, tileSize, tilesX, tilesY, opts = {}) {
+    this.detachPropGizmo();
     this._clearProps();
     if (!this.islandMesh || !heightMap || !Array.isArray(props)) return;
 
@@ -559,6 +729,7 @@ export class IslandVisualizer {
     const ts = tileSize || 8;
     const txCount = tilesX ?? Math.floor(gridSize / ts);
     const tyCount = tilesY ?? Math.floor(gridSize / ts);
+    const typesToLoad = new Set();
 
     for (const p of props) {
       const def = getPropType(p.type);
@@ -566,28 +737,45 @@ export class IslandVisualizer {
       const chunkX = p.chunkX ?? 0;
       const chunkY = p.chunkY ?? 0;
       const rot = (p.rotation ?? 0) * (Math.PI / 180);
+      const offsetX = (p.offsetX ?? 0) / txCount;
+      const offsetY = (p.offsetY ?? 0) / tyCount;
+      const offsetZ = (p.offsetZ ?? 0) * this.config.heightScale;
 
-      const centerX = (chunkX + 0.5) / txCount - 0.5;
-      const centerY = 0.5 - (chunkY + 0.5) / tyCount;
+      const centerX = (chunkX + 0.5) / txCount - 0.5 + offsetX;
+      const centerY = 0.5 - (chunkY + 0.5) / tyCount - offsetY;
       const gx = Math.min(gridSize, Math.floor((chunkX + 0.5) * ts));
       const gy = Math.min(gridSize, Math.floor((chunkY + 0.5) * ts));
       const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
 
-      const geometry = this._createPropPlaceholderGeometry(def.placeholderShape ?? 'sphere');
-      const material = new THREE.MeshLambertMaterial({ color: def.color });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(centerX, centerY, terrainH + 0.04);
+      const mesh = getPropMeshClone(p.type);
+      if (def?.fbxPath && !mesh.userData?.fromPropCache) typesToLoad.add(p.type);
+      // Props are normalized to max dim 1.0; scale to fit 1 tile; trees use defaultScale
+      const defScale = def.defaultScale ?? 1;
+      const tileScale = 1 / txCount;
+      const propScale = tileScale * (p.scale ?? defScale);
+      mesh.scale.setScalar(propScale);
+      mesh.position.set(centerX, centerY, terrainH + 0.01 + offsetZ);
       mesh.rotation.z = -rot;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.traverse((c) => {
+        if (c.isMesh) {
+          c.castShadow = true;
+          c.receiveShadow = true;
+        }
+      });
       mesh.userData.prop = p;
       this.islandMesh.add(mesh);
       this.propMeshes.push(mesh);
     }
+
+    for (const type of typesToLoad) {
+      loadPropMesh(type).then(() => {
+        (opts.onMeshLoaded || this._onPropMeshLoaded)?.();
+      });
+    }
   }
 
   /**
-   * Show prop placement preview (ghost) or invalid overlay at tile
+   * Show prop placement preview (ghost) using actual prop mesh
    */
   setPropPlacementPreview(tx, ty, propType, isValid, heightMap, tileSize, tilesX, tilesY) {
     this._clearPropPlacementPreview();
@@ -607,24 +795,36 @@ export class IslandVisualizer {
     const gy = Math.min(gridSize, Math.floor((ty + 0.5) * ts));
     const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
 
-    const geometry = this._createPropPlaceholderGeometry(def.placeholderShape ?? 'sphere');
-    const material = new THREE.MeshBasicMaterial({
-      color: isValid ? def.color : 0xef4444,
-      transparent: true,
-      opacity: isValid ? 0.6 : 0.5,
-      depthTest: true,
-      depthWrite: false,
+    const defScale = def.defaultScale ?? 1;
+    const tileScale = 1 / txCount;
+    const propScale = tileScale * defScale;
+
+    const mesh = getPropMeshClone(propType);
+    mesh.scale.setScalar(propScale);
+    mesh.position.set(centerX, centerY, terrainH + 0.01);
+    mesh.rotation.z = 0;
+    mesh.traverse((c) => {
+      if (c.isMesh && c.material) {
+        c.material = new THREE.MeshBasicMaterial({
+          color: isValid ? def.color : 0xef4444,
+          transparent: true,
+          opacity: isValid ? 0.6 : 0.5,
+          depthTest: true,
+          depthWrite: false,
+        });
+      }
     });
-    this.propPlacementPreviewMesh = new THREE.Mesh(geometry, material);
-    this.propPlacementPreviewMesh.position.set(centerX, centerY, terrainH + 0.04);
+    this.propPlacementPreviewMesh = mesh;
     this.propPlacementPreviewMesh.layers.set(1);
     this.islandMesh.add(this.propPlacementPreviewMesh);
   }
 
   /**
-   * Highlight prop at tile when hovering
+   * Highlight prop when hovering — outline using actual prop mesh geometry
    */
   setPropHighlight(prop, heightMap, tileSize, tilesX, tilesY) {
+    if (prop === this._lastHighlightedProp) return;
+    this._lastHighlightedProp = prop;
     this._clearPropHighlight();
     if (!prop || !this.islandMesh || !heightMap) return;
 
@@ -637,21 +837,43 @@ export class IslandVisualizer {
     const tyCount = tilesY ?? Math.floor(gridSize / ts);
     const chunkX = prop.chunkX ?? 0;
     const chunkY = prop.chunkY ?? 0;
+    const rot = (prop.rotation ?? 0) * (Math.PI / 180);
+    const offsetX = (prop.offsetX ?? 0) / txCount;
+    const offsetY = (prop.offsetY ?? 0) / tyCount;
+    const offsetZ = (prop.offsetZ ?? 0) * this.config.heightScale;
 
-    const centerX = (chunkX + 0.5) / txCount - 0.5;
-    const centerY = 0.5 - (chunkY + 0.5) / tyCount;
+    const centerX = (chunkX + 0.5) / txCount - 0.5 + offsetX;
+    const centerY = 0.5 - (chunkY + 0.5) / tyCount - offsetY;
     const gx = Math.min(gridSize, Math.floor((chunkX + 0.5) * ts));
     const gy = Math.min(gridSize, Math.floor((chunkY + 0.5) * ts));
     const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
 
-    const geometry = this._createPropPlaceholderGeometry(def.placeholderShape ?? 'sphere');
-    const edges = new THREE.EdgesGeometry(geometry);
-    geometry.dispose();
-    const material = new THREE.LineBasicMaterial({ color: 0xfbbf24 });
-    this.propHighlightMesh = new THREE.LineSegments(edges, material);
-    this.propHighlightMesh.position.set(centerX, centerY, terrainH + 0.04);
+    const defScale = def.defaultScale ?? 1;
+    const tileScale = 1 / txCount;
+    const propScale = tileScale * (prop.scale ?? defScale);
+
+    const mesh = getPropMeshClone(prop.type);
+    mesh.scale.setScalar(propScale);
+    mesh.position.set(centerX, centerY, terrainH + 0.01 + offsetZ);
+    mesh.rotation.z = -rot;
+    this.islandMesh.add(mesh);
+    mesh.updateMatrixWorld(true);
+
+    const group = new THREE.Group();
+    mesh.traverse((c) => {
+      if (c.isMesh && c.geometry) {
+        const edges = new THREE.EdgesGeometry(c.geometry);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xfbbf24 }));
+        line.matrix.copy(c.matrixWorld);
+        line.matrixAutoUpdate = false;
+        group.add(line);
+      }
+    });
+    this.islandMesh.remove(mesh);
+    this.propHighlightMesh = group;
     this.propHighlightMesh.layers.set(1);
     this.islandMesh.add(this.propHighlightMesh);
+    this._lastHighlightedProp = prop;
   }
 
   clearPropPlacementPreview() {
@@ -660,6 +882,28 @@ export class IslandVisualizer {
 
   clearPropHighlight() {
     this._clearPropHighlight();
+  }
+
+  /**
+   * Raycast props and return the prop if a prop was hit.
+   * Tests prop meshes directly (not island mesh) so terrain never occludes tall props like trees.
+   * @param {THREE.Vector2} mouse - Normalized device coords (-1 to 1)
+   * @returns {Object|null} The prop object or null
+   */
+  pickPropAt(mouse) {
+    if (!this.camera || !this.propMeshes?.length) return null;
+    if (!this._pickRaycaster) this._pickRaycaster = new THREE.Raycaster();
+    this._pickRaycaster.setFromCamera(mouse, this.camera);
+    this._pickRaycaster.layers.set(0);
+    const intersects = this._pickRaycaster.intersectObjects(this.propMeshes, true);
+    for (const hit of intersects) {
+      let obj = hit.object;
+      while (obj) {
+        if (obj.userData?.prop) return obj.userData.prop;
+        obj = obj.parent;
+      }
+    }
+    return null;
   }
 
   /**
@@ -744,6 +988,61 @@ export class IslandVisualizer {
   }
 
   /**
+   * Phase G: Show building zone hints — green overlay on viable placement tiles
+   * @param {boolean} show
+   * @param {Set<string>} viableTiles Set of "tx,ty" keys
+   * @param {number[][]} heightMap
+   * @param {number} tileSize
+   * @param {number} tilesX
+   * @param {number} tilesY
+   */
+  setZoneHintsOverlay(show, viableTiles, heightMap, tileSize, tilesX, tilesY) {
+    if (this.zoneHintsOverlayMesh) {
+      if (this.zoneHintsOverlayMesh.parent) this.zoneHintsOverlayMesh.parent.remove(this.zoneHintsOverlayMesh);
+      this.zoneHintsOverlayMesh.geometry.dispose();
+      this.zoneHintsOverlayMesh.material.dispose();
+      this.zoneHintsOverlayMesh = null;
+    }
+    if (!show || !this.islandMesh || !viableTiles || viableTiles.size === 0 || !heightMap) return;
+
+    const gridSize = heightMap.length - 1;
+    const positions = [];
+    const indices = [];
+    let idx = 0;
+
+    for (const key of viableTiles) {
+      const [tx, ty] = key.split(',').map(Number);
+      const x0 = (tx / tilesX) - 0.5;
+      const y0 = 0.5 - (ty + 1) / tilesY;
+      const x1 = ((tx + 1) / tilesX) - 0.5;
+      const y1 = 0.5 - ty / tilesY;
+      const gx = Math.min(gridSize, Math.floor((tx + 0.5) * ts));
+      const gy = Math.min(gridSize, Math.floor((ty + 0.5) * ts));
+      const h = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+      positions.push(x0, y0, h, x1, y0, h, x1, y1, h, x0, y1, h);
+      indices.push(idx, idx + 1, idx + 2, idx, idx + 2, idx + 3);
+      idx += 4;
+    }
+
+    if (positions.length === 0) return;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setIndex(indices);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.25,
+      depthTest: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.zoneHintsOverlayMesh = new THREE.Mesh(geometry, material);
+    this.zoneHintsOverlayMesh.layers.set(1);
+    this.islandMesh.add(this.zoneHintsOverlayMesh);
+  }
+
+  /**
    * Update mesh vertices and colors from modified height map (for editor)
    * @param {number[][]} heightMap
    * @param {Set<string>|string[]} [pathTiles] Optional path tiles for vertex coloring
@@ -778,6 +1077,12 @@ export class IslandVisualizer {
 
   setConfig(config) {
     Object.assign(this.config, config);
+    if (this.directionalLight && 'shadows' in config) {
+      this.directionalLight.castShadow = this.config.shadows !== false;
+    }
+    if (this.renderer && 'shadows' in config) {
+      this.renderer.shadowMap.enabled = this.config.shadows !== false;
+    }
   }
 
   getMesh() {
@@ -863,6 +1168,15 @@ export class IslandVisualizer {
   animate() {
     requestAnimationFrame(() => this.animate());
     this.controls?.update();
+    this._frameCount++;
+    // Adapt gizmo size to camera distance — only when attached, throttled to reduce overhead
+    const obj = this.transformControls?.object;
+    if (obj && this.camera && this._frameCount % this._gizmoSizeUpdateInterval === 0) {
+      obj.getWorldPosition(this._gizmoPos);
+      const dist = this.camera.position.distanceTo(this._gizmoPos);
+      const s = this._gizmoBaseSize * (dist / this._gizmoRefDistance);
+      this.transformControls.setSize(Math.max(0.3, Math.min(1.5, s)));
+    }
     this.renderer?.render(this.scene, this.camera);
   }
 }

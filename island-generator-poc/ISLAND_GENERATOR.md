@@ -2,7 +2,7 @@
 
 **Document status:** Planning & Implementation Reference  
 **Last updated:** 2026-01-31  
-*Phase H complete: Props & decorations (Place Mode tabs, prop palette, save/load, placeholder meshes)*  
+*Phase H complete: Props & decorations; Rendering optimizations applied*  
 **Target:** YoHoH island-generator-poc — procedural island terrain with building placement  
 
 > **See [ISLAND_RESEARCH.md](ISLAND_RESEARCH.md)** for detailed research, Edit mode vision, and Prop placement GUI/UX plan.
@@ -64,7 +64,7 @@
 | Save/Load | ✓ | JSON height map + config + buildings + island properties |
 | Orbit controls | ✓ | Pan, zoom, rotate |
 | **Automatic paths** | ✓ | A* pathfinding (MST); terrain smoothing; path color (dirt); path width (1–5 tiles) |
-| **Prop foundation** | Partial | PropTypes.js (all 3D_Models/Props); IslandPropPlacer.js — not yet wired to main.js |
+| **Props & decorations** | ✓ | FBX from 3D_Models; editable transform (Tile X/Y, Rotation, Offset X/Y/Z, Scale 0.25–100); 3D gizmo controls |
 
 ### 1.2 Recent fixes
 - Edit mode hover overlay: fixed missing `ts` (tileSize) in onHoverTile callback — highlight now displays correctly
@@ -72,6 +72,11 @@
 - Camera/Edit conflict: Edit/Build mode uses Right-drag for orbit; Left-drag for painting/placing; Space+Left temporarily orbits
 - **Building/terrain render update:** `_clearBuildings` and `_clearGridOverlay` now remove meshes from their actual parent (`islandMesh`) instead of `scene` — buildings and grid overlay are children of `islandMesh`, so `scene.remove()` had no effect; old meshes were never removed, causing stale or broken rendering
 - **Automatic paths:** `IslandPathfinder.js` — A* pathfinding between building centers; `smoothPathTerrain` flattens path tiles; `IslandVisualizer` applies `pathColor` (dirt) to path vertices; paths recompute when buildings change (add/remove/move), on load, and on regeneration
+- **Rendering optimizations (FPS):** WebGL `powerPreference: 'high-performance'`; BasicShadowMap (was PCFSoft); shadow map 512×512 (was 1024); tightened directional light shadow frustum to island bounds; gizmo removed from scene when detached; gizmo size update throttled to every 10 frames (only when attached); reused Vector3 in animate loop; optional Shadows toggle in Display panel for FPS boost
+- **Prop selection:** `pickPropAt` raycasts against prop meshes directly (not island mesh), so terrain never occludes trees; trees and tall props are selectable
+- **Prop transform:** Offset Z (height above terrain), Scale (0.25–100); immediate render on gizmo drag for accurate mouse alignment
+- **Phase G Connectivity check:** Warn when placing building would isolate it (no path to others); optional toggle; amber preview when isolated; toast on placement
+- **Phase G Building zone hints:** Zone hints checkbox; green overlay on viable placement tiles; updates when buildings/type change
 
 ### 1.3 Gaps
 
@@ -384,7 +389,8 @@ Natural and decorative objects for island atmosphere. All are **1×1 tile**; no 
 | **BuildingTypes** | `BuildingTypes.js` | Defines building types: `id`, `width`, `height`, `name`, `color` (hex). Exports `BUILDING_TYPES`, `getBuildingType()`, `getBuildingSize()`. |
 | **IslandBuildingPlacer** | `IslandBuildingPlacer.js` | Handles mouse input, tile hit-testing (raycaster), placement/remove/select logic, terrain flattening, validation. `onBuildingSelect` fires on click; cargoSize = width×height×10 on place. Calls `visualizer.renderBuildings()` and callbacks. |
 | **IslandPathfinder** | `IslandPathfinder.js` | A* pathfinding between building centers; MST (Prim's) for building connectivity; `expandPathTiles` (path width 1–5); `computePathTiles`, `smoothPathTerrain`, `computePathsBetweenBuildings`. Exports `PATH_COLOR`, `computePathsBetweenBuildings`. |
-| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`), placement preview (`setPlacementPreview` — ghost building or invalid overlay). Buildings are `BoxGeometry` meshes parented to **island mesh** (not scene). `_clearBuildings` must remove from `mesh.parent`, not `scene`. Phase H: `renderProps()`, `setPropPlacementPreview()`, `setPropHighlight()` (planned). |
+| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`), placement preview (`setPlacementPreview`). Props: `renderProps()` uses FBX from PropMeshLoader (fallback placeholder); `setPropPlacementPreview()`, `setPropHighlight()`; `pickPropAt()` raycasts prop meshes for selection; TransformControls for gizmo (move/rotate/scale). |
+| **PropMeshLoader** | `PropMeshLoader.js` | Loads FBX from `/props/` (3D_Models/Props); caches by type; `loadPropMesh()`, `getPropMeshClone()`; fallback to placeholder on load failure. |
 | **main.js** | `main.js` | Wires Build Mode UI, `onBuildingsChange`, `onHeightMapChange`; calls `computePathsBetweenBuildings` when buildings change; updates `currentIsland`, editor, visualizer when buildings or terrain change. Phase H: wire Place Mode (Buildings/Props tabs), IslandPropPlacer, props save/load. |
 | **PropTypes** | `PropTypes.js` | Defines prop types (berry_bush_01, oak_tree_01, palm_tree_01/02, rock_01/06, sign); `fbxPath`, `placeholderShape`. Exports `PROP_TYPES`, `getPropType()`. |
 | **IslandPropPlacer** | `IslandPropPlacer.js` | Handles prop placement (1×1); land-only; no overlap with buildings; no terrain flattening. `onPropsChange`, `onPropHover`, `onPropSelect`. Calls `visualizer.renderProps()` (when wired). |
@@ -434,16 +440,16 @@ Result: building sits on a flat platform; terrain is modified in place before th
 // getEffectiveBuildingSize(type) returns override or default
 ```
 
-### 5.11 Props Data Model (Future)
+### 5.11 Props Data Model
 
-Props use types from `3D_Models/Props`. Each type maps to an FBX asset.
+Props use types from `3D_Models/Props`. Each type maps to an FBX asset. Props are rendered with FBX meshes (fallback: placeholder). Selected props have editable transform (Tile X/Y, Rotation, Offset X/Y/Z, Scale) via UI and 3D gizmo.
 
 ```js
 {
   "props": [
-    { "id": "p1", "type": "rock_01", "chunkX": 5, "chunkY": 4, "rotation": 0 },
+    { "id": "p1", "type": "rock_01", "chunkX": 5, "chunkY": 4, "rotation": 0, "offsetX": 0, "offsetY": 0, "offsetZ": 0, "scale": 1 },
     { "id": "p2", "type": "rock_06", "chunkX": 6, "chunkY": 4, "rotation": 0 },
-    { "id": "p3", "type": "palm_tree_01", "chunkX": 3, "chunkY": 7, "rotation": 45 },
+    { "id": "p3", "type": "palm_tree_01", "chunkX": 3, "chunkY": 7, "rotation": 45, "scale": 8 },
     { "id": "p4", "type": "palm_tree_02", "chunkX": 4, "chunkY": 7, "rotation": 90 },
     { "id": "p5", "type": "oak_tree_01", "chunkX": 8, "chunkY": 6, "rotation": 0 },
     { "id": "p6", "type": "berry_bush_01", "chunkX": 6, "chunkY": 5, "rotation": 90 },
@@ -453,6 +459,8 @@ Props use types from `3D_Models/Props`. Each type maps to an FBX asset.
 ```
 
 **Prop type IDs (from 3D_Models/Props):** `berry_bush_01`, `berry_bush_02`, `oak_tree_01`, `palm_tree_01`, `palm_tree_02`, `rock_01`, `rock_06`, `sign`
+
+**Transform fields:** `chunkX`, `chunkY` (tile position); `rotation` (0–360°); `offsetX`, `offsetY` (fine sub-tile offset); `offsetZ` (height above terrain, -0.5 to 0.5); `scale` (0.25–100). Editable in Selected Prop panel and via 3D gizmo (W/E/R modes, Q space, X snap). See [ISLAND_GEN_GIZMOS.md](ISLAND_GEN_GIZMOS.md).
 
 **Migration:** Old saves with generic types (`rock`, `palm_tree`, `tree`, `bush`) map to: `rock`→`rock_01`, `palm_tree`→`palm_tree_01`, `tree`→`oak_tree_01`, `bush`→`berry_bush_01`.
 
@@ -710,7 +718,7 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 - [x] **IslandSerializer** — Include `props` array in serialize/deserialize
 - [x] **IslandVisualizer** — `renderProps()`, `setPropPlacementPreview()`, `setPropHighlight()`; placeholder meshes per type
 - [x] **main.js** — IslandPropPlacer; placeMode (Buildings/Props); callbacks; load/save props
-- [x] **Place Mode UI** — [Buildings] [Props] tabs; prop palette; Selected Prop panel (Rotate, Remove)
+- [x] **Place Mode UI** — [Buildings] [Props] tabs; prop palette; Selected Prop panel (Tile X/Y, Rotation, Offset X/Y/Z, Scale, Gizmo toolbar, Rotate, Remove)
 
 ### Phase G: Paths & Navigation (Partial ✓)
 
@@ -723,8 +731,8 @@ When a building is placed, `cargoSize = width × height × 10` (e.g. 2×2 = 40 u
 - [x] **Path terrain smoothing** — `smoothPathTerrain` flattens path tiles to average height
 - [x] **Path color** — `pathColor` (dirt `0x8B7355`) applied to path vertices in `IslandVisualizer`
 - [x] **Ramp tool** — Create traversable slopes between elevation levels (click A, click B)
-- [ ] **Building zone hints** — Highlight contiguous flat land suitable for placement
-- [ ] **Connectivity check** — Warn when placing building would isolate it (no path to others)
+- [x] **Building zone hints** — Highlight contiguous flat land suitable for placement (Zone hints checkbox; green overlay on viable tiles)
+- [x] **Connectivity check** — Warn when placing building would isolate it (no path to others); optional toggle; amber preview when isolated
 - [ ] **Generation tuning** — Parameters that favor navigable, path-friendly terrain
 
 ---
@@ -801,9 +809,22 @@ Prioritized ideas to evolve the Island Generator. Use as a backlog for future ph
 
 ### 9.4 Performance & Scale
 
+**Implemented (2026-01-31):**
+- WebGL `powerPreference: 'high-performance'` — prefers dedicated GPU
+- BasicShadowMap — faster than PCFSoftShadowMap (softer shadows traded for FPS)
+- Shadow map 512×512 — 4× fewer pixels than 1024×1024
+- Tightened directional light shadow frustum to island bounds — better quality and FPS
+- Gizmo removed from scene when detached — no per-frame work when idle
+- Gizmo size update throttled to every 10 frames (only when attached) — avoids per-frame overhead
+- Reused `Vector3` in animate loop — no per-frame GC pressure when prop selected
+- Optional Shadows toggle in Display panel — disable for FPS boost
+- Immediate render on gizmo `objectChange` — visual follows mouse accurately during drag
+
+**Remaining suggestions:**
+
 | Suggestion | Description | Priority |
 |------------|-------------|----------|
-| **LOD / reduced grid** | Level-of-detail for large grids; optional simplified mesh at distance | High |
+| **LOD / reduced grid** | Level-of-detail for large grids; optional simplified mesh at distance. Grid 1080 → ~1.2M vertices; consider display resolution downscale for large islands | High |
 | **Chunked generation** | Generate terrain in chunks for very large islands; lazy load heightmap regions | Medium |
 | **Prop batching** | Instanced rendering for repeated props (trees, rocks) to reduce draw calls | Medium |
 

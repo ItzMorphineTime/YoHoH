@@ -2,9 +2,10 @@
  * Island pathfinder — A* pathfinding between buildings
  * Computes path tiles between placed buildings, smooths terrain along paths,
  * and returns path tiles for vertex coloring.
+ * Phase G: Connectivity check — warn when placing would isolate building.
  */
 
-import { getBuildingSizeFromObject } from './BuildingTypes.js';
+import { getBuildingSizeFromObject, getEffectiveBuildingSize } from './BuildingTypes.js';
 
 /** Default path color (dirt brown) */
 export const PATH_COLOR = 0x8b7355;
@@ -268,6 +269,39 @@ export function smoothPathTerrain(heightMap, pathTiles, config) {
       }
     }
   }
+}
+
+/**
+ * Check if placing a building at (chunkX, chunkY) would be connected to existing buildings.
+ * Phase G: Connectivity check — returns false when new building would be isolated.
+ * @param {string} type Building type
+ * @param {number} chunkX
+ * @param {number} chunkY
+ * @param {Array} buildings Existing buildings
+ * @param {number[][]} heightMap
+ * @param {Object} config { tileSize, tilesX, tilesY, seaLevel }
+ * @returns {boolean} true if connected (or no existing buildings)
+ */
+export function isPlacementConnected(type, chunkX, chunkY, buildings, heightMap, config) {
+  if (!buildings || buildings.length === 0) return true;
+  if (!heightMap || heightMap.length < 2) return true;
+
+  const gridSize = heightMap.length - 1;
+  const ts = config?.tileSize ?? config?.chunkSize ?? 8;
+  const tilesX = config?.tilesX ?? Math.floor(gridSize / ts);
+  const tilesY = config?.tilesY ?? Math.floor(gridSize / ts);
+  const seaLevel = config?.seaLevel ?? 0.12;
+
+  const size = getEffectiveBuildingSize(type);
+  const centerTx = Math.floor(chunkX + size.width / 2);
+  const centerTy = Math.floor(chunkY + size.height / 2);
+
+  for (const b of buildings) {
+    const bc = getBuildingCenter(b);
+    const path = findPath(centerTx, centerTy, bc.tx, bc.ty, heightMap, seaLevel, tilesX, tilesY);
+    if (path && path.length > 0) return true;
+  }
+  return false;
 }
 
 /**

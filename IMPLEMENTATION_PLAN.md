@@ -92,6 +92,16 @@ Demo/
 │   │   ├── MapSerializer.js   # serialize/deserialize for Save/Load
 │   │   └── SeededRNG.js        # Pseudo-random with seed
 │   └── package.json
+├── island-generator-poc/       # Island terrain POC: 3D terrain, buildings, props, gizmos
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.js             # UI, event handlers, render loop
+│   │   ├── IslandGenerator.js  # Simplex noise terrain, island properties
+│   │   ├── IslandVisualizer.js # Three.js renderer, prop placement, TransformControls
+│   │   ├── IslandPropPlacer.js # Prop placement, selection, gizmo integration
+│   │   ├── PropTypes.js        # Prop definitions (BerryBush, OakTree, PalmTree, Rock)
+│   │   └── ...
+│   └── package.json
 ├── PlanarGraphPython/           # Reference: Python implementation
 │   └── main.py
 ├── public/
@@ -378,7 +388,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | R.1 | Water surface | — Ripples, subtle wave animation, or gradient depth |
 | R.2 | Lighting / atmosphere | — Ambient tint; time-of-day placeholder |
 | R.3 | Ship silhouette | — Improve ship mesh; clearer bow/stern; sail shape |
-| R.3a | Per-class ship rendering | — Different mesh size/shape per ship class (overworld, sailing, combat); SHIP_GEOMETRY per class (§9.0.6 I.5) |
+| R.3a | Per-class ship rendering | ✓ Different mesh size per ship class (overworld, sailing, combat); SHIP_GEOMETRY.classes per class (§9.0.6 I.5) |
 | R.4 | Island visuals | — Distinct island shapes; port vs dangerous styling |
 | R.5 | Route visuals | — Route width, color coding; stormy/shoal variants |
 | R.6 | Particle pool | — Reusable particles for wake, impacts, muzzle flash |
@@ -521,7 +531,7 @@ SAILING_RENDER: {
 - [x] Arrival feel (S.6): toast on arrival at destination
 - [x] Camera smoothing (M.2): lerp on camera follow during sailing
 - [ ] Rendering improvements (water, ship, islands)
-- [ ] Per-class ship rendering (§9.0.6 I.5)
+- [x] Per-class ship rendering (§9.0.6 I.5)
 - [x] Optional UI scaling setting (Settings modal; G.4)
 - [ ] Graphical bugs investigation (§8.3a R.8)
 
@@ -930,7 +940,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `src/utils/routeModifiers.js` (B.4: stormy, patrolled, shoals from distanceFromHome and hazard)
 
 ### Phase B.5 (Rendering)
-- [ ] Per-class ship rendering (R.3a) (§9.0.6 I.5)
+- [x] Per-class ship rendering (R.3a) (§9.0.6 I.5)
 
 ### Phase C
 - [ ] `public/data/ships.json`, `crew.json`

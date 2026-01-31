@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { BUILDING_TYPES, getBuildingType, getEffectiveBuildingSize, getBuildingSizeFromObject, canPlaceOverWater } from './BuildingTypes.js';
+import { isPlacementConnected } from './IslandPathfinder.js';
 
 export class IslandBuildingPlacer {
   constructor(visualizer) {
@@ -24,7 +25,9 @@ export class IslandBuildingPlacer {
     this._boundHandleMouse = this._handleMouse.bind(this);
     this.onBuildingsChange = null;
     this.onHeightMapChange = null; // (newHeightMap) => void — called after flattening terrain
-    this.onPlacementHover = null;   // (tx, ty, isValid) => void — hover over empty tile
+    this.onPlacementHover = null;   // (tx, ty, isValid, isConnected) => void — hover over empty tile
+    this.onConnectivityWarning = null; // () => void — called when placing isolated building
+    this.connectivityCheckEnabled = true; // Phase G: optional validation toggle
     this.onBuildingHover = null;   // (building | null) => void — hover over building
     this.onBuildingSelect = null;  // (building | null) => void — click to select building
     this._boundHandleMouseMove = this._handleMouseMove.bind(this);
@@ -54,6 +57,23 @@ export class IslandBuildingPlacer {
 
   getBuildings() {
     return this.buildings.map(b => ({ ...b }));
+  }
+
+  /**
+   * Phase G: Get set of viable tile keys "tx,ty" where selected building can be placed.
+   * Used for building zone hints overlay.
+   * @returns {Set<string>}
+   */
+  getViableTiles() {
+    const out = new Set();
+    if (!this.heightMap || !this.tilesX || !this.tilesY) return out;
+    const type = this.selectedType;
+    for (let ty = 0; ty < this.tilesY; ty++) {
+      for (let tx = 0; tx < this.tilesX; tx++) {
+        if (this._canPlace(type, tx, ty)) out.add(`${tx},${ty}`);
+      }
+    }
+    return out;
   }
 
   setSelectedType(type) {
@@ -106,9 +126,19 @@ export class IslandBuildingPlacer {
     } else {
       if (!this._selectionOnly) {
         const canPlace = this._canPlace(this.selectedType, tx, ty);
-        if (this.onPlacementHover) this.onPlacementHover(tx, ty, canPlace);
+        let isConnected = true;
+        if (canPlace && this.connectivityCheckEnabled && this.buildings.length > 0) {
+          const cfg = {
+            tileSize: this.tileSize,
+            tilesX: this.tilesX,
+            tilesY: this.tilesY,
+            seaLevel: this.seaLevel,
+          };
+          isConnected = isPlacementConnected(this.selectedType, tx, ty, this.buildings, this.heightMap, cfg);
+        }
+        if (this.onPlacementHover) this.onPlacementHover(tx, ty, canPlace, isConnected);
       } else if (this.onPlacementHover) {
-        this.onPlacementHover(null, null, false);
+        this.onPlacementHover(null, null, false, true);
       }
       if (this.onBuildingHover) this.onBuildingHover(null);
     }
@@ -306,6 +336,12 @@ export class IslandBuildingPlacer {
       if (!this._selectionOnly) {
         const def = getBuildingType(this.selectedType);
         if (def && this._canPlace(this.selectedType, tx, ty)) {
+          if (this.connectivityCheckEnabled && this.buildings.length > 0) {
+            const cfg = { tileSize: this.tileSize, tilesX: this.tilesX, tilesY: this.tilesY, seaLevel: this.seaLevel };
+            if (!isPlacementConnected(this.selectedType, tx, ty, this.buildings, this.heightMap, cfg)) {
+              if (this.onConnectivityWarning) this.onConnectivityWarning();
+            }
+          }
           this._flattenUnderBuilding(this.selectedType, tx, ty);
           const size = getEffectiveBuildingSize(this.selectedType);
           const cargoSize = size.width * size.height * 10;

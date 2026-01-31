@@ -5,6 +5,15 @@
 
 import * as THREE from 'three';
 import { CAMERA, COMBAT, OVERWORLD, OVERWORLD_RENDER, RENDER, SAILING_RENDER, SHIP_GEOMETRY } from './config.js';
+
+/** R.3a: Get scale for ship class (combat/overworld/sailing). */
+function getShipClassScale(shipClassId, view) {
+  const classes = SHIP_GEOMETRY?.classes ?? {};
+  const c = classes[shipClassId] ?? classes.sloop ?? {};
+  if (view === 'overworld') return c.overworldScale ?? c.scale ?? 1;
+  if (view === 'sailing') return c.sailingScale ?? c.scale ?? 1;
+  return c.scale ?? 1;
+}
 import { getCombatRenderConfig, getOverworldRenderConfig, getSailingRenderConfig } from './render/RenderConfig.js';
 
 export class Renderer {
@@ -370,6 +379,8 @@ export class Renderer {
     const cfg = getCombatRenderConfig();
     if (this.shipMesh && player && !player.dead) {
       this.shipMesh.visible = true;
+      const scale = getShipClassScale(player.shipClassId ?? 'sloop', 'combat');
+      this.shipMesh.scale.set(scale, scale, scale);
       this.shipMesh.position.x = player.x;
       this.shipMesh.position.y = player.y;
       this.shipMesh.rotation.z = -player.rotation;
@@ -472,6 +483,8 @@ export class Renderer {
 
     if (sailingShip && this.shipMesh) {
       this.shipMesh.visible = true;
+      const scale = getShipClassScale(sailingShip.shipClassId ?? 'sloop', 'sailing');
+      this.shipMesh.scale.set(scale, scale, scale);
       this.shipMesh.position.set(sx, sy, 1);
       this.shipMesh.rotation.z = -sailingShip.rotation;
     } else if (this.sailingShipMesh) {
@@ -571,11 +584,11 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
   }
 
-  updateOverworld(map, shipPosition, currentIsland, displayRoute = null, isSelected = false, pan = { x: 0, y: 0 }, zoomLevel = 1) {
+  updateOverworld(map, shipPosition, currentIsland, displayRoute = null, isSelected = false, pan = { x: 0, y: 0 }, zoomLevel = 1, shipClassId = 'sloop') {
     this._hideNonOverworldViews();
     this._setupOverworldView();
     if (!map) return;
-    this._updateOverworldEntities(map, shipPosition, currentIsland, displayRoute, isSelected);
+    this._updateOverworldEntities(map, shipPosition, currentIsland, displayRoute, isSelected, shipClassId);
     this._updateOverworldCamera(map, pan, zoomLevel);
   }
 
@@ -600,7 +613,7 @@ export class Renderer {
     }
   }
 
-  _updateOverworldEntities(map, shipPosition, currentIsland, displayRoute, isSelected) {
+  _updateOverworldEntities(map, shipPosition, currentIsland, displayRoute, isSelected, shipClassId = 'sloop') {
     const cfg = getOverworldRenderConfig();
     const { worldScale, islandRadius, routeWidth } = cfg;
 
@@ -668,6 +681,8 @@ export class Renderer {
     }
 
     this.overworldShipMesh.position.set(shipPosition.x * worldScale, shipPosition.y * worldScale, 1);
+    const overworldScale = getShipClassScale(shipClassId, 'overworld');
+    this.overworldShipMesh.scale.set(overworldScale, overworldScale, overworldScale);
     this.overworldShipMesh.visible = true;
   }
 

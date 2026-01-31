@@ -24,6 +24,8 @@ export class IslandPropPlacer {
     this.domElement = null;
     this._boundHandleMouse = this._handleMouse.bind(this);
     this._boundHandleMouseMove = this._handleMouseMove.bind(this);
+    this._hoverRafId = null;
+    this._lastHoverProp = null;
     this.onPropsChange = null;
     this.onPlacementHover = null;
     this.onPropHover = null;
@@ -73,13 +75,21 @@ export class IslandPropPlacer {
       this.domElement.removeEventListener('mousedown', this._boundHandleMouse);
       this.domElement.removeEventListener('mousemove', this._boundHandleMouseMove);
     }
+    if (this._hoverRafId != null) {
+      cancelAnimationFrame(this._hoverRafId);
+      this._hoverRafId = null;
+    }
+    this._lastHoverProp = null;
     if (this.onPlacementHover) this.onPlacementHover(null, null, false);
     if (this.onPropHover) this.onPropHover(null);
   }
 
   _updateMouseFromEvent(e) {
     if (!this.domElement) return;
-    const rect = this.domElement.getBoundingClientRect();
+    // Use canvas rect (renderer.domElement) for correct NDC mapping — matches Three.js controls
+    const canvas = this.visualizer.getRenderer?.()?.domElement;
+    const rect = canvas?.getBoundingClientRect?.() ?? this.domElement.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
@@ -139,23 +149,38 @@ export class IslandPropPlacer {
   _handleMouseMove(e) {
     if (!this.heightMap || !this.visualizer.getMesh() || !this.domElement) return;
     this._updateMouseFromEvent(e);
+    if (this._hoverRafId != null) return;
+    this._hoverRafId = requestAnimationFrame(() => {
+      this._hoverRafId = null;
+      this._processHover();
+    });
+  }
 
-    const info = this._getTileAtCursor();
-    if (!info) {
-      if (this.onPlacementHover) this.onPlacementHover(null, null, false);
-      if (this.onPropHover) this.onPropHover(null);
-      return;
-    }
+  _processHover() {
+    if (!this.heightMap || !this.visualizer.getMesh() || !this.domElement) return;
+    const hitProp = this.visualizer.pickPropAt?.(this.mouse) ?? null;
+    const existing = hitProp ?? (() => {
+      const info = this._getTileAtCursor();
+      if (!info) return null;
+      return this._getPropAtTile(info.tx, info.ty);
+    })();
+    if (existing === this._lastHoverProp) return;
+    this._lastHoverProp = existing;
 
-    const { tx, ty } = info;
-    const existing = this._getPropAtTile(tx, ty);
-    if (existing) {
-      if (this.onPlacementHover) this.onPlacementHover(null, null, false);
-      if (this.onPropHover) this.onPropHover(existing);
-    } else {
+    if (!existing) {
+      const info = this._getTileAtCursor();
+      if (!info) {
+        if (this.onPlacementHover) this.onPlacementHover(null, null, false);
+        if (this.onPropHover) this.onPropHover(null);
+        return;
+      }
+      const { tx, ty } = info;
       const canPlace = this._canPlaceProp(tx, ty);
       if (this.onPlacementHover) this.onPlacementHover(tx, ty, canPlace);
       if (this.onPropHover) this.onPropHover(null);
+    } else {
+      if (this.onPlacementHover) this.onPlacementHover(null, null, false);
+      if (this.onPropHover) this.onPropHover(existing);
     }
   }
 
@@ -164,33 +189,48 @@ export class IslandPropPlacer {
     if (!this.heightMap || !this.visualizer.getMesh() || !this.domElement) return;
 
     this._updateMouseFromEvent(e);
-    const info = this._getTileAtCursor();
-    if (!info) return;
-
-    const { tx, ty } = info;
-    const existing = this._getPropAtTile(tx, ty);
+    // Prefer direct prop hit (raycast) over tile-based lookup
+    const hitProp = this.visualizer.pickPropAt?.(this.mouse) ?? null;
+    const existing = hitProp ?? (() => {
+      const info = this._getTileAtCursor();
+      if (!info) return null;
+      return this._getPropAtTile(info.tx, info.ty);
+    })();
+    let propsChanged = false;
     if (existing) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
       if (e.shiftKey) {
         this.props = this.props.filter(p => p !== existing);
+        propsChanged = true;
       } else {
         if (this.onPropSelect) this.onPropSelect(existing);
       }
     } else if (!this._selectionOnly) {
+      const info = this._getTileAtCursor();
+      if (!info) return;
+      const { tx, ty } = info;
       const def = getPropType(this.selectedType);
       if (def && this._canPlaceProp(tx, ty)) {
+        const defaultScale = def.defaultScale ?? 1;
         this.props.push({
           id: 'p' + Date.now(),
           type: this.selectedType,
           chunkX: tx,
           chunkY: ty,
           rotation: 0,
+          offsetX: 0,
+          offsetY: 0,
+          offsetZ: 0,
+          scale: defaultScale,
         });
+        propsChanged = true;
       }
     }
-    this.visualizer.renderProps(this.props, this.heightMap, this.tileSize, this.tilesX, this.tilesY);
-    if (this.onPropsChange) this.onPropsChange(this.getProps());
+    if (propsChanged) {
+      this.visualizer.renderProps(this.props, this.heightMap, this.tileSize, this.tilesX, this.tilesY);
+      if (this.onPropsChange) this.onPropsChange(this.getProps());
+    }
   }
 }

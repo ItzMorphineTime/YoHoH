@@ -22,6 +22,18 @@ const buildModeHud = document.getElementById('build-mode-hud');
 const visualizer = new IslandVisualizer(container);
 visualizer.init();
 visualizer.animate();
+visualizer.setOnPropMeshLoaded(() => {
+  if (!currentIsland?.props?.length) return;
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  visualizer.renderProps(currentIsland.props, currentIsland.heightMap, ts, tilesX, tilesY);
+  syncPropGizmo();
+});
+visualizer.setOnPropTransformChange((prop) => {
+  populatePropProperties();
+});
 
 const editor = new IslandEditor(visualizer);
 const buildingPlacer = new IslandBuildingPlacer(visualizer);
@@ -33,6 +45,7 @@ let buildMode = false;
 let placeMode = 'buildings'; // 'buildings' | 'props'
 let selectedBuilding = null;
 let selectedProp = null;
+let _placementHoverConnectivity = true; // Phase G: connectivity check hover state
 
 const UNDO_LIMIT = 20;
 let undoStack = [];
@@ -119,6 +132,7 @@ function run() {
   visualizer.setConfig({
     heightScale: (parseInt(document.getElementById('height-scale').value, 10) || 100) / 100,
     wireframe: document.getElementById('wireframe').checked,
+    shadows: document.getElementById('shadows')?.checked !== false,
     showWater: true,
   });
   if (island.buildings?.length >= 2) {
@@ -138,6 +152,13 @@ function run() {
     const tilesY = tilesX;
     visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesY);
   }
+  if (island.props?.length) {
+    const cfg = island.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = cfg?.tilesX ?? Math.floor((island.heightMap.length - 1) / ts);
+    const tilesY = cfg?.tilesY ?? tilesX;
+    visualizer.renderProps(island.props, island.heightMap, ts, tilesX, tilesY);
+  }
   const showGrid = document.getElementById('show-grid-overlay')?.checked;
   if (showGrid && island?.heightMap) {
     const cfg = island.config;
@@ -154,6 +175,7 @@ function run() {
   populateIslandProperties();
   selectedBuilding = null;
   selectedProp = null;
+  syncPropGizmo();
   populateBuildingProperties();
   populatePropProperties();
   syncContourOverlay();
@@ -162,6 +184,7 @@ function run() {
     buildingPlacer.onBuildingsChange = null;
     buildingPlacer.onHeightMapChange = null;
     buildingPlacer.onPlacementHover = null;
+    buildingPlacer.onConnectivityWarning = null;
     buildingPlacer.onBuildingHover = null;
     buildingPlacer.onBuildingSelect = null;
     propPlacer.disable();
@@ -222,6 +245,7 @@ function run() {
       selectedBuilding = null;
       populatePropProperties();
       populateBuildingProperties();
+      syncPropGizmo();
     };
     propPlacer.onPlacementHover = () => visualizer.clearPropPlacementPreview();
     propPlacer.enable(container, { selectionOnly: true });
@@ -342,6 +366,7 @@ function setBuildMode(enabled) {
     propPlacer.setSelectedType(document.querySelector('#prop-palette .prop-palette-btn.selected')?.dataset?.type || 'rock_01');
     buildingPlacer.onBuildingsChange = (buildings) => {
       currentIsland = { ...currentIsland, buildings };
+      updateZoneHintsOverlay();
       const cfg = currentIsland?.config;
       const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
       const tilesX = cfg?.tilesX ?? Math.floor((currentIsland?.heightMap?.length - 1 ?? 0) / ts);
@@ -369,16 +394,31 @@ function setBuildMode(enabled) {
       const pathTiles = currentIsland?.pathTiles ? new Set(currentIsland.pathTiles) : new Set();
       visualizer.updateFromHeightMap(newHeightMap, pathTiles, ts);
     };
-    buildingPlacer.onPlacementHover = (tx, ty, isValid) => {
+    buildingPlacer.onPlacementHover = (tx, ty, isValid, isConnected) => {
+      _placementHoverConnectivity = isConnected;
       const hm = currentIsland?.heightMap;
       const cfg = currentIsland?.config;
       const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
       const tilesX = cfg?.tilesX ?? Math.floor((hm?.length - 1 ?? 0) / ts);
       const tilesY = cfg?.tilesY ?? tilesX;
       if (tx != null && ty != null && hm) {
-        visualizer.setPlacementPreview(tx, ty, buildingPlacer.selectedType, isValid, hm, ts, tilesX, tilesY);
+        visualizer.setPlacementPreview(tx, ty, buildingPlacer.selectedType, isValid, hm, ts, tilesX, tilesY, isConnected);
       } else {
         visualizer.clearPlacementPreview();
+        _placementHoverConnectivity = true;
+      }
+      updateBuildModeHud();
+    };
+    buildingPlacer.onConnectivityWarning = () => {
+      if (buildModeHud) {
+        const prev = buildModeHud.textContent;
+        buildModeHud.textContent = '⚠ Building isolated (no path to others)';
+        buildModeHud.style.color = '#f59e0b';
+        setTimeout(() => {
+          buildModeHud.textContent = prev;
+          buildModeHud.style.color = '';
+          updateBuildModeHud();
+        }, 2500);
       }
     };
     buildingPlacer.onBuildingHover = (building) => {
@@ -396,12 +436,14 @@ function setBuildMode(enabled) {
     buildingPlacer.onBuildingSelect = (building) => {
       selectedBuilding = building;
       selectedProp = null;
+      syncPropGizmo();
       populateBuildingProperties();
       populatePropProperties();
     };
     propPlacer.onPropsChange = (props) => {
       currentIsland = { ...currentIsland, props };
       visualizer.renderProps(props, currentIsland?.heightMap ?? [], ts, tilesX, tilesY);
+      syncPropGizmo();
       if (typeof updatePropHud === 'function') updatePropHud();
     };
     propPlacer.onPlacementHover = (tx, ty, isValid) => {
@@ -422,9 +464,15 @@ function setBuildMode(enabled) {
       selectedBuilding = null;
       populatePropProperties();
       populateBuildingProperties();
+      syncPropGizmo();
     };
 
+    buildingPlacer.connectivityCheckEnabled = document.getElementById('connectivity-check')?.checked ?? true;
     if (placeMode === 'buildings') {
+      buildingPlacer.setHeightMap?.(currentIsland.heightMap);
+      buildingPlacer.setTileConfig?.(ts, tilesX, tilesY);
+      buildingPlacer.setBuildings?.(currentIsland.buildings ?? [], { shared: true });
+      buildingPlacer.setSeaLevel?.(cfg?.seaLevel ?? 0.12);
       buildingPlacer.enable(container);
       propPlacer.disable();
     } else {
@@ -433,6 +481,7 @@ function setBuildMode(enabled) {
     }
     const showGrid = document.getElementById('show-grid-overlay')?.checked;
     visualizer.setTileGridOverlay(showGrid, tilesX, tilesY, currentIsland?.heightMap?.length - 1 ?? 0);
+    updateZoneHintsOverlay();
     syncBuildingPalette(buildingPlacer.selectedType);
     syncBuildingDimensions(buildingPlacer.selectedType);
     syncPropPalette(propPlacer.selectedType);
@@ -454,6 +503,7 @@ function setBuildMode(enabled) {
     buildingPlacer.onBuildingsChange = null;
     buildingPlacer.onHeightMapChange = null;
     buildingPlacer.onPlacementHover = null;
+    buildingPlacer.onConnectivityWarning = null;
     buildingPlacer.onBuildingHover = null;
     buildingPlacer.onBuildingSelect = null;
     propPlacer.onPropsChange = null;
@@ -461,6 +511,7 @@ function setBuildMode(enabled) {
     propPlacer.onPropHover = null;
     propPlacer.onPropSelect = null;
     visualizer.setTileGridOverlay(false);
+    visualizer.setZoneHintsOverlay?.(false);
     visualizer.clearPlacementPreview();
     visualizer.clearBuildingHighlight();
     visualizer.clearPropPlacementPreview();
@@ -497,9 +548,61 @@ function setBuildMode(enabled) {
     } else {
       selectedBuilding = null;
     }
+    const props = currentIsland?.props ?? [];
+    if (props.length > 0) {
+      propPlacer.setHeightMap(currentIsland.heightMap);
+      const cfg = currentIsland.config;
+      const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+      const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+      const tilesY = cfg?.tilesY ?? tilesX;
+      propPlacer.setTileConfig(ts, tilesX, tilesY);
+      propPlacer.setSeaLevel(cfg?.seaLevel ?? 0.12);
+      propPlacer.setProps(props);
+      propPlacer.setBuildings(buildings);
+      propPlacer.onPropHover = (prop) => {
+        const hm = currentIsland?.heightMap;
+        const cfg = currentIsland?.config;
+        const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+        const tilesX = cfg?.tilesX ?? Math.floor((hm?.length - 1 ?? 0) / ts);
+        const tilesY = cfg?.tilesY ?? tilesX;
+        if (prop && hm) visualizer.setPropHighlight(prop, hm, ts, tilesX, tilesY);
+        else visualizer.clearPropHighlight();
+      };
+      propPlacer.onPropSelect = (prop) => {
+        selectedProp = prop;
+        selectedBuilding = null;
+        populatePropProperties();
+        populateBuildingProperties();
+        syncPropGizmo();
+      };
+      propPlacer.onPlacementHover = () => visualizer.clearPropPlacementPreview();
+      propPlacer.enable(container, { selectionOnly: true });
+    } else {
+      selectedProp = null;
+      syncPropGizmo();
+    }
     populateBuildingProperties();
+    populatePropProperties();
   }
   updateBuildModeHud();
+}
+
+function updateZoneHintsOverlay() {
+  if (!buildMode || placeMode !== 'buildings' || !currentIsland?.heightMap) {
+    visualizer.setZoneHintsOverlay?.(false);
+    return;
+  }
+  const show = document.getElementById('zone-hints')?.checked ?? false;
+  if (!show) {
+    visualizer.setZoneHintsOverlay?.(false);
+    return;
+  }
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  const viableTiles = buildingPlacer.getViableTiles?.() ?? new Set();
+  visualizer.setZoneHintsOverlay?.(true, viableTiles, currentIsland.heightMap, ts, tilesX, tilesY);
 }
 
 function updateBuildModeHud() {
@@ -514,7 +617,9 @@ function updateBuildModeHud() {
     const def = getBuildingType(buildingPlacer.selectedType);
     const name = def?.name ?? buildingPlacer.selectedType ?? '—';
     const count = buildingPlacer.getBuildings().length;
-    buildModeHud.textContent = `Building: ${name} · ${count} placed`;
+    let text = `Building: ${name} · ${count} placed`;
+    if (!_placementHoverConnectivity) text += ' · ⚠ Isolated';
+    buildModeHud.textContent = text;
   }
   buildModeHud.style.display = 'block';
 }
@@ -613,14 +718,31 @@ function populateBuildingProperties() {
   if (cargoFormulaEl) cargoFormulaEl.textContent = `${bSize.width}×${bSize.height} × 10 = ${bSize.width * bSize.height * 10} units`;
 }
 
+function syncPropGizmo() {
+  if (!selectedProp || !currentIsland?.heightMap) {
+    visualizer.detachPropGizmo();
+    return;
+  }
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  visualizer.setPropGizmoAttached(selectedProp, { tileSize: ts, tilesX, tilesY }, currentIsland.heightMap);
+}
+
 function populatePropProperties() {
   const emptyEl = document.getElementById('prop-properties-empty');
   const contentEl = document.getElementById('prop-properties-content');
   const typeEl = document.getElementById('prop-prop-type');
   const idEl = document.getElementById('prop-prop-id');
   const swatchEl = document.getElementById('prop-prop-swatch');
-  const posEl = document.getElementById('prop-prop-position');
-  const rotationEl = document.getElementById('prop-prop-rotation');
+  const chunkXEl = document.getElementById('prop-prop-chunkX');
+  const chunkYEl = document.getElementById('prop-prop-chunkY');
+  const rotationEl = document.getElementById('prop-prop-rotation-input');
+  const offsetXEl = document.getElementById('prop-prop-offsetX');
+  const offsetYEl = document.getElementById('prop-prop-offsetY');
+  const offsetZEl = document.getElementById('prop-prop-offsetZ');
+  const scaleEl = document.getElementById('prop-prop-scale');
   if (!emptyEl || !contentEl) return;
   if (!selectedProp) {
     emptyEl.style.display = 'block';
@@ -634,8 +756,18 @@ function populatePropProperties() {
   if (typeEl) typeEl.textContent = def?.name ?? selectedProp.type ?? '—';
   if (idEl) idEl.textContent = selectedProp.id ?? '—';
   if (swatchEl && def) swatchEl.style.backgroundColor = hexToCss(def.color);
-  if (posEl) posEl.textContent = `Tile (${selectedProp.chunkX}, ${selectedProp.chunkY})`;
-  if (rotationEl) rotationEl.textContent = `${rot}°`;
+  if (chunkXEl) chunkXEl.value = selectedProp.chunkX ?? 0;
+  if (chunkYEl) chunkYEl.value = selectedProp.chunkY ?? 0;
+  if (rotationEl) rotationEl.value = rot;
+  if (offsetXEl) offsetXEl.value = selectedProp.offsetX ?? 0;
+  if (offsetYEl) offsetYEl.value = selectedProp.offsetY ?? 0;
+  if (offsetZEl) offsetZEl.value = selectedProp.offsetZ ?? 0;
+  if (scaleEl) scaleEl.value = selectedProp.scale ?? 1;
+  const snapEnabled = visualizer.isGizmoSnapEnabled?.() ?? false;
+  document.querySelectorAll('.gizmo-snap-btn').forEach((b) => {
+    b.dataset.snap = snapEnabled ? 'on' : 'off';
+    b.classList.toggle('active', snapEnabled);
+  });
 }
 
 function syncPropPalette(selectedType) {
@@ -725,6 +857,7 @@ function saveIsland() {
     display: {
       heightScale: (parseInt(document.getElementById('height-scale').value, 10) || 100) / 100,
       wireframe: document.getElementById('wireframe').checked,
+      shadows: document.getElementById('shadows')?.checked !== false,
     },
     buildings: mode === 'full' ? buildings : [],
     props: mode === 'full' ? rawProps : [],
@@ -761,6 +894,8 @@ function applyConfigToUI(config, display = {}, seed = null) {
   set('height-scale', Math.round((display.heightScale ?? 0.5) * 100));
   const wireframe = document.getElementById('wireframe');
   if (wireframe) wireframe.checked = !!display.wireframe;
+  const shadows = document.getElementById('shadows');
+  if (shadows) shadows.checked = display.shadows !== false;
   const seedEl = document.getElementById('seed');
   if (seedEl) seedEl.value = seed != null ? String(seed) : '';
   refreshValueDisplays();
@@ -826,7 +961,7 @@ function loadIslandFromFile() {
         } else {
           island = generateIsland(getConfig());
           island.buildings = buildings;
-          island.props = props;
+          island.props = data.props ?? [];
           island.config = { ...island.config, pathWidth: config.pathWidth };
           island.name = data.name ?? island.name ?? '';
           island.description = data.description ?? island.description ?? '';
@@ -849,7 +984,7 @@ function loadIslandFromFile() {
           island.pathTiles = [];
         }
         editor.setHeightMap(island.heightMap);
-        visualizer.setConfig({ heightScale: (data.display?.heightScale ?? 0.5), wireframe: !!data.display?.wireframe });
+        visualizer.setConfig({ heightScale: (data.display?.heightScale ?? 0.5), wireframe: !!data.display?.wireframe, shadows: data.display?.shadows !== false });
         visualizer.render(island);
         if (island.buildings?.length) {
           const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
@@ -973,7 +1108,7 @@ async function loadPreset() {
       island.pathTiles = [];
     }
     editor.setHeightMap(island.heightMap);
-    visualizer.setConfig({ heightScale: data.display?.heightScale ?? 0.5, wireframe: !!data.display?.wireframe });
+    visualizer.setConfig({ heightScale: data.display?.heightScale ?? 0.5, wireframe: !!data.display?.wireframe, shadows: data.display?.shadows !== false });
     visualizer.render(island);
     if (island.buildings?.length) {
       const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
@@ -1157,6 +1292,7 @@ document.getElementById('prop-remove-btn')?.addEventListener('click', () => {
   currentIsland = { ...currentIsland, props };
   if (buildMode) propPlacer.setProps(props);
   selectedProp = null;
+  syncPropGizmo();
   populatePropProperties();
   const cfg = currentIsland.config;
   const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
@@ -1165,10 +1301,90 @@ document.getElementById('prop-remove-btn')?.addEventListener('click', () => {
   visualizer.renderProps(props, currentIsland.heightMap, ts, tilesX, tilesY);
 });
 
+function applyPropTransformChange() {
+  if (!selectedProp || !currentIsland) return;
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  const gridSize = currentIsland.heightMap?.length - 1 ?? 0;
+  const seaLevel = cfg?.seaLevel ?? 0.12;
+
+  const chunkX = Math.max(0, Math.min(tilesX - 1, parseInt(document.getElementById('prop-prop-chunkX')?.value, 10) ?? selectedProp.chunkX));
+  const chunkY = Math.max(0, Math.min(tilesY - 1, parseInt(document.getElementById('prop-prop-chunkY')?.value, 10) ?? selectedProp.chunkY));
+  const rotation = Math.max(0, Math.min(360, parseInt(document.getElementById('prop-prop-rotation-input')?.value, 10) ?? selectedProp.rotation ?? 0));
+  const offsetX = parseFloat(document.getElementById('prop-prop-offsetX')?.value) || 0;
+  const offsetY = parseFloat(document.getElementById('prop-prop-offsetY')?.value) || 0;
+  const offsetZ = Math.max(-0.5, Math.min(0.5, parseFloat(document.getElementById('prop-prop-offsetZ')?.value) || 0));
+  const scale = Math.max(0.25, Math.min(100, parseFloat(document.getElementById('prop-prop-scale')?.value) || 1));
+
+  const gx = Math.min(gridSize, Math.floor((chunkX + 0.5) * ts));
+  const gy = Math.min(gridSize, Math.floor((chunkY + 0.5) * ts));
+  const h = currentIsland.heightMap?.[gy]?.[gx] ?? 0;
+  const isLand = h > seaLevel;
+
+  const buildings = currentIsland.buildings ?? [];
+  const isBuildingTile = buildings.some((b) => {
+    const w = b.width ?? 1;
+    const h = b.height ?? 1;
+    return chunkX >= b.chunkX && chunkX < b.chunkX + w && chunkY >= b.chunkY && chunkY < b.chunkY + h;
+  });
+
+  const props = currentIsland.props ?? [];
+  const otherPropAtTile = props.find((p) => p !== selectedProp && p.chunkX === chunkX && p.chunkY === chunkY);
+
+  const valid = isLand && !isBuildingTile && !otherPropAtTile;
+
+  selectedProp.chunkX = chunkX;
+  selectedProp.chunkY = chunkY;
+  selectedProp.rotation = rotation;
+  selectedProp.offsetX = offsetX;
+  selectedProp.offsetY = offsetY;
+  selectedProp.offsetZ = offsetZ;
+  selectedProp.scale = scale;
+
+  const propsToRender = buildMode ? propPlacer.getProps() : props;
+  if (buildMode) propPlacer.setProps(propsToRender);
+  currentIsland = { ...currentIsland, props: propsToRender };
+  visualizer.renderProps(currentIsland.props, currentIsland.heightMap, ts, tilesX, tilesY);
+  syncPropGizmo();
+  populatePropProperties();
+}
+
+['prop-prop-chunkX', 'prop-prop-chunkY', 'prop-prop-rotation-input', 'prop-prop-offsetX', 'prop-prop-offsetY', 'prop-prop-offsetZ', 'prop-prop-scale'].forEach((id) => {
+  document.getElementById(id)?.addEventListener('change', applyPropTransformChange);
+});
+
+document.querySelectorAll('.gizmo-mode-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    if (!mode) return;
+    visualizer.setGizmoMode(mode);
+    document.querySelectorAll('.gizmo-mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+  });
+});
+document.querySelectorAll('.gizmo-space-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const space = btn.dataset.space === 'world' ? 'local' : 'world';
+    visualizer.setGizmoSpace(space);
+    btn.dataset.space = space;
+    btn.textContent = space.charAt(0).toUpperCase() + space.slice(1);
+  });
+});
+document.querySelectorAll('.gizmo-snap-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const enabled = btn.dataset.snap !== 'on';
+    visualizer.setGizmoSnap(enabled);
+    btn.dataset.snap = enabled ? 'on' : 'off';
+    btn.classList.toggle('active', enabled);
+  });
+});
+
 document.getElementById('building-type')?.addEventListener('change', (e) => {
   buildingPlacer.setSelectedType(e.target.value);
   syncBuildingPalette(e.target.value);
   syncBuildingDimensions(e.target.value);
+  updateZoneHintsOverlay();
   updateBuildModeHud();
 });
 
@@ -1181,6 +1397,7 @@ document.querySelectorAll('#building-palette .building-palette-btn').forEach((bt
     if (select) select.value = type;
     syncBuildingPalette(type);
     syncBuildingDimensions(type);
+    updateZoneHintsOverlay();
     updateBuildModeHud();
   });
 });
@@ -1306,6 +1523,56 @@ document.getElementById('elev-max')?.addEventListener('change', () => {
 document.addEventListener('keydown', (e) => {
   if (document.activeElement?.closest?.('input, textarea, select')) return;
   const key = e.key.toLowerCase();
+  if (selectedProp && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (key === 'w') {
+      e.preventDefault();
+      visualizer.setGizmoMode('translate');
+      document.querySelectorAll('.gizmo-mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === 'translate'));
+      return;
+    }
+    if (key === 'e') {
+      e.preventDefault();
+      visualizer.setGizmoMode('rotate');
+      document.querySelectorAll('.gizmo-mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === 'rotate'));
+      return;
+    }
+    if (key === 'r') {
+      e.preventDefault();
+      visualizer.setGizmoMode('scale');
+      document.querySelectorAll('.gizmo-mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === 'scale'));
+      return;
+    }
+    if (key === 'q') {
+      e.preventDefault();
+      const btn = document.querySelector('.gizmo-space-btn');
+      if (btn) {
+        const space = btn.dataset.space === 'world' ? 'local' : 'world';
+        visualizer.setGizmoSpace(space);
+        btn.dataset.space = space;
+        btn.textContent = space.charAt(0).toUpperCase() + space.slice(1);
+      }
+      return;
+    }
+    if (key === 'x') {
+      e.preventDefault();
+      const enabled = !visualizer.isGizmoSnapEnabled?.();
+      visualizer.setGizmoSnap?.(enabled);
+      document.querySelectorAll('.gizmo-snap-btn').forEach((b) => {
+        b.dataset.snap = enabled ? 'on' : 'off';
+        b.classList.toggle('active', enabled);
+      });
+      return;
+    }
+    if (key === 'escape') {
+      e.preventDefault();
+      selectedProp = null;
+      visualizer.clearPropHighlight?.();
+      syncPropGizmo();
+      populatePropProperties();
+      populateBuildingProperties();
+      return;
+    }
+  }
   if (key === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault();
     setEditMode(!editMode);
@@ -1381,12 +1648,23 @@ document.getElementById('path-width')?.addEventListener('change', () => {
   }
 });
 
+document.getElementById('connectivity-check')?.addEventListener('change', (e) => {
+  buildingPlacer.connectivityCheckEnabled = !!e.target?.checked;
+});
+
+document.getElementById('zone-hints')?.addEventListener('change', () => {
+  updateZoneHintsOverlay();
+});
+
 document.getElementById('wireframe').addEventListener('change', (e) => {
   visualizer.setConfig({ wireframe: e.target.checked });
   if (currentIsland) {
     const mesh = visualizer.getMesh();
     if (mesh) mesh.material.wireframe = e.target.checked;
   }
+});
+document.getElementById('shadows')?.addEventListener('change', (e) => {
+  visualizer.setConfig({ shadows: e.target.checked });
 });
 
 bindValueDisplay('grid-size', 'val-grid');

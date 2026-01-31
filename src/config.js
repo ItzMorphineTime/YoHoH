@@ -423,6 +423,7 @@ export const RENDER = {
 };
 
 // ─── Ship Geometry (Renderer mesh dimensions) ───────────────────────────────
+// R.3a: Per-class ship rendering (§9.0.6 I.5) — different size per ship class
 export const SHIP_GEOMETRY = {
   hull: { depth: 1.5, points: [[-4, -6], [-3, 6], [0, 7], [3, 6], [4, -6]] },
   mast: { width: 0.8, height: 10, depth: 0.8 },
@@ -433,6 +434,12 @@ export const SHIP_GEOMETRY = {
   projectileRadius: 2,
   projectileHeight: 6,
   projectileSegments: 6,
+  /** Per-class scale (overworld, sailing, combat) — sloop 1.0, brigantine 1.2, galleon 1.4 */
+  classes: {
+    sloop: { scale: 1.0, overworldScale: 1.0, sailingScale: 1.0 },
+    brigantine: { scale: 1.2, overworldScale: 1.15, sailingScale: 1.2 },
+    galleon: { scale: 1.4, overworldScale: 1.3, sailingScale: 1.4 },
+  },
 };
 
 // ─── UI ────────────────────────────────────────────────────────────────────

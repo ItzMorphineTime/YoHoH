@@ -133,9 +133,26 @@
       background: #059669;
       border-color: #10b981;
     }
-    button.active:hover {
-      background: #10b981;
-    }
+button.active:hover {
+  background: #10b981;
+}
+.gizmo-mode-btn, .gizmo-space-btn, .gizmo-snap-btn {
+  padding: 6px 10px;
+  font-size: 11px;
+  background: #374151;
+  border: var(--block-border);
+  border-radius: var(--block-radius);
+  color: #e8e6e3;
+  cursor: pointer;
+  font-family: inherit;
+}
+.gizmo-mode-btn:hover, .gizmo-space-btn:hover, .gizmo-snap-btn:hover {
+  background: #4b5563;
+}
+.gizmo-mode-btn.active, .gizmo-space-btn.active, .gizmo-snap-btn.active {
+  background: var(--block-accent);
+  border-color: var(--block-accent);
+}
     #stats {
       font-size: 11px;
       color: #6b7280;
@@ -351,7 +368,7 @@
     }
     .controls-help-section li { padding-left: 0; }
   </style>
-  <script type="module" crossorigin src="/assets/index-DYgldnOP.js"></script>
+  <script type="module" crossorigin src="/assets/index-BteauQ_L.js"></script>
 </head>
 <body>
   <div id="canvas-container"></div>
@@ -497,6 +514,14 @@
           <input type="range" id="path-width" min="1" max="5" value="1" step="1" title="Path width in tiles (1–5)">
           <span class="value-display" id="val-path-width">1</span>
         </div>
+        <div class="control-row">
+          <label>Connectivity</label>
+          <input type="checkbox" id="connectivity-check" checked title="Warn when placing isolated building (no path to others)">
+        </div>
+        <div class="control-row">
+          <label>Zone hints</label>
+          <input type="checkbox" id="zone-hints" title="Highlight viable placement tiles (green overlay)">
+        </div>
         <div id="buildings-list" class="buildings-list" style="display: none;">
           <div class="control-section-title" style="margin-top: 8px;">Placed (0)</div>
           <div id="buildings-list-items" class="hint" style="font-size: 11px; max-height: 80px; overflow-y: auto;"></div>
@@ -572,13 +597,39 @@
             </div>
           </div>
           <div class="building-properties-grid">
-            <span class="label">Position</span>
-            <span class="value" id="prop-prop-position">—</span>
-            <span class="label">Rotation</span>
-            <span class="value" id="prop-prop-rotation">—</span>
+            <span class="label">Tile X</span>
+            <input type="number" id="prop-prop-chunkX" min="0" title="Tile X" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+            <span class="label">Tile Y</span>
+            <input type="number" id="prop-prop-chunkY" min="0" title="Tile Y" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+            <span class="label">Rotation (°)</span>
+            <input type="number" id="prop-prop-rotation-input" min="0" max="360" step="90" title="Rotation in degrees" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+          </div>
+          <div class="control-row" style="margin-top: 8px;">
+            <label>Offset X</label>
+            <input type="number" id="prop-prop-offsetX" step="0.1" title="Fine offset within tile" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+            <label>Offset Y</label>
+            <input type="number" id="prop-prop-offsetY" step="0.1" title="Fine offset within tile" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+          </div>
+          <div class="control-row" style="margin-top: 8px;">
+            <label>Offset Z</label>
+            <input type="number" id="prop-prop-offsetZ" step="0.01" min="-0.5" max="0.5" title="Height offset above terrain (in height units)" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+          </div>
+          <div class="control-row" style="margin-top: 8px;">
+            <label>Scale</label>
+            <input type="number" id="prop-prop-scale" min="0.25" max="100" step="0.1" value="1" title="Prop scale (0.25–100)" style="width: 56px; padding: 4px 6px; background: #0f1419; border: var(--block-border); color: #e8e6e3; font-size: 12px;">
+          </div>
+          <div class="control-row" style="margin-top: 8px;">
+            <span class="control-section-title" style="margin: 0;">Gizmo</span>
+          </div>
+          <div class="gizmo-toolbar" style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;">
+            <button type="button" class="gizmo-mode-btn active" data-mode="translate" title="Move (W)">⇄ Move</button>
+            <button type="button" class="gizmo-mode-btn" data-mode="rotate" title="Rotate (E)">↻ Rotate</button>
+            <button type="button" class="gizmo-mode-btn" data-mode="scale" title="Scale (R)">⊡ Scale</button>
+            <button type="button" class="gizmo-space-btn" data-space="world" title="World/Local (Q)">World</button>
+            <button type="button" class="gizmo-snap-btn" data-snap="off" title="Snap to grid (X)">⊞ Snap</button>
           </div>
           <div class="building-properties-actions">
-            <button type="button" id="prop-rotate-btn" style="background: #374151;">↻ Rotate</button>
+            <button type="button" id="prop-rotate-btn" style="background: #374151;">↻ Rotate +90°</button>
             <button type="button" id="prop-remove-btn" style="background: #7f1d1d;">✕ Remove</button>
           </div>
         </div>
@@ -754,6 +805,10 @@
         <label>Wireframe</label>
         <input type="checkbox" id="wireframe" title="Show wireframe">
       </div>
+      <div class="control-row">
+        <label>Shadows</label>
+        <input type="checkbox" id="shadows" checked title="Enable shadows (disable for FPS boost)">
+      </div>
       <div class="elevation-legend" style="margin-top: 8px; font-size: 10px; color: #6b7280;">
         <span style="background:#fef3c7;padding:2px 6px;border-radius:2px;margin-right:4px;">Beach</span>
         <span style="background:#4a7c59;padding:2px 6px;border-radius:2px;margin-right:4px;color:#fff;">Grass</span>
@@ -822,6 +877,6 @@
         </ul>
       </div>
     </div>
-  </div>
+  </div>
 </body>
 </html>

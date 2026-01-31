@@ -4,7 +4,7 @@
  * Supports FBX mesh loading; fallback to placeholder geometry
  */
 
-/** @typedef {{ id: string, name: string, color: number, fbxPath?: string, objPath?: string, placeholderShape?: 'sphere'|'cylinder'|'cone'|'box' }} PropType */
+/** @typedef {{ id: string, name: string, color: number, fbxPath?: string, objPath?: string, placeholderShape?: 'sphere'|'cylinder'|'cone'|'box', defaultScale?: number }} PropType */
 
 /** Prop definitions — all 1×1 tile; assets from 3D_Models/Props */
 export const PROP_TYPES = {
@@ -21,6 +21,7 @@ export const PROP_TYPES = {
     color: 0x15803d,
     fbxPath: '/props/OakTree_01/OakTree_01.fbx',
     placeholderShape: 'cone',
+    defaultScale: 8,
   },
   palm_tree_01: {
     id: 'palm_tree_01',
@@ -28,6 +29,7 @@ export const PROP_TYPES = {
     color: 0x16a34a,
     fbxPath: '/props/PalmTree_01/PalmTree_01.fbx',
     placeholderShape: 'cylinder',
+    defaultScale: 8,
   },
   palm_tree_02: {
     id: 'palm_tree_02',
@@ -35,6 +37,7 @@ export const PROP_TYPES = {
     color: 0x15803d,
     fbxPath: '/props/PalmTree_02/PalmTree_02.fbx',
     placeholderShape: 'cylinder',
+    defaultScale: 8,
   },
   rock_01: {
     id: 'rock_01',
@@ -54,7 +57,7 @@ export const PROP_TYPES = {
     id: 'sign',
     name: 'Sign',
     color: 0x78716c,
-    placeholderShape: 'box',
+    placeholderShape: 'signpost',
   },
 };
 

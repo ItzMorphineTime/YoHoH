@@ -531,7 +531,7 @@ export class Game {
       const hoveredRoute = this._hoveredRoute ?? null;
       const selectedRoute = this._selectedRoute ?? null;
       const displayRoute = selectedRoute || hoveredRoute;
-      renderer.updateOverworld(map, shipPos, currentIsland, displayRoute, !!selectedRoute, this._overworldPan, this._overworldZoom);
+      renderer.updateOverworld(map, shipPos, currentIsland, displayRoute, !!selectedRoute, this._overworldPan, this._overworldZoom, this._playerShipClass ?? 'sloop');
       mapUI.show();
       const connectedRoutes = overworldScene.getConnectedRoutes?.() ?? [];
       mapUI.update(currentIsland, false, null, displayRoute ? overworldScene.getRouteInfo(displayRoute) : null, hoveredRoute, selectedRoute, connectedRoutes, this._playerGold ?? 0);
