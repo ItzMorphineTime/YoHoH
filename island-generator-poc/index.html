@@ -5,9 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YoHoH — Island Terrain Generator (POC)</title>
   <style>
+    :root {
+      --block-border: 2px solid #2a3548;
+      --block-radius: 0;
+      --block-bg: #1a2332;
+      --block-accent: #0ea5e9;
+      --block-paper: #fef3c7;
+      --block-paper-dark: #e5d9a8;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
       background: #0a0e17;
       color: #e8e6e3;
       overflow: hidden;
@@ -22,13 +30,25 @@
       width: 100%;
       height: 100%;
     }
-    #controls {
+    #elevation-hud {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26, 35, 50, 0.95);
+      border: var(--block-border);
+      padding: 8px 16px;
+      font-size: 12px;
+      color: var(--block-accent);
+      pointer-events: none;
+      z-index: 10;
+    }
+    #controls, #controls-save-load {
       position: absolute;
       top: 16px;
-      left: 16px;
-      background: rgba(10, 14, 23, 0.95);
-      border: 1px solid #2a3548;
-      border-radius: 8px;
+      background: var(--block-bg);
+      border: var(--block-border);
+      border-radius: var(--block-radius);
       padding: 16px;
       display: flex;
       flex-direction: column;
@@ -37,38 +57,26 @@
       max-height: calc(100vh - 32px);
       overflow-y: auto;
     }
-    #controls-save-load {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      background: rgba(10, 14, 23, 0.95);
-      border: 1px solid #2a3548;
-      border-radius: 8px;
-      padding: 12px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 220px;
-      max-height: calc(100vh - 32px);
-      overflow-y: auto;
-    }
+    #controls { left: 16px; }
+    #controls-save-load { right: 16px; min-width: 220px; }
     #controls h2 {
       font-size: 14px;
-      font-weight: 600;
-      color: #7eb8da;
+      font-weight: 700;
+      color: var(--block-accent);
       margin-bottom: 4px;
+      letter-spacing: 0.5px;
     }
     .control-section {
       padding-bottom: 8px;
-      border-bottom: 1px solid #2a3548;
+      border-bottom: var(--block-border);
     }
     .control-section:last-of-type { border-bottom: none; }
     .control-section-title {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 700;
       color: #6b7280;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       margin-bottom: 8px;
     }
     .control-row {
@@ -80,7 +88,7 @@
     .control-row:last-child { margin-bottom: 0; }
     .control-row label {
       flex: 0 0 100px;
-      font-size: 12px;
+      font-size: 11px;
       color: #9ca3af;
     }
     .control-row input[type="number"],
@@ -89,16 +97,16 @@
       flex: 1;
       min-width: 0;
       padding: 6px 8px;
-      background: #1a2332;
-      border: 1px solid #2a3548;
-      border-radius: 4px;
+      background: #0f1419;
+      border: var(--block-border);
+      border-radius: var(--block-radius);
       color: #e8e6e3;
       font-size: 12px;
     }
     .control-row input[type="range"] {
       flex: 1;
       min-width: 60px;
-      accent-color: #2563eb;
+      accent-color: var(--block-accent);
     }
     .control-row .value-display {
       flex: 0 0 40px;
@@ -108,19 +116,21 @@
     }
     button {
       padding: 10px 16px;
-      background: #2563eb;
-      border: none;
-      border-radius: 6px;
+      background: var(--block-accent);
+      border: var(--block-border);
+      border-radius: var(--block-radius);
       color: white;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
+      font-family: inherit;
     }
     button:hover {
-      background: #3b82f6;
+      background: #38bdf8;
     }
     button.active {
       background: #059669;
+      border-color: #10b981;
     }
     button.active:hover {
       background: #10b981;
@@ -130,68 +140,44 @@
       color: #6b7280;
       margin-top: 4px;
     }
-    .edit-tools {
+    .level-presets {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 8px;
     }
-    .edit-tool-btn {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      background: #1a2332;
-      border: 1px solid #2a3548;
-      border-radius: 6px;
-      color: #e8e6e3;
-      font-size: 12px;
-      cursor: pointer;
-      text-align: left;
-      transition: all 0.15s ease;
-    }
-    .edit-tool-btn:hover {
-      background: #243044;
-      border-color: #3b4a5c;
-    }
-    .edit-tool-btn.active {
-      background: #0f3d2e;
-      border-color: #059669;
-      color: #34d399;
-    }
-    .edit-tool-btn .icon {
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(126, 184, 218, 0.2);
-      border-radius: 4px;
-      font-size: 14px;
-      flex-shrink: 0;
-    }
-    .edit-tool-btn.active .icon {
-      background: rgba(52, 211, 153, 0.2);
-    }
-    .save-load-btns {
-      display: flex;
-      gap: 8px;
-    }
-    .save-load-btns button {
-      flex: 1;
-      min-width: 0;
-    }
-    .hint {
+    .level-preset-btn {
+      padding: 6px 10px;
       font-size: 10px;
-      color: #6b7280;
-      margin-top: 4px;
+      min-width: 0;
+      flex: 1;
     }
+    .level-preset-btn[data-level="sea"] { background: #3b82f6; }
+    .level-preset-btn[data-level="beach"] { background: #d97706; }
+    .level-preset-btn[data-level="grass"] { background: #4a7c59; }
+    .level-preset-btn[data-level="rock"] { background: #6b7280; }
+    .level-preset-btn[data-level="snow"] { background: #94a3b8; }
+    .save-load-btns { display: flex; gap: 8px; }
+    .save-load-btns button { flex: 1; min-width: 0; }
+    .undo-redo-btns { display: flex; gap: 4px; margin-top: 4px; }
+    .undo-redo-btns button { flex: 1; font-size: 11px; padding: 6px 8px; }
+    .hint { font-size: 10px; color: #6b7280; margin-top: 4px; }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
+  <div id="elevation-hud" style="display: none;">Elev: —</div>
   <div id="controls-save-load">
+    <div class="control-section-title">Save</div>
+    <div class="control-row" style="margin-bottom: 8px;">
+      <select id="save-mode" style="flex: 1; margin-right: 4px;" title="Full = height map + config; Config only = preset for regeneration">
+        <option value="full">Full</option>
+        <option value="config">Config only</option>
+      </select>
+      <button id="save-btn" style="flex: 0;">Save</button>
+    </div>
+    <div class="control-section-title">Load</div>
     <div class="save-load-btns">
-      <button id="save-btn">Save</button>
       <button id="load-btn" style="background: #374151;">Load</button>
     </div>
     <div class="control-section">
@@ -209,28 +195,62 @@
       <div class="control-section-title">Map Editor</div>
       <button id="edit-mode-btn" style="width: 100%; margin-bottom: 8px;">Edit Mode (Off)</button>
       <div id="edit-panel" style="display: none;">
-        <div class="control-section-title" style="margin-bottom: 8px;">Brush</div>
+        <div class="control-section-title" style="margin-bottom: 6px;">Level presets</div>
+        <div class="level-presets">
+          <button type="button" class="level-preset-btn" data-level="sea" title="Sea level (0.12)">Sea</button>
+          <button type="button" class="level-preset-btn" data-level="beach" title="Beach (0.2)">Beach</button>
+          <button type="button" class="level-preset-btn" data-level="grass" title="Grass (0.35)">Grass</button>
+          <button type="button" class="level-preset-btn" data-level="rock" title="Rock (0.55)">Rock</button>
+          <button type="button" class="level-preset-btn" data-level="snow" title="Snow (0.75)">Snow</button>
+        </div>
+        <div class="control-section-title" style="margin-bottom: 6px;">Brush</div>
         <div class="control-row">
           <label>Mode</label>
-          <select id="brush-mode" style="flex: 1;">
-            <option value="raise">Raise</option>
-            <option value="lower">Lower</option>
-            <option value="flatten">Flatten</option>
+          <select id="brush-mode" style="flex: 1;" title="Set = instant to target; Plateau = flatten to clicked height">
+            <option value="raise">↑ Raise</option>
+            <option value="lower">↓ Lower</option>
+            <option value="flatten">≡ Flatten</option>
+            <option value="absolute">▣ Absolute (gradual)</option>
+            <option value="set">▣ Set (instant)</option>
+            <option value="plateau">▭ Plateau</option>
+            <option value="smooth">∿ Smooth</option>
           </select>
         </div>
         <div class="control-row">
-          <label>Radius</label>
-          <input type="range" id="brush-radius" min="1" max="30" value="10" step="1">
-          <span class="value-display" id="val-brush-radius">10</span>
+          <label>Target</label>
+          <input type="number" id="brush-target" min="0" max="1" step="0.01" value="0.35" title="Target height for Flatten, Absolute, Set modes">
+          <span class="value-display" id="val-brush-target">0.35</span>
+        </div>
+        <div class="control-row">
+          <label>Size (tiles)</label>
+          <select id="brush-size-tiles" style="flex: 1;">
+            <option value="1">1×1</option>
+            <option value="2">2×2</option>
+            <option value="3">3×3</option>
+            <option value="4">4×4</option>
+            <option value="5">5×5</option>
+          </select>
         </div>
         <div class="control-row">
           <label>Strength</label>
-          <input type="range" id="brush-strength" min="1" max="20" value="8" step="1">
-          <span class="value-display" id="val-brush-strength">8</span>
+          <input type="range" id="brush-strength" min="1" max="40" value="16" step="1" title="1–40 → 0.5%–20% per stroke">
+          <span class="value-display" id="val-brush-strength">8%</span>
+        </div>
+        <div class="control-row">
+          <label>Apply</label>
+          <select id="brush-apply-mode" style="flex: 1;" title="Click = one per click; Drag = continuous while painting">
+            <option value="drag">Drag (continuous)</option>
+            <option value="click">Click only</option>
+          </select>
+        </div>
+        <div class="control-section-title" style="margin-top: 8px;">History</div>
+        <div class="undo-redo-btns">
+          <button type="button" id="undo-btn" style="background: #374151;">↶ Undo</button>
+          <button type="button" id="redo-btn" style="background: #374151;">↷ Redo</button>
         </div>
       </div>
     </div>
-    <div class="hint">Drag to orbit · Scroll to zoom</div>
+    <div class="hint" id="input-hint">Left=orbit · Right=pan · Scroll=zoom</div>
   </div>
   <div id="controls">
     <h2>YoHoH Island Generator</h2>
@@ -239,13 +259,13 @@
       <div class="control-section-title">Terrain</div>
       <div class="control-row">
         <label>Grid size</label>
-        <input type="number" id="grid-size" value="128" min="16" max="512" step="8" title="Resolution (vertices per side)">
+        <input type="number" id="grid-size" value="1080" min="16" max="2048" step="8" title="Resolution (vertices per side)">
         <span class="value-display" id="val-grid">128</span>
       </div>
       <div class="control-row">
         <label>Elevation</label>
-        <input type="range" id="elevation-scale" min="50" max="300" value="120" step="10" title="Max height multiplier (%)">
-        <span class="value-display" id="val-elevation">120%</span>
+        <input type="range" id="elevation-scale" min="50" max="300" value="80" step="10" title="Max height multiplier (%)">
+        <span class="value-display" id="val-elevation">80%</span>
       </div>
       <div class="control-row">
         <label>Roughness</label>
@@ -280,16 +300,16 @@
     </div>
 
     <div class="control-section">
-      <div class="control-section-title">Building zones (chunks)</div>
+      <div class="control-section-title">Tiles (building grid)</div>
       <div class="control-row">
-        <label>Chunk size</label>
-        <input type="number" id="chunk-size" value="8" min="0" max="64" step="2" title="Cells per chunk (0=no flattening)">
-        <span class="value-display" id="val-chunk">8</span>
+        <label>Tile size</label>
+        <input type="number" id="tile-size" value="16" min="4" max="32" step="4" title="Vertices per tile (grid divisible)">
+        <span class="value-display" id="val-tile">8</span>
       </div>
       <div class="control-row">
-        <label>Flatness</label>
-        <input type="range" id="flatness-strength" min="0" max="80" value="80" step="5" title="How much to flatten chunks for building">
-        <span class="value-display" id="val-flatness">80%</span>
+        <label>Tile variation</label>
+        <input type="range" id="tile-variation" min="0" max="15" value="0" step="1" title="Per-vertex noise within tile (0=flat)">
+        <span class="value-display" id="val-tile-var">0%</span>
       </div>
     </div>
 
@@ -297,8 +317,8 @@
       <div class="control-section-title">Noise</div>
       <div class="control-row">
         <label>Octaves</label>
-        <input type="range" id="noise-octaves" min="1" max="8" value="5" step="1" title="Detail layers">
-        <span class="value-display" id="val-octaves">5</span>
+        <input type="range" id="noise-octaves" min="1" max="8" value="3" step="1" title="Detail layers">
+        <span class="value-display" id="val-octaves">3</span>
       </div>
       <div class="control-row">
         <label>Frequency</label>

@@ -7,14 +7,15 @@
  * @param {{ heightMap: number[][], config: Object, display?: Object, buildings?: Array, seed: number|null }} island
  */
 export function serialize(island) {
-  return JSON.stringify({
+  const out = {
     version: 1,
-    heightMap: island.heightMap,
     config: island.config,
     display: island.display ?? {},
     buildings: island.buildings ?? [],
     seed: island.seed,
-  });
+  };
+  if (island.heightMap != null) out.heightMap = island.heightMap;
+  return JSON.stringify(out);
 }
 
 /**

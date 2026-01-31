@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { MOUSE } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 /** Vertex colors by elevation band (hex) */
@@ -41,6 +42,9 @@ export class IslandVisualizer {
     this.controls = null;
     this.islandMesh = null;
     this.waterMesh = null;
+    this.hoverOverlayMesh = null;
+    this._inputMode = 'view';
+    this._spaceHeld = false;
     this.ambientLight = null;
     this.directionalLight = null;
     this.config = {
@@ -105,6 +109,12 @@ export class IslandVisualizer {
   render(island) {
     if (!island?.heightMap) return;
 
+    if (this.hoverOverlayMesh) {
+      if (this.islandMesh) this.islandMesh.remove(this.hoverOverlayMesh);
+      this.hoverOverlayMesh.geometry.dispose();
+      this.hoverOverlayMesh.material.dispose();
+      this.hoverOverlayMesh = null;
+    }
     if (this.islandMesh) {
       this.scene.remove(this.islandMesh);
       this.islandMesh.geometry.dispose();
@@ -173,6 +183,56 @@ export class IslandVisualizer {
   }
 
   /**
+   * Show or hide hover overlay for edit-mode brush preview.
+   * Region: { x0, y0, x1, y1 } in grid coords, or null to hide.
+   * Overlay follows terrain elevation for accurate placement.
+   */
+  setHoverOverlay(region, heightMap) {
+    if (this.hoverOverlayMesh) {
+      this.islandMesh?.remove(this.hoverOverlayMesh);
+      this.hoverOverlayMesh.geometry.dispose();
+      this.hoverOverlayMesh.material.dispose();
+      this.hoverOverlayMesh = null;
+    }
+    if (!region || !heightMap || !this.islandMesh) return;
+
+    const { x0, y0, x1, y1 } = region;
+    const gridSize = heightMap.length - 1;
+    const w = Math.max(1, x1 - x0);
+    const h = Math.max(1, y1 - y0);
+    const segX = Math.min(w, gridSize);
+    const segY = Math.min(h, gridSize);
+    const normW = (x1 - x0) / gridSize;
+    const normH = (y1 - y0) / gridSize;
+
+    const geometry = new THREE.PlaneGeometry(normW, normH, segX, segY);
+    const positions = geometry.attributes.position;
+
+    for (let i = 0; i < positions.count; i++) {
+      const gx = Math.min(gridSize, x0 + (i % (segX + 1)));
+      const gy = Math.min(gridSize, y0 + Math.floor(i / (segX + 1)));
+      const ht = heightMap[gy]?.[gx] ?? 0;
+      positions.setZ(i, ht * this.config.heightScale + 0.012);
+    }
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xfef08a,
+      transparent: true,
+      opacity: 0.5,
+      depthTest: true,
+      depthWrite: false,
+    });
+
+    this.hoverOverlayMesh = new THREE.Mesh(geometry, material);
+    this.hoverOverlayMesh.layers.set(1); // Exclude from raycaster (terrain is layer 0)
+    const centerX = (x0 + x1) / (2 * gridSize) - 0.5;
+    const centerY = (y0 + y1) / (2 * gridSize) - 0.5;
+    this.hoverOverlayMesh.position.set(centerX, centerY, 0);
+    this.islandMesh.add(this.hoverOverlayMesh);
+  }
+
+  /**
    * Update mesh vertices and colors from modified height map (for editor)
    */
   updateFromHeightMap(heightMap) {
@@ -219,6 +279,66 @@ export class IslandVisualizer {
 
   getControls() {
     return this.controls;
+  }
+
+  /**
+   * Set input mode: 'view' (default) or 'edit'.
+   * View: Left=orbit, Right=pan, Middle=zoom.
+   * Edit: Left=paint, Right=orbit, Middle=zoom. Hold Space + Left to orbit.
+   */
+  setInputMode(mode) {
+    if (!this.controls) return;
+    this._inputMode = mode;
+    this._spaceHeld = false;
+    this._removeSpaceListeners();
+    if (mode === 'edit') {
+      this._applyEditMouseButtons();
+      this._spaceKeyDown = (e) => {
+        if (e.code === 'Space' && !e.repeat && !document.activeElement?.closest?.('input, textarea, select')) {
+          e.preventDefault();
+          this._spaceHeld = true;
+          this._applyEditMouseButtons();
+        }
+      };
+      this._spaceKeyUp = (e) => {
+        if (e.code === 'Space' && !e.repeat && this._spaceHeld) {
+          e.preventDefault();
+          this._spaceHeld = false;
+          this._applyEditMouseButtons();
+        }
+      };
+      window.addEventListener('keydown', this._spaceKeyDown);
+      window.addEventListener('keyup', this._spaceKeyUp);
+    } else {
+      this.controls.mouseButtons.LEFT = MOUSE.ROTATE;
+      this.controls.mouseButtons.MIDDLE = MOUSE.DOLLY;
+      this.controls.mouseButtons.RIGHT = MOUSE.PAN;
+    }
+  }
+
+  _applyEditMouseButtons() {
+    if (!this.controls) return;
+    if (this._spaceHeld) {
+      this.controls.mouseButtons.LEFT = MOUSE.ROTATE;
+      this.controls.mouseButtons.RIGHT = MOUSE.PAN;
+    } else {
+      this.controls.mouseButtons.LEFT = null;
+      this.controls.mouseButtons.RIGHT = MOUSE.ROTATE;
+    }
+    this.controls.mouseButtons.MIDDLE = MOUSE.DOLLY;
+  }
+
+  isSpaceHeld() {
+    return this._spaceHeld === true;
+  }
+
+  _removeSpaceListeners() {
+    if (this._spaceKeyDown) {
+      window.removeEventListener('keydown', this._spaceKeyDown);
+      window.removeEventListener('keyup', this._spaceKeyUp);
+      this._spaceKeyDown = null;
+      this._spaceKeyUp = null;
+    }
   }
 
   animate() {

@@ -1,7 +1,7 @@
 /**
- * Island terrain mesh generator using Simplex noise
- * Produces configurable, seeded height maps with island mask,
- * chunk-based flattening for building zones, and shape controls
+ * Island terrain mesh generator — tile-based
+ * Produces configurable, seeded height maps where each tile is a flat unit
+ * for building placement. Noise is sampled per-tile, not per-vertex.
  */
 
 import { createNoise2D } from 'simplex-noise';
@@ -17,28 +17,29 @@ export const ELEVATION_BANDS = {
 };
 
 /**
- * Generate island height map
+ * Generate island height map — tile-based (each tile is flat)
  * @param {Object} config
- * @param {number} config.gridSize - Resolution (e.g. 64 → 64×64 vertices)
+ * @param {number} config.gridSize - Resolution (vertices per side; must be divisible by tileSize)
+ * @param {number} config.tileSize - Vertices per tile side (e.g. 8 → 8×8 vertex tiles)
  * @param {number} config.elevationScale - Max height multiplier
- * @param {number} config.islandRadius - 0–1, radius of island (1 = full grid)
- * @param {number} config.noiseOctaves - Number of noise layers for detail
+ * @param {number} config.islandRadius - 0–1, radius of island
+ * @param {number} config.noiseOctaves - Number of noise layers
  * @param {number} config.frequency - Base noise frequency
- * @param {number} config.persistence - Octave amplitude falloff (0–1)
+ * @param {number} config.persistence - Octave amplitude falloff
  * @param {number} config.lacunarity - Octave frequency multiplier
- * @param {number|null} config.seed - Optional seed for reproducibility
- * @param {number} config.seaLevel - Height below which is water (0–1)
- * @param {number} config.coastFalloff - How sharply island drops at coast (higher = steeper)
- * @param {number} config.coastIrregularity - 0–1, coastline wobble from noise
- * @param {number} config.elongation - 0–1, 0.5=round, &lt;0.5=wider, &gt;0.5=taller
- * @param {number} config.chunkSize - Grid cells per chunk (0=no flattening, 8=8×8 chunks)
- * @param {number} config.flatnessStrength - 0–1, how much to flatten chunks for building
- * @param {number} config.terrainRoughness - 0–1, overall terrain bumpiness
+ * @param {number|null} config.seed - Optional seed
+ * @param {number} config.seaLevel - Water level
+ * @param {number} config.coastFalloff - Coast steepness
+ * @param {number} config.coastIrregularity - Coastline wobble
+ * @param {number} config.elongation - 0.5=round, <0.5=wider, >0.5=taller
+ * @param {number} config.terrainRoughness - Overall bumpiness
+ * @param {number} config.tileVariation - 0–1, per-vertex noise within tile (0=perfectly flat)
  * @returns {{ heightMap: number[][], config: Object, seed: number }}
  */
 export function generateIsland(config = {}) {
   const {
-    gridSize = 64,
+    gridSize = 128,
+    tileSize = 8,
     elevationScale = 1.2,
     islandRadius = 0.42,
     noiseOctaves = 5,
@@ -50,103 +51,86 @@ export function generateIsland(config = {}) {
     coastFalloff = 2.2,
     coastIrregularity = 0.35,
     elongation = 0.5,
-    chunkSize = 8,
-    flatnessStrength = 0.4,
     terrainRoughness = 0.7,
+    tileVariation = 0,
+    chunkSize,
   } = config;
+
+  const ts = Math.max(2, Math.min(Math.floor(gridSize / 2), tileSize ?? chunkSize ?? 8));
+  const tilesX = Math.floor(gridSize / ts);
+  const tilesY = Math.floor(gridSize / ts);
+  const effectiveGridSize = tilesX * ts;
 
   const rng = new SeededRNG(seed);
   const actualSeed = rng.getSeed();
-
   const noise2D = createNoise2D(() => rng.next());
 
-  const heightMap = [];
-
-  // Elongation: scale coords for aspect ratio (0.5=round, <0.5=wider, >0.5=taller)
   const scaleX = elongation <= 0.5 ? 1 + (0.5 - elongation) * 1.5 : 1;
   const scaleY = elongation >= 0.5 ? 1 + (elongation - 0.5) * 1.5 : 1;
 
-  for (let y = 0; y <= gridSize; y++) {
+  // Per-tile heights (tile center noise)
+  const tileHeights = [];
+  for (let ty = 0; ty < tilesY; ty++) {
     const row = [];
-    for (let x = 0; x <= gridSize; x++) {
-      const nx = (x / gridSize) - 0.5;
-      const ny = (y / gridSize) - 0.5;
-
-      // Elongated coords for mask (divide = compress axis = island extends further)
-      const ex = nx / scaleX;
-      const ey = ny / scaleY;
-
-      // Base radial distance
+    for (let tx = 0; tx < tilesX; tx++) {
+      const cx = (tx + 0.5) / tilesX - 0.5;
+      const cy = (ty + 0.5) / tilesY - 0.5;
+      const ex = cx / scaleX;
+      const ey = cy / scaleY;
       const baseDist = Math.sqrt(ex * ex + ey * ey);
-
-      // Coast irregularity: add noise-based wobble to radius
       const coastNoise = coastIrregularity > 0
-        ? noise2D(nx * 8 + actualSeed * 0.01, ny * 8 + actualSeed * 0.02) * coastIrregularity
+        ? noise2D(cx * 8 + actualSeed * 0.01, cy * 8 + actualSeed * 0.02) * coastIrregularity
         : 0;
       const effectiveRadius = (islandRadius * 0.5) * (1 + coastNoise);
-
       const normalizedDist = baseDist / effectiveRadius;
       const mask = Math.max(0, 1 - Math.pow(normalizedDist, coastFalloff));
 
-      // Multi-octave noise
       let noiseValue = 0;
       let amplitude = 1;
       let freq = frequency;
       let maxAmp = 0;
-
       for (let o = 0; o < noiseOctaves; o++) {
-        const sx = nx * freq * gridSize * 0.012 + actualSeed * 0.001 + o * 50;
-        const sy = ny * freq * gridSize * 0.012 + actualSeed * 0.002 + o * 70;
+        const sx = cx * freq * tilesX * 0.02 + actualSeed * 0.001 + o * 50;
+        const sy = cy * freq * tilesY * 0.02 + actualSeed * 0.002 + o * 70;
         noiseValue += noise2D(sx, sy) * amplitude;
         maxAmp += amplitude;
         amplitude *= persistence;
         freq *= lacunarity;
       }
-
       noiseValue = (noiseValue / maxAmp + 1) * 0.5;
-      let height = Math.max(0, noiseValue * mask * elevationScale * terrainRoughness + seaLevel);
-      row.push(height);
+      const h = Math.max(0, noiseValue * mask * elevationScale * terrainRoughness + seaLevel);
+      row.push(h);
     }
-    heightMap.push(row);
+    tileHeights.push(row);
   }
 
-  // Chunk-based flattening for building zones (creates flatter, navigable areas)
-  if (chunkSize > 0 && flatnessStrength > 0) {
-    const cs = Math.max(2, Math.min(Math.floor(gridSize / 2), chunkSize));
-    const chunksX = Math.ceil(gridSize / cs);
-    const chunksY = Math.ceil(gridSize / cs);
+  // Build vertex height map from tile heights (flat per tile, optional micro-variation)
+  const heightMap = [];
+  for (let y = 0; y <= effectiveGridSize; y++) {
+    const row = [];
+    for (let x = 0; x <= effectiveGridSize; x++) {
+      const tx = Math.min(tilesX - 1, Math.floor(x / ts));
+      const ty = Math.min(tilesY - 1, Math.floor(y / ts));
+      let h = tileHeights[ty][tx];
 
-    for (let cy = 0; cy < chunksY; cy++) {
-      for (let cx = 0; cx < chunksX; cx++) {
-        let sum = 0;
-        let count = 0;
-        const x0 = cx * cs;
-        const y0 = cy * cs;
-        const x1 = Math.min(x0 + cs + 1, gridSize + 1);
-        const y1 = Math.min(y0 + cs + 1, gridSize + 1);
-
-        for (let y = y0; y < y1; y++) {
-          for (let x = x0; x < x1; x++) {
-            sum += heightMap[y][x];
-            count++;
-          }
-        }
-        const avg = count > 0 ? sum / count : 0;
-
-        for (let y = y0; y < y1; y++) {
-          for (let x = x0; x < x1; x++) {
-            const orig = heightMap[y][x];
-            heightMap[y][x] = orig * (1 - flatnessStrength) + avg * flatnessStrength;
-          }
-        }
+      if (tileVariation > 0) {
+        const nx = (x / effectiveGridSize) - 0.5;
+        const ny = (y / effectiveGridSize) - 0.5;
+        const v = noise2D(nx * 20 + actualSeed * 0.01, ny * 20 + actualSeed * 0.02) * tileVariation;
+        h = Math.max(0, h + v);
       }
+      row.push(h);
     }
+    heightMap.push(row);
   }
 
   return {
     heightMap,
     config: {
-      gridSize,
+      gridSize: effectiveGridSize,
+      tileSize: ts,
+      tilesX,
+      tilesY,
       elevationScale,
       islandRadius,
       noiseOctaves,
@@ -157,9 +141,9 @@ export function generateIsland(config = {}) {
       coastFalloff,
       coastIrregularity,
       elongation,
-      chunkSize,
-      flatnessStrength,
       terrainRoughness,
+      tileVariation,
+      chunkSize: ts,
     },
     seed: actualSeed,
   };
