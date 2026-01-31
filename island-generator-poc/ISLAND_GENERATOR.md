@@ -1,8 +1,28 @@
 # Island Generator — Improvement Plan
 
-**Document status:** Planning  
+**Document status:** Planning & Implementation Reference  
 **Last updated:** 2026-01-31  
+*Added: Automatic paths between buildings (terrain smoothing + path color)*  
 **Target:** YoHoH island-generator-poc — procedural island terrain with building placement  
+
+---
+
+## Design Principle: Navigable Islands
+
+**We make a conscious decision:** islands are generated to support **paths between buildings**, **locations suitable for building placement**, and **player navigation**.
+
+| Goal | Implication |
+|------|-------------|
+| **Paths between buildings** | Terrain must allow walkable routes between placed structures. Flat tiles, ramps, and connectivity matter. |
+| **Locations for building placement** | Generation should produce viable building zones — flat or flattenable land above sea level, with enough contiguous tiles for 1×1, 2×1, 2×2 structures. |
+| **Player navigation** | The tile grid is the navigation graph. Players move between tiles; steep cliffs or water block movement. Terrain should be traversable where gameplay expects it. |
+
+**Consequences for generation and tools:**
+- Tile-based design aligns with a navigation grid; each tile is a potential step.
+- Flat tiles and terrain flattening on placement ensure buildings sit on walkable ground.
+- **Automatic paths between buildings** — Paths connect placed buildings; terrain along paths is smoothed and recolored for easier navigation and visual clarity.
+- Future: pathfinding (A* on tile graph), walkability flags, ramp/slope tools for connectivity.
+- Generation parameters (roughness, elevation, island shape) should favor navigable land over impassable terrain.
 
 ---
 
@@ -11,10 +31,10 @@
 1. [Current State](#1-current-state)
 2. [Tile-Based Design](#2-tile-based-design)
 3. [Default Generation Config](#3-default-generation-config)
-4. [Edit Controls — Blocky Theme & Elevation](#4-edit-controls--blocky-theme--elevation)
-5. [Building Placement](#5-building-placement)
+4. [Edit Controls — Blocky Theme & Elevation](#4-edit-controls--blocky-theme--elevation) (incl. Input Controls)
+5. [Building Placement](#5-building-placement) (incl. Props & Decorations)
 6. [Save/Load — Config & Example JSON](#6-saveload--config--example-json)
-7. [Implementation Roadmap](#7-implementation-roadmap)
+7. [Implementation Roadmap](#7-implementation-roadmap) (incl. Phase H: Props, Phase G: Paths)
 
 ---
 
@@ -30,20 +50,28 @@
 | Elevation colors | ✓ | Beach, grass, rock, snow by height |
 | **Tile-aligned brush** | ✓ | 1×1–5×5 tiles; snaps to grid |
 | Brush editor | ✓ | Raise, lower, flatten, absolute, set, plateau, smooth |
-| Save/Load | ✓ | JSON height map + config |
+| **Building placement** | ✓ | Place, remove, rotate; validation (land, no overlap); terrain flattening on placement |
+| **Terrain flattening** | ✓ | Buildings placed on flat ground (average height of footprint) |
+| **Controls modal** | ✓ | Settings (⚙) button opens mouse/keyboard input help |
+| Save/Load | ✓ | JSON height map + config + buildings |
 | Orbit controls | ✓ | Pan, zoom, rotate |
+| **Automatic paths** | ✓ | A* pathfinding between buildings; terrain smoothing; path color (dirt) |
 
 ### 1.2 Recent fixes
 - Edit mode hover overlay: fixed missing `ts` (tileSize) in onHoverTile callback — highlight now displays correctly
 - Edit tools selection accuracy: raycaster excludes overlay (layer 1); terrain on layer 0; explicit `recursive: false`; guard for `tilesX/tilesY <= 0`
+- Camera/Edit conflict: Edit/Build mode uses Right-drag for orbit; Left-drag for painting/placing; Space+Left temporarily orbits
+- **Building/terrain render update:** `_clearBuildings` and `_clearGridOverlay` now remove meshes from their actual parent (`islandMesh`) instead of `scene` — buildings and grid overlay are children of `islandMesh`, so `scene.remove()` had no effect; old meshes were never removed, causing stale or broken rendering
+- **Automatic paths:** `IslandPathfinder.js` — A* pathfinding between building centers; `smoothPathTerrain` flattens path tiles; `IslandVisualizer` applies `pathColor` (dirt) to path vertices; paths recompute when buildings change (add/remove/move), on load, and on regeneration
 
 ### 1.3 Gaps
 
+- ~~No building placement or building types~~ ✓ Phase E
 - ~~Edit UI is generic; no blocky/nautical theme~~ ✓ Phase B
 - ~~Elevation controls are coarse (brush only; no level presets)~~ ✓ Phase B
-- No building placement or building types
-- ~~Save/Load does not restore UI state~~ ✓ Phase C; Save Config Only pending
+- ~~Save/Load does not restore UI state~~ ✓ Phase C
 - ~~No example JSON templates for common presets~~ ✓ Phase C
+- **Paths & navigation** — Automatic paths between buildings ✓; remaining: ramp tool, connectivity check, path width config, generation tuning for path-friendly terrain (Phase G)
 
 ---
 
@@ -51,29 +79,38 @@
 
 ### 2.1 Overview
 
-The island is divided into a **tile grid**. Each tile is a flat (or near-flat) unit, making it easy to place buildings of different sizes on level terrain.
+The island is divided into a **tile grid**. Each tile is a flat (or near-flat) unit, making it easy to place buildings of different sizes on level terrain. **The tile grid is also the navigation graph** — paths between buildings and player movement are tile-to-tile.
 
 | Concept | Description |
 |---------|-------------|
-| **Tile** | A square region of vertices (e.g. 8×8). All vertices in a tile share the same base height. |
+| **Tile** | A square region of vertices (e.g. 8×8). All vertices in a tile share the same base height. One tile = one navigation cell. |
 | **Tile size** | Vertices per tile side (4, 8, 16, 32). Grid size must be divisible by tile size. |
-| **Tile variation** | Optional per-vertex noise within a tile (0 = perfectly flat). |
+| **Tile variation** | Optional per-vertex noise within a tile (0 = perfectly flat). Low variation keeps tiles walkable. |
 
-### 2.2 Generation
+### 2.2 Navigation & Paths
+
+- **Walkable tiles** — Land above sea level is traversable; water tiles block movement.
+- **Paths** — Routes between buildings follow the tile grid. Adjacent walkable tiles form edges in the navigation graph.
+- **Automatic paths** — Paths are automatically generated between placed buildings. Terrain along paths is smoothed for easier navigation, and path tiles use a distinct color (e.g. dirt, sand) for visual clarity.
+- **Building zones** — Contiguous flat land provides viable placement and path endpoints.
+- **Connectivity** — Steep slopes or cliffs (future: slope threshold) may block movement; ramps and gentle terrain connect areas.
+
+### 2.3 Generation
 
 - Noise is sampled **per tile** (at tile center), not per vertex.
 - Each tile gets a single height from the island mask + noise.
 - Vertices in a tile inherit that height; optional `tileVariation` adds micro-variation.
-- Result: flat tiles ideal for building placement.
+- Result: flat tiles ideal for building placement **and** navigation.
+- Generation should favor **contiguous land** and **moderate elevation** so building zones and paths are viable.
 
-### 2.3 Edit Tools
+### 2.4 Edit Tools
 
 - **Brush size** is in tiles: 1×1 through 5×5 (matches building sizes).
 - Click **snaps to tile** — modifies whole tile(s), not arbitrary radius.
 - All vertices in the affected tiles are updated together.
 - Ensures edited areas stay flat and aligned to the building grid.
 
-### 2.4 Building Sizes (Pirate Game)
+### 2.5 Building Sizes (Pirate Game)
 
 | Building | Tiles | Brush size |
 |----------|-------|------------|
@@ -82,11 +119,17 @@ The island is divided into a **tile grid**. Each tile is a flat (or near-flat) u
 | Fort, Dragon Sanctuary | 2×2 | 2×2 |
 | Custom large | 3×3 | 3×3 |
 
+### 2.6 Prop Sizes (Decorations)
+
+| Prop | Tiles | Notes |
+|------|-------|-------|
+| Rock, Palm Tree, Tree, Bush, Sign | 1×1 | All props are single-tile |
+
 ---
 
 ## 3. Default Generation Config
 
-Default settings (matching reference UI):
+Default settings (matching reference UI). Parameters are tuned to produce **navigable terrain** with viable building zones and contiguous land.
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -156,6 +199,25 @@ Default settings (matching reference UI):
 - Rock: 0.45 → 0.7
 - Snow: &gt; 0.7
 
+### 4.3 Input Controls (Settings Modal)
+
+The **Settings (⚙)** button (bottom-left) opens a modal documenting all mouse/keyboard controls:
+
+| Mode | Input | Action |
+|------|-------|--------|
+| **View** | Left drag | Orbit camera |
+| | Right drag | Pan camera |
+| | Scroll | Zoom |
+| **Edit** | Left drag | Paint terrain |
+| | Right drag | Orbit camera |
+| | Space + Left drag | Temporarily orbit |
+| | Scroll | Zoom |
+| **Build** | Left click | Place building |
+| | Left click on building | Rotate building |
+| | Shift + Left click on building | Remove building |
+| | Right drag | Orbit camera |
+| | Scroll | Zoom |
+
 ---
 
 ## 5. Building Placement — Pirate Game (Shattered Seas)
@@ -176,15 +238,35 @@ Buildings for the **YoHoH** pirate game — islands in the Shattered Seas where 
 | **Dragon Sanctuary** | 2×2 | Dragon refuge | Hatchery, protected cove |
 | **Custom** | 1×1 to 3×3 | User-defined | — |
 
-### 5.2 Placement Rules
+### 5.2 Placeable Props & Decorations
+
+Natural and decorative objects for island atmosphere. All are **1×1 tile**; no terrain flattening (they sit on existing terrain).
+
+| Type | Size | Purpose | Theme |
+|------|------|---------|-------|
+| **Rock** | 1×1 | Terrain detail, boulders | Coastal rocks, inland outcrops |
+| **Palm Tree** | 1×1 | Tropical vegetation | Beach, shoreline |
+| **Tree** | 1×1 | Forest, shade | Inland, grassy areas |
+| **Bush** | 1×1 | Low vegetation, foliage | Path edges, building surrounds |
+| **Sign** | 1×1 | Wayfinding, lore, labels | Paths, building entrances |
+
+**Placement rules for props:**
+- Snap to tile grid
+- Placement only on land (height &gt; sea level)
+- No terrain flattening — props sit on existing terrain
+- Props may overlap with each other (e.g. bush + rock on same tile) or be exclusive — TBD
+- Buildings and props: props may be placed adjacent to buildings; buildings block prop placement on their footprint
+
+### 5.3 Placement Rules
 
 - Buildings snap to chunk grid
 - Placement only on land (height &gt; sea level)
-- Optional: require flatness above threshold
+- **Terrain flattening:** On placement, terrain under the building footprint is flattened to the average height of covered tiles — buildings sit on flat ground
 - Collision: no overlap with existing buildings
-- Visual: simple placeholder meshes (box, cylinder) per type
+- Visual: simple placeholder meshes (box) per type
+- **Navigation context:** Placed buildings become path endpoints. Future: connectivity validation, path visualization.
 
-### 5.3 Data Model
+### 5.4 Data Model
 
 ```js
 {
@@ -203,11 +285,12 @@ Buildings for the **YoHoH** pirate game — islands in the Shattered Seas where 
       "chunkY": 6,
       "rotation": 90
     }
-  ]
+  ],
+  // pathTiles: ["tx,ty", ...] — derived at runtime from buildings; not saved
 }
 ```
 
-### 5.4 Pirate Building Reference (Shattered Seas)
+### 5.5 Pirate Building Reference (Shattered Seas)
 
 | Building | Lore / Game Role |
 |----------|------------------|
@@ -220,12 +303,113 @@ Buildings for the **YoHoH** pirate game — islands in the Shattered Seas where 
 | **Docks** | Moor ships; embark for rescue missions. |
 | **Dragon Sanctuary** | Safe haven for rescued eggs and young dragons; core of player mission. |
 
-### 5.5 UI
+### 5.6 UI
 
-- Building palette: icons for each type
-- Click chunk to place; click again to remove or rotate
-- Building properties panel: type, position, rotation
-- Validation feedback: green = valid, red = invalid (water, overlap)
+- **Buildings** section in right panel (top-level, above Map Editor)
+- **Build Mode** toggle — enables placement mode; mutually exclusive with Edit Mode
+- **Building palette** — visual colored buttons per type (Tavern, Shipwright, Market, etc.)
+- **Size** — width × height (tiles, 1–5) — configurable per building type; overrides default dimensions
+- **Grid** checkbox — optional tile grid overlay
+- Click tile to place; click building to rotate; Shift+click building to remove
+- Validation: placement blocked on water or overlap
+
+### 5.7 Implementation Architecture
+
+| Module | File | Responsibility |
+|--------|------|----------------|
+| **BuildingTypes** | `BuildingTypes.js` | Defines building types: `id`, `width`, `height`, `name`, `color` (hex). Exports `BUILDING_TYPES`, `getBuildingType()`, `getBuildingSize()`. |
+| **IslandBuildingPlacer** | `IslandBuildingPlacer.js` | Handles mouse input, tile hit-testing (raycaster), placement/remove/rotate logic, terrain flattening, validation. Calls `visualizer.renderBuildings()` and callbacks. |
+| **IslandPathfinder** | `IslandPathfinder.js` | A* pathfinding between building centers; `computePathTiles`, `smoothPathTerrain`, `computePathsBetweenBuildings`. Exports `PATH_COLOR`, `computePathsBetweenBuildings`. |
+| **IslandVisualizer** | `IslandVisualizer.js` | Renders building meshes (`renderBuildings()`), tile grid overlay (`setTileGridOverlay()`), path vertex coloring (`pathTiles` + `pathColor`). Buildings are `BoxGeometry` meshes parented to **island mesh** (not scene). `_clearBuildings` must remove from `mesh.parent`, not `scene`. |
+| **main.js** | `main.js` | Wires Build Mode UI, `onBuildingsChange`, `onHeightMapChange`; calls `computePathsBetweenBuildings` when buildings change; updates `currentIsland`, editor, visualizer when buildings or terrain change. |
+
+**Data flow:**
+1. User enables Build Mode → `buildingPlacer.enable(container)`; `setHeightMap`, `setTileConfig`, `setSeaLevel`, `setBuildings` from `currentIsland`
+2. User clicks → `_handleMouse` → `_getTileAtCursor()` (raycaster + UV → tile coords)
+3. If placing: `_canPlace()` validates → `_flattenUnderBuilding()` → `onHeightMapChange(newHeightMap)` → push building → `visualizer.renderBuildings(buildings, …)` → `onBuildingsChange(buildings)`
+4. `main.js` callbacks: `onHeightMapChange` → `visualizer.updateFromHeightMap` (terrain); placer calls `visualizer.renderBuildings` (buildings)
+5. **Paths:** `onBuildingsChange` → if ≥2 buildings, `computePathsBetweenBuildings` → updates `heightMap` (smoothed), `pathTiles` → `visualizer.updateFromHeightMap(heightMap, pathTiles, tileSize)`; undo/redo/height-scale preserve `pathTiles`
+
+### 5.8 Terrain Flattening Algorithm
+
+When a building is placed, `_flattenUnderBuilding()` in `IslandBuildingPlacer`:
+
+1. **Footprint bounds** — For building at `(chunkX, chunkY)` with size `(w, h)` tiles:
+   - Vertex range: `x0..x1` = `chunkX * tileSize` to `(chunkX + w) * tileSize`
+   - Vertex range: `y0..y1` = `chunkY * tileSize` to `(chunkY + h) * tileSize`
+2. **Average height** — Sum all vertex heights in footprint, divide by count
+3. **Flatten** — Set every vertex in footprint to the average
+4. **Propagate** — Call `onHeightMapChange(newHeightMap)` so `main.js` updates `currentIsland`, editor, and visualizer
+
+Result: building sits on a flat platform; terrain is modified in place before the building is added.
+
+### 5.9 Tile Hit-Testing (Raycaster)
+
+- Three.js `Raycaster` from camera through mouse position
+- Intersect island mesh (layer 0); hit `uv` maps to normalized (0–1) island coords
+- Tile indices: `tx = floor(u * tilesX)`, `ty = floor(v * tilesY)`
+- Fallback: if no UV, use `worldToLocal` on hit point to derive u,v
+
+### 5.10 Building Type Schema (BuildingTypes.js)
+
+```js
+// Each building type (default dimensions)
+{
+  id: string,      // e.g. "tavern"
+  width: number,   // tiles (1–5)
+  height: number,  // tiles (1–5)
+  name: string,   // display name
+  color: number   // Three.js hex (0xd97706 = amber for Tavern)
+}
+
+// Runtime dimension overrides: setBuildingDimensionOverride(type, width?, height?)
+// getEffectiveBuildingSize(type) returns override or default
+```
+
+### 5.11 Props Data Model (Future)
+
+```js
+{
+  "props": [
+    { "id": "p1", "type": "rock", "chunkX": 5, "chunkY": 4, "rotation": 0 },
+    { "id": "p2", "type": "palm_tree", "chunkX": 3, "chunkY": 7, "rotation": 45 },
+    { "id": "p3", "type": "tree", "chunkX": 8, "chunkY": 6, "rotation": 0 },
+    { "id": "p4", "type": "bush", "chunkX": 6, "chunkY": 5, "rotation": 90 },
+    { "id": "p5", "type": "sign", "chunkX": 7, "chunkY": 4, "rotation": 0 }
+  ]
+}
+```
+
+### 5.12 Automatic Paths Between Buildings
+
+**Goal:** Automatically generate paths between placed buildings to improve navigation and visual clarity.
+
+| Feature | Description |
+|---------|-------------|
+| **Path generation** | When buildings are placed, compute paths between them (e.g. A* on tile graph). Paths connect building entrances or tile centers. |
+| **Terrain smoothing** | Smooth the terrain along each path — flatten or gently slope vertices under the path so navigation is easier (no steep steps, consistent walkable surface). |
+| **Path color** | Apply a distinct color to path tiles (e.g. dirt, sand, stone) so paths are visually distinguishable from grass/rock. Override elevation-based vertex colors for path vertices. |
+| **Path width** | Configurable path width (1–2 tiles); wider paths = more vertices smoothed. |
+| **Update on change** | Recompute paths when buildings are added, removed, or moved. |
+
+**Implementation notes (implemented):**
+- Pathfinding: A* on tile grid (`IslandPathfinder.findPath`); walkable = land above sea level; 8-directional movement.
+- Terrain smoothing: `smoothPathTerrain` sets vertex heights to average of each path tile footprint (in-place heightmap modification).
+- Path color: `pathTiles` (Set of `"tx,ty"` keys); `IslandVisualizer` uses `config.pathColor` (default `0x8B7355` dirt) for path vertices instead of elevation band color.
+- Data model: Paths derived at runtime from buildings; `pathTiles` stored in `currentIsland` for undo/redo/height-scale; not persisted in save (recomputed on load from buildings).
+
+### 5.13 Future Building & Props Enhancements
+
+| Enhancement | Description |
+|-------------|-------------|
+| **Building icons** | Visual palette with icons per type instead of dropdown |
+| **Placement preview** | Ghost/outline of building at cursor before click |
+| **Invalid feedback** | Red highlight when hovering over invalid tile (water, overlap) |
+| **Building properties panel** | Edit position, rotation, type of selected building |
+| **Distinct meshes** | Per-type geometry (cylinder for lighthouse, etc.) instead of boxes |
+| **Undo/Redo for buildings** | Stack of building placement/removal actions |
+| **Path-aware placement** | Validate that new buildings remain reachable from existing ones |
+| **Props & decorations** | Rocks, Palm Trees, Trees, Bushes, Signs — 1×1 placeable objects (Phase H) |
 
 ---
 
@@ -235,7 +419,7 @@ Buildings for the **YoHoH** pirate game — islands in the Shattered Seas where 
 
 | Mode | Contents | Use case |
 |------|----------|----------|
-| **Full** | heightMap + config + buildings | Complete island |
+| **Full** | heightMap + config + buildings + props | Complete island |
 | **Config only** | config + display + seed | Preset for regeneration ✓ |
 | **Buildings only** | buildings | Reuse layout on new terrain |
 
@@ -357,6 +541,7 @@ interface IslandSave {
   config: IslandConfig;
   display?: { heightScale: number; wireframe: boolean };
   buildings?: Building[];
+  props?: Prop[];  // rock, palm_tree, tree, bush, sign
   seed: number | null;
 }
 ```
@@ -389,15 +574,45 @@ interface IslandSave {
 - [x] Tile-aligned brush (1×1, 2×2, 3×3)
 - [x] Tile size + tile variation config
 
-### Phase E: Building Placement (Pirate Game)
-- [ ] Building type definitions (tavern, shipwright, market, lighthouse, warehouse, fort, docks, dragon_sanctuary)
-- [ ] Tile grid overlay (optional)
-- [ ] Place/remove/rotate buildings
-- [ ] Building validation (land, no overlap)
-- [ ] Include buildings in save/load
+### Phase E: Building Placement (Pirate Game) ✓
+- [x] Building type definitions (tavern, shipwright, market, lighthouse, warehouse, fort, docks, dragon_sanctuary)
+- [x] Tile grid overlay (optional)
+- [x] Place/remove/rotate buildings
+- [x] Building validation (land, no overlap)
+- [x] Terrain flattening on placement (average height of footprint)
+- [x] Include buildings in save/load
 
 ### Phase F: Polish
+- [x] Settings (⚙) button — opens Controls modal with mouse/keyboard input help
+- [x] Controls modal documents View, Edit, and Build mode inputs
+- [x] Buildings section moved to top-level in right panel (no Edit Mode required)
 - [ ] Ramp tool
 - [ ] Contour overlay toggle
 - [ ] Min/Max elevation clamp
 - [ ] Performance: LOD or reduced grid for large sizes
+
+### Phase H: Props & Decorations (Design Target)
+
+*Placeable natural and decorative objects for island atmosphere.*
+
+- [ ] **Prop types** — Rock, Palm Tree, Tree, Bush, Sign (all 1×1)
+- [ ] **Props palette** — Visual selection in Build Mode (alongside or separate from buildings)
+- [ ] **Placement** — Click tile to place; no terrain flattening; land-only validation
+- [ ] **Rendering** — Distinct meshes per prop type (cylinder for palm, sphere for bush, etc.)
+- [ ] **Save/Load** — Include props in island JSON
+
+### Phase G: Paths & Navigation (Partial ✓)
+
+*Islands are generated and edited to support paths between buildings and player navigation.*
+
+- [x] **Walkability model** — Land above sea level is walkable; used by A* pathfinding
+- [x] **Pathfinding** — A* on tile graph (`IslandPathfinder.findPath`); 8-directional
+- [x] **Path visualization** — Automatic paths rendered via path color on terrain
+- [x] **Automatic paths between buildings** — `computePathsBetweenBuildings`; star topology from first building; update on add/remove/move, load, regeneration
+- [x] **Path terrain smoothing** — `smoothPathTerrain` flattens path tiles to average height
+- [x] **Path color** — `pathColor` (dirt `0x8B7355`) applied to path vertices in `IslandVisualizer`
+- [ ] **Ramp tool** — Create traversable slopes between elevation levels
+- [ ] **Building zone hints** — Highlight contiguous flat land suitable for placement
+- [ ] **Connectivity check** — Warn when placing building would isolate it (no path to others)
+- [ ] **Path width** — Configurable path width (1–2 tiles)
+- [ ] **Generation tuning** — Parameters that favor navigable, path-friendly terrain

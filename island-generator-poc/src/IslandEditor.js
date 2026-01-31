@@ -157,18 +157,15 @@ export class IslandEditor {
 
     const hit = intersects[0];
     let u, v;
-    // Prefer UV from raycaster — more accurate on deformed terrain (height variation)
-    if (hit.uv && hit.uv.x != null && hit.uv.y != null) {
-      u = hit.uv.x;
-      v = hit.uv.y;
+    if (hit.uv) {
+      u = Math.max(0, Math.min(1, hit.uv.x));
+      v = Math.max(0, Math.min(1, 1 - hit.uv.y));
     } else {
       const point = hit.point.clone();
       mesh.worldToLocal(point);
-      u = point.x + 0.5;
-      v = point.y + 0.5;
+      u = Math.max(0, Math.min(1, point.x + 0.5));
+      v = Math.max(0, Math.min(1, 0.5 - point.y));
     }
-    u = Math.max(0, Math.min(1, u));
-    v = Math.max(0, Math.min(1, v));
 
     if (this.tilesX <= 0 || this.tilesY <= 0) return null;
 

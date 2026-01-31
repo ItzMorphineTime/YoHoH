@@ -6,21 +6,27 @@
 import { generateIsland } from './IslandGenerator.js';
 import { IslandVisualizer } from './IslandVisualizer.js';
 import { IslandEditor, ELEVATION_LEVELS } from './IslandEditor.js';
+import { IslandBuildingPlacer } from './IslandBuildingPlacer.js';
+import { getBuildingType, getEffectiveBuildingSize, setBuildingDimensionOverride } from './BuildingTypes.js';
 import { serialize, deserialize } from './IslandSerializer.js';
+import { computePathsBetweenBuildings } from './IslandPathfinder.js';
 
 const container = document.getElementById('canvas-container');
 const regenerateBtn = document.getElementById('regenerate');
 const statsEl = document.getElementById('stats');
 const elevationHud = document.getElementById('elevation-hud');
+const buildModeHud = document.getElementById('build-mode-hud');
 
 const visualizer = new IslandVisualizer(container);
 visualizer.init();
 visualizer.animate();
 
 const editor = new IslandEditor(visualizer);
+const buildingPlacer = new IslandBuildingPlacer(visualizer);
 
 let currentIsland = null;
 let editMode = false;
+let buildMode = false;
 
 const UNDO_LIMIT = 20;
 let undoStack = [];
@@ -105,7 +111,31 @@ function run() {
     wireframe: document.getElementById('wireframe').checked,
     showWater: true,
   });
+  if (island.buildings?.length >= 2) {
+    const { pathTiles, heightMap } = computePathsBetweenBuildings(
+      island.buildings, island.heightMap, island.config
+    );
+    island.heightMap = heightMap;
+    island.pathTiles = [...pathTiles];
+  } else {
+    island.pathTiles = [];
+  }
   visualizer.render(island);
+  if (island.buildings?.length) {
+    const cfg = island.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = Math.floor((island.heightMap.length - 1) / ts);
+    const tilesY = tilesX;
+    visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesY);
+  }
+  const showGrid = document.getElementById('show-grid-overlay')?.checked;
+  if (showGrid && island?.heightMap) {
+    const cfg = island.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = cfg?.tilesX ?? Math.floor((island.heightMap.length - 1) / ts);
+    const tilesY = cfg?.tilesY ?? tilesX;
+    visualizer.setTileGridOverlay(true, tilesX, tilesY, island.heightMap.length - 1);
+  }
 
   if (hadSeed) {
     seedInput.value = island.seed;
@@ -114,6 +144,7 @@ function run() {
 }
 
 function setEditMode(enabled) {
+  if (enabled && buildMode) setBuildMode(false);
   editMode = enabled;
   const editPanel = document.getElementById('edit-panel');
   const editBtn = document.getElementById('edit-mode-btn');
@@ -166,6 +197,131 @@ function setEditMode(enabled) {
   }
 }
 
+function setBuildMode(enabled) {
+  if (enabled && editMode) setEditMode(false);
+  buildMode = enabled;
+  const buildPanel = document.getElementById('build-panel');
+  const buildBtn = document.getElementById('build-mode-btn');
+  if (buildPanel) buildPanel.style.display = enabled ? 'block' : 'none';
+  if (buildBtn) {
+    buildBtn.textContent = enabled ? 'Build Mode (On)' : 'Build Mode (Off)';
+    buildBtn.classList.toggle('active', enabled);
+  }
+  visualizer.setInputMode(enabled ? 'edit' : (editMode ? 'edit' : 'view'));
+  const inputHint = document.getElementById('input-hint');
+  if (inputHint) inputHint.textContent = enabled ? 'Left=place · Right=orbit · Shift+Left=remove · Scroll=zoom' : (editMode ? 'Left=paint · Right=orbit · Space+Left=orbit · Scroll=zoom' : 'Left=orbit · Right=pan · Scroll=zoom');
+  if (enabled) {
+    buildingPlacer.setHeightMap(currentIsland?.heightMap);
+    const cfg = currentIsland?.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = cfg?.tilesX ?? Math.floor((currentIsland?.heightMap?.length - 1 ?? 0) / ts);
+    const tilesY = cfg?.tilesY ?? tilesX;
+    buildingPlacer.setTileConfig(ts, tilesX, tilesY);
+    buildingPlacer.setSeaLevel(cfg?.seaLevel ?? 0.12);
+    buildingPlacer.setBuildings(currentIsland?.buildings ?? []);
+    buildingPlacer.setSelectedType(document.getElementById('building-type')?.value || 'tavern');
+    buildingPlacer.onBuildingsChange = (buildings) => {
+      currentIsland = { ...currentIsland, buildings };
+      const cfg = currentIsland?.config;
+      const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+      const tilesX = cfg?.tilesX ?? Math.floor((currentIsland?.heightMap?.length - 1 ?? 0) / ts);
+      const tilesY = cfg?.tilesY ?? tilesX;
+      if (buildings.length >= 2 && currentIsland?.heightMap) {
+        const { pathTiles, heightMap } = computePathsBetweenBuildings(
+          buildings, currentIsland.heightMap, { ...cfg, tilesX, tilesY }
+        );
+        currentIsland = { ...currentIsland, heightMap, pathTiles: [...pathTiles] };
+        buildingPlacer.setHeightMap(heightMap);
+        editor.setHeightMap(heightMap);
+        visualizer.updateFromHeightMap(heightMap, pathTiles, ts);
+      } else {
+        currentIsland = { ...currentIsland, pathTiles: [] };
+        visualizer.updateFromHeightMap(currentIsland.heightMap, new Set(), ts);
+      }
+      updateBuildModeHud();
+      updateBuildingsList();
+    };
+    buildingPlacer.onHeightMapChange = (newHeightMap) => {
+      currentIsland = { ...currentIsland, heightMap: newHeightMap };
+      editor.setHeightMap(newHeightMap);
+      const cfg = currentIsland?.config;
+      const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+      const pathTiles = currentIsland?.pathTiles ? new Set(currentIsland.pathTiles) : new Set();
+      visualizer.updateFromHeightMap(newHeightMap, pathTiles, ts);
+    };
+    buildingPlacer.onPlacementHover = (tx, ty, isValid) => {
+      const hm = currentIsland?.heightMap;
+      const cfg = currentIsland?.config;
+      const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+      const tilesX = cfg?.tilesX ?? Math.floor((hm?.length - 1 ?? 0) / ts);
+      const tilesY = cfg?.tilesY ?? tilesX;
+      if (tx != null && ty != null && hm) {
+        visualizer.setPlacementPreview(tx, ty, buildingPlacer.selectedType, isValid, hm, ts, tilesX, tilesY);
+      } else {
+        visualizer.clearPlacementPreview();
+      }
+    };
+    buildingPlacer.onBuildingHover = (building) => {
+      const hm = currentIsland?.heightMap;
+      const cfg = currentIsland?.config;
+      const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+      const tilesX = cfg?.tilesX ?? Math.floor((hm?.length - 1 ?? 0) / ts);
+      const tilesY = cfg?.tilesY ?? tilesX;
+      if (building && hm) {
+        visualizer.setBuildingHighlight(building, hm, ts, tilesX, tilesY);
+      } else {
+        visualizer.clearBuildingHighlight();
+      }
+    };
+    buildingPlacer.enable(container);
+    const showGrid = document.getElementById('show-grid-overlay')?.checked;
+    visualizer.setTileGridOverlay(showGrid, tilesX, tilesY, currentIsland?.heightMap?.length - 1 ?? 0);
+    syncBuildingPalette(buildingPlacer.selectedType);
+    syncBuildingDimensions(buildingPlacer.selectedType);
+    updateBuildingsList();
+  } else {
+    buildingPlacer.disable();
+    buildingPlacer.onBuildingsChange = null;
+    buildingPlacer.onHeightMapChange = null;
+    buildingPlacer.onPlacementHover = null;
+    buildingPlacer.onBuildingHover = null;
+    visualizer.setTileGridOverlay(false);
+    visualizer.clearPlacementPreview();
+    visualizer.clearBuildingHighlight();
+    if (buildModeHud) buildModeHud.style.display = 'none';
+  }
+  updateBuildModeHud();
+}
+
+function updateBuildModeHud() {
+  if (!buildModeHud) return;
+  if (!buildMode) return;
+  const def = getBuildingType(buildingPlacer.selectedType);
+  const name = def?.name ?? buildingPlacer.selectedType ?? '—';
+  const count = buildingPlacer.getBuildings().length;
+  buildModeHud.textContent = `Building: ${name} · ${count} placed`;
+  buildModeHud.style.display = 'block';
+}
+
+function updateBuildingsList() {
+  const listEl = document.getElementById('buildings-list');
+  const itemsEl = document.getElementById('buildings-list-items');
+  if (!listEl || !itemsEl) return;
+  const buildings = buildingPlacer?.getBuildings() ?? currentIsland?.buildings ?? [];
+  if (buildings.length === 0) {
+    listEl.style.display = 'none';
+    return;
+  }
+  listEl.style.display = 'block';
+  const title = listEl.querySelector('.control-section-title');
+  if (title) title.textContent = `Placed (${buildings.length})`;
+  itemsEl.innerHTML = buildings.map((b, i) => {
+    const def = getBuildingType(b.type);
+    const name = def?.name ?? b.type;
+    return `${i + 1}. ${name} @ (${b.chunkX},${b.chunkY})`;
+  }).join('<br>');
+}
+
 function pushUndo() {
   const hm = editor.getHeightMap();
   if (!hm) return;
@@ -179,7 +335,10 @@ function undo() {
   redoStack.push(editor.getHeightMap().map(row => [...row]));
   const prev = undoStack.pop();
   editor.setHeightMap(prev);
-  visualizer.updateFromHeightMap(prev);
+  const cfg = currentIsland?.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const pathTiles = currentIsland?.pathTiles ? new Set(currentIsland.pathTiles) : new Set();
+  visualizer.updateFromHeightMap(prev, pathTiles, ts);
 }
 
 function redo() {
@@ -187,12 +346,16 @@ function redo() {
   undoStack.push(editor.getHeightMap().map(row => [...row]));
   const next = redoStack.pop();
   editor.setHeightMap(next);
-  visualizer.updateFromHeightMap(next);
+  const cfg = currentIsland?.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const pathTiles = currentIsland?.pathTiles ? new Set(currentIsland.pathTiles) : new Set();
+  visualizer.updateFromHeightMap(next, pathTiles, ts);
 }
 
 function saveIsland() {
   if (!currentIsland) return;
   const mode = document.getElementById('save-mode')?.value || 'full';
+  const buildings = buildMode ? buildingPlacer.getBuildings() : (currentIsland.buildings ?? []);
   const island = {
     ...currentIsland,
     heightMap: mode === 'full' ? (editor.getHeightMap() ?? currentIsland.heightMap) : undefined,
@@ -200,7 +363,7 @@ function saveIsland() {
       heightScale: (parseInt(document.getElementById('height-scale').value, 10) || 100) / 100,
       wireframe: document.getElementById('wireframe').checked,
     },
-    buildings: mode === 'full' ? (currentIsland.buildings ?? []) : [],
+    buildings: mode === 'full' ? buildings : [],
   };
   const json = serialize(island);
   const blob = new Blob([json], { type: 'application/json' });
@@ -283,9 +446,23 @@ function loadIslandFromFile() {
           island.buildings = data.buildings ?? [];
         }
         currentIsland = island;
+        if (island.buildings?.length >= 2) {
+          const { pathTiles, heightMap } = computePathsBetweenBuildings(
+            island.buildings, island.heightMap, island.config
+          );
+          island.heightMap = heightMap;
+          island.pathTiles = [...pathTiles];
+        } else {
+          island.pathTiles = [];
+        }
         editor.setHeightMap(island.heightMap);
         visualizer.setConfig({ heightScale: (data.display?.heightScale ?? 0.5), wireframe: !!data.display?.wireframe });
         visualizer.render(island);
+        if (island.buildings?.length) {
+          const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
+          const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+          visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesX);
+        }
         updateStats(island);
         document.getElementById('seed').value = island.seed ?? '';
         setEditMode(true);
@@ -308,6 +485,27 @@ function bindValueDisplay(id, displayId, formatter = (v) => v) {
   input.addEventListener('change', update);
   update();
 }
+
+// Settings modal
+const settingsModal = document.getElementById('settings-modal');
+const settingsBtn = document.getElementById('settings-btn');
+const settingsCloseBtn = document.getElementById('settings-close-btn');
+
+function openSettings() {
+  if (settingsModal) settingsModal.classList.add('open');
+}
+function closeSettings() {
+  if (settingsModal) settingsModal.classList.remove('open');
+}
+
+settingsBtn?.addEventListener('click', openSettings);
+settingsCloseBtn?.addEventListener('click', closeSettings);
+settingsModal?.addEventListener('click', (e) => {
+  if (e.target === settingsModal) closeSettings();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && settingsModal?.classList.contains('open')) closeSettings();
+});
 
 regenerateBtn.addEventListener('click', run);
 
@@ -337,9 +535,23 @@ async function loadPreset() {
       island.buildings = data.buildings ?? [];
     }
     currentIsland = island;
+    if (island.buildings?.length >= 2) {
+      const { pathTiles, heightMap } = computePathsBetweenBuildings(
+        island.buildings, island.heightMap, island.config
+      );
+      island.heightMap = heightMap;
+      island.pathTiles = [...pathTiles];
+    } else {
+      island.pathTiles = [];
+    }
     editor.setHeightMap(island.heightMap);
     visualizer.setConfig({ heightScale: data.display?.heightScale ?? 0.5, wireframe: !!data.display?.wireframe });
     visualizer.render(island);
+    if (island.buildings?.length) {
+      const ts = island.config?.tileSize ?? island.config?.chunkSize ?? 8;
+      const tilesX = Math.floor((island.heightMap?.length - 1 ?? 0) / ts);
+      visualizer.renderBuildings(island.buildings, island.heightMap, ts, tilesX, tilesX);
+    }
     updateStats(island);
     setEditMode(true);
     select.value = '';
@@ -351,6 +563,81 @@ document.getElementById('load-preset-btn').addEventListener('click', loadPreset)
 
 document.getElementById('edit-mode-btn').addEventListener('click', () => {
   setEditMode(!editMode);
+});
+
+document.getElementById('build-mode-btn')?.addEventListener('click', () => {
+  setBuildMode(!buildMode);
+});
+
+document.getElementById('building-type')?.addEventListener('change', (e) => {
+  buildingPlacer.setSelectedType(e.target.value);
+  syncBuildingPalette(e.target.value);
+  syncBuildingDimensions(e.target.value);
+  updateBuildModeHud();
+});
+
+document.querySelectorAll('#building-palette .building-palette-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.type;
+    if (!type) return;
+    buildingPlacer.setSelectedType(type);
+    const select = document.getElementById('building-type');
+    if (select) select.value = type;
+    syncBuildingPalette(type);
+    syncBuildingDimensions(type);
+    updateBuildModeHud();
+  });
+});
+
+function syncBuildingDimensions(type) {
+  const size = getEffectiveBuildingSize(type);
+  const wEl = document.getElementById('building-width');
+  const hEl = document.getElementById('building-height');
+  if (wEl) wEl.value = size.width;
+  if (hEl) hEl.value = size.height;
+}
+
+document.getElementById('building-width')?.addEventListener('change', (e) => {
+  const type = buildingPlacer?.selectedType;
+  if (!type) return;
+  const w = Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1));
+  setBuildingDimensionOverride(type, w, undefined);
+  if (currentIsland && buildMode) {
+    const cfg = currentIsland.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+    const tilesY = cfg?.tilesY ?? tilesX;
+    visualizer.renderBuildings(buildingPlacer.getBuildings(), currentIsland.heightMap, ts, tilesX, tilesY);
+  }
+});
+
+document.getElementById('building-height')?.addEventListener('change', (e) => {
+  const type = buildingPlacer?.selectedType;
+  if (!type) return;
+  const h = Math.max(1, Math.min(5, parseInt(e.target.value, 10) || 1));
+  setBuildingDimensionOverride(type, undefined, h);
+  if (currentIsland && buildMode) {
+    const cfg = currentIsland.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+    const tilesY = cfg?.tilesY ?? tilesX;
+    visualizer.renderBuildings(buildingPlacer.getBuildings(), currentIsland.heightMap, ts, tilesX, tilesY);
+  }
+});
+
+function syncBuildingPalette(selectedType) {
+  document.querySelectorAll('#building-palette .building-palette-btn').forEach((btn) => {
+    btn.classList.toggle('selected', btn.dataset.type === selectedType);
+  });
+}
+
+document.getElementById('show-grid-overlay')?.addEventListener('change', (e) => {
+  if (!currentIsland) return;
+  const cfg = currentIsland.config;
+  const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+  const tilesX = cfg?.tilesX ?? Math.floor((currentIsland.heightMap?.length - 1 ?? 0) / ts);
+  const tilesY = cfg?.tilesY ?? tilesX;
+  visualizer.setTileGridOverlay(e.target.checked, tilesX, tilesY, currentIsland.heightMap?.length - 1 ?? 0);
 });
 
 document.getElementById('brush-mode').addEventListener('change', (e) => {
@@ -397,7 +684,10 @@ document.getElementById('height-scale').addEventListener('input', () => {
   const scale = (parseInt(document.getElementById('height-scale').value, 10) || 100) / 100;
   visualizer.setConfig({ heightScale: scale });
   if (currentIsland) {
-    visualizer.updateFromHeightMap(editor.getHeightMap() ?? currentIsland.heightMap);
+    const cfg = currentIsland?.config;
+    const ts = cfg?.tileSize ?? cfg?.chunkSize ?? 8;
+    const pathTiles = currentIsland?.pathTiles ? new Set(currentIsland.pathTiles) : new Set();
+    visualizer.updateFromHeightMap(editor.getHeightMap() ?? currentIsland.heightMap, pathTiles, ts);
   }
 });
 

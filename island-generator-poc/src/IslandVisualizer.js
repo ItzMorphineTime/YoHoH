@@ -6,6 +6,8 @@
 import * as THREE from 'three';
 import { MOUSE } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { getBuildingType, getEffectiveBuildingSize } from './BuildingTypes.js';
+import { PATH_COLOR } from './IslandPathfinder.js';
 
 /** Vertex colors by elevation band (hex) */
 const ELEVATION_COLORS = {
@@ -43,6 +45,10 @@ export class IslandVisualizer {
     this.islandMesh = null;
     this.waterMesh = null;
     this.hoverOverlayMesh = null;
+    this.buildingMeshes = [];
+    this.gridOverlayMesh = null;
+    this.placementPreviewMesh = null;
+    this.buildingHighlightMesh = null;
     this._inputMode = 'view';
     this._spaceHeld = false;
     this.ambientLight = null;
@@ -54,7 +60,9 @@ export class IslandVisualizer {
       heightScale: 1,
       useVertexColors: true,
       seaLevel: 0.12,
+      pathColor: PATH_COLOR,
     };
+    this.pathTiles = new Set();
   }
 
   init() {
@@ -67,6 +75,7 @@ export class IslandVisualizer {
     this.camera = new THREE.PerspectiveCamera(55, width / height, 0.1, 1000);
     this.camera.position.set(1.5, 1.2, 1.5);
     this.camera.lookAt(0, 0, 0);
+    this.camera.layers.enable(1); // Render layer 1 (grid, preview, highlight overlays)
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(width, height);
@@ -115,6 +124,8 @@ export class IslandVisualizer {
       this.hoverOverlayMesh.material.dispose();
       this.hoverOverlayMesh = null;
     }
+    this._clearBuildings();
+    this._clearGridOverlay();
     if (this.islandMesh) {
       this.scene.remove(this.islandMesh);
       this.islandMesh.geometry.dispose();
@@ -127,9 +138,12 @@ export class IslandVisualizer {
     }
 
     const { heightMap, config } = island;
+    this.pathTiles = island.pathTiles ? new Set(island.pathTiles) : new Set();
     const gridSize = config?.gridSize ?? heightMap.length - 1;
     const seaLevel = config?.seaLevel ?? this.config.seaLevel;
     this.config.seaLevel = seaLevel;
+    const ts = config?.tileSize ?? config?.chunkSize ?? 8;
+    const tilesX = config?.tilesX ?? Math.floor(gridSize / ts);
 
     const size = 1;
     const segments = gridSize;
@@ -146,7 +160,10 @@ export class IslandVisualizer {
       const h = heightMap[y]?.[x] ?? 0;
       positions.setZ(i, h * this.config.heightScale);
 
-      const color = heightToColor(h, seaLevel);
+      const tx = Math.floor(x / ts);
+      const ty = Math.floor(y / ts);
+      const pathKey = `${tx},${ty}`;
+      const color = this.pathTiles.has(pathKey) ? this.config.pathColor : heightToColor(h, seaLevel);
       const [r, g, b] = hexToRgb(color);
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;
@@ -227,20 +244,263 @@ export class IslandVisualizer {
     this.hoverOverlayMesh = new THREE.Mesh(geometry, material);
     this.hoverOverlayMesh.layers.set(1); // Exclude from raycaster (terrain is layer 0)
     const centerX = (x0 + x1) / (2 * gridSize) - 0.5;
-    const centerY = (y0 + y1) / (2 * gridSize) - 0.5;
+    const centerY = 0.5 - (y0 + y1) / (2 * gridSize);
     this.hoverOverlayMesh.position.set(centerX, centerY, 0);
     this.islandMesh.add(this.hoverOverlayMesh);
   }
 
+  _clearBuildings() {
+    for (const m of this.buildingMeshes) {
+      if (m.parent) m.parent.remove(m);
+      m.geometry?.dispose();
+      m.material?.dispose();
+    }
+    this.buildingMeshes = [];
+  }
+
+  _clearGridOverlay() {
+    if (this.gridOverlayMesh) {
+      if (this.gridOverlayMesh.parent) this.gridOverlayMesh.parent.remove(this.gridOverlayMesh);
+      this.gridOverlayMesh.geometry.dispose();
+      this.gridOverlayMesh.material.dispose();
+      this.gridOverlayMesh = null;
+    }
+  }
+
+  _clearPlacementPreview() {
+    if (this.placementPreviewMesh && this.islandMesh) {
+      this.islandMesh.remove(this.placementPreviewMesh);
+      this.placementPreviewMesh.geometry?.dispose();
+      this.placementPreviewMesh.material?.dispose();
+      this.placementPreviewMesh = null;
+    }
+  }
+
+  _clearBuildingHighlight() {
+    if (this.buildingHighlightMesh && this.islandMesh) {
+      this.islandMesh.remove(this.buildingHighlightMesh);
+      this.buildingHighlightMesh.geometry?.dispose();
+      this.buildingHighlightMesh.material?.dispose();
+      this.buildingHighlightMesh = null;
+    }
+  }
+
+  /**
+   * Show placement preview (ghost building) or invalid overlay at tile
+   * @param {number|null} tx
+   * @param {number|null} ty
+   * @param {string} buildingType
+   * @param {boolean} isValid
+   * @param {number[][]} heightMap
+   * @param {number} tileSize
+   * @param {number} tilesX
+   * @param {number} tilesY
+   */
+  setPlacementPreview(tx, ty, buildingType, isValid, heightMap, tileSize, tilesX, tilesY) {
+    this._clearPlacementPreview();
+    if (tx == null || ty == null || !this.islandMesh || !heightMap) return;
+
+    const def = getBuildingType(buildingType);
+    if (!def) return;
+    const size = getEffectiveBuildingSize(buildingType);
+    const w = size.width;
+    const h = size.height;
+
+    const gridSize = heightMap.length - 1;
+    const ts = tileSize || 8;
+    const txCount = tilesX ?? Math.floor(gridSize / ts);
+    const tyCount = tilesY ?? Math.floor(gridSize / ts);
+
+    const centerX = (tx + w / 2) / txCount - 0.5;
+    const centerY = 0.5 - (ty + h / 2) / tyCount;
+    const gx = Math.min(gridSize, Math.floor((tx + w / 2) * ts));
+    const gy = Math.min(gridSize, Math.floor((ty + h / 2) * ts));
+    const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+    const normW = (w * ts) / gridSize;
+    const normH = (h * ts) / gridSize;
+
+    if (isValid) {
+      const boxH = Math.max(terrainH * 0.5, 0.08);
+      const geometry = new THREE.BoxGeometry(normW, normH, boxH);
+      const material = new THREE.MeshBasicMaterial({
+        color: def.color,
+        transparent: true,
+        opacity: 0.6,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      this.placementPreviewMesh = new THREE.Mesh(geometry, material);
+      this.placementPreviewMesh.position.set(centerX, centerY, terrainH + boxH * 0.5 + 0.015);
+      this.placementPreviewMesh.layers.set(1);
+      this.islandMesh.add(this.placementPreviewMesh);
+    } else {
+      const geometry = new THREE.PlaneGeometry(normW, normH);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xef4444,
+        transparent: true,
+        opacity: 0.5,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      this.placementPreviewMesh = new THREE.Mesh(geometry, material);
+      this.placementPreviewMesh.position.set(centerX, centerY, terrainH + 0.02);
+      this.placementPreviewMesh.layers.set(1);
+      this.islandMesh.add(this.placementPreviewMesh);
+    }
+  }
+
+  /**
+   * Highlight building at tile (outline) when hovering
+   * @param {Object|null} building
+   * @param {number[][]} heightMap
+   * @param {number} tileSize
+   * @param {number} tilesX
+   * @param {number} tilesY
+   */
+  setBuildingHighlight(building, heightMap, tileSize, tilesX, tilesY) {
+    this._clearBuildingHighlight();
+    if (!building || !this.islandMesh || !heightMap) return;
+
+    const def = getBuildingType(building.type);
+    if (!def) return;
+    const size = getEffectiveBuildingSize(building.type);
+    const w = size.width;
+    const h = size.height;
+
+    const gridSize = heightMap.length - 1;
+    const ts = tileSize || 8;
+    const txCount = tilesX ?? Math.floor(gridSize / ts);
+    const tyCount = tilesY ?? Math.floor(gridSize / ts);
+    const chunkX = building.chunkX ?? 0;
+    const chunkY = building.chunkY ?? 0;
+    const rot = (building.rotation ?? 0) * (Math.PI / 180);
+
+    const centerX = (chunkX + w / 2) / txCount - 0.5;
+    const centerY = 0.5 - (chunkY + h / 2) / tyCount;
+    const gx = Math.min(gridSize, Math.floor((chunkX + w / 2) * ts));
+    const gy = Math.min(gridSize, Math.floor((chunkY + h / 2) * ts));
+    const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+    const normW = (w * ts) / gridSize;
+    const normH = (h * ts) / gridSize;
+    const boxH = Math.max(terrainH * 0.5, 0.08);
+    const boxGeom = new THREE.BoxGeometry(normW, normH, boxH + 0.02);
+    const edges = new THREE.EdgesGeometry(boxGeom);
+    boxGeom.dispose();
+    const material = new THREE.LineBasicMaterial({ color: 0xfbbf24, linewidth: 2 });
+    this.buildingHighlightMesh = new THREE.LineSegments(edges, material);
+    this.buildingHighlightMesh.position.set(centerX, centerY, terrainH + boxH * 0.5);
+    this.buildingHighlightMesh.rotation.z = -rot;
+    this.buildingHighlightMesh.layers.set(1);
+    this.islandMesh.add(this.buildingHighlightMesh);
+  }
+
+  clearPlacementPreview() {
+    this._clearPlacementPreview();
+  }
+
+  clearBuildingHighlight() {
+    this._clearBuildingHighlight();
+  }
+
+  /**
+   * Render building meshes on terrain
+   * @param {Array} buildings
+   * @param {number[][]} heightMap
+   * @param {number} tileSize
+   * @param {number} tilesX
+   * @param {number} tilesY
+   */
+  renderBuildings(buildings, heightMap, tileSize, tilesX, tilesY) {
+    this._clearBuildings();
+    if (!this.islandMesh || !heightMap || !Array.isArray(buildings)) return;
+
+    const gridSize = heightMap.length - 1;
+    const ts = tileSize || 8;
+    const txCount = tilesX ?? Math.floor(gridSize / ts);
+    const tyCount = tilesY ?? Math.floor(gridSize / ts);
+
+    for (const b of buildings) {
+      const def = getBuildingType(b.type);
+      if (!def) continue;
+      const size = getEffectiveBuildingSize(b.type);
+      const w = size.width;
+      const h = size.height;
+      const chunkX = b.chunkX ?? 0;
+      const chunkY = b.chunkY ?? 0;
+      const rot = (b.rotation ?? 0) * (Math.PI / 180);
+
+      const centerX = (chunkX + w / 2) / txCount - 0.5;
+      const centerY = 0.5 - (chunkY + h / 2) / tyCount;
+      const gx = Math.min(gridSize, Math.floor((chunkX + w / 2) * ts));
+      const gy = Math.min(gridSize, Math.floor((chunkY + h / 2) * ts));
+      const terrainH = (heightMap[gy]?.[gx] ?? 0) * this.config.heightScale + 0.02;
+
+      const normW = (w * ts) / gridSize;
+      const normH = (h * ts) / gridSize;
+      const boxH = Math.max(terrainH * 0.5, 0.08);
+      const geometry = new THREE.BoxGeometry(normW, normH, boxH);
+      const material = new THREE.MeshLambertMaterial({ color: def.color });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(centerX, centerY, terrainH + boxH * 0.5);
+      mesh.rotation.z = -rot;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      this.islandMesh.add(mesh);
+      this.buildingMeshes.push(mesh);
+    }
+  }
+
+  /**
+   * Toggle tile grid overlay
+   * @param {boolean} show
+   * @param {number} tilesX
+   * @param {number} tilesY
+   * @param {number} gridSize
+   */
+  setTileGridOverlay(show, tilesX, tilesY, gridSize) {
+    this._clearGridOverlay();
+    if (!show || !this.islandMesh || tilesX <= 0 || tilesY <= 0) return;
+
+    const positions = [];
+    const stepX = 1 / tilesX;
+    const stepY = 1 / tilesY;
+
+    for (let i = 0; i <= tilesX; i++) {
+      const x = (i / tilesX) - 0.5;
+      positions.push(x, -0.5, 0.01, x, 0.5, 0.01);
+    }
+    for (let j = 0; j <= tilesY; j++) {
+      const y = (j / tilesY) - 0.5;
+      positions.push(-0.5, y, 0.01, 0.5, y, 0.01);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setDrawRange(0, positions.length / 3);
+    const material = new THREE.LineBasicMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.4 });
+    this.gridOverlayMesh = new THREE.LineSegments(geometry, material);
+    this.gridOverlayMesh.layers.set(1);
+    this.islandMesh.add(this.gridOverlayMesh);
+  }
+
   /**
    * Update mesh vertices and colors from modified height map (for editor)
+   * @param {number[][]} heightMap
+   * @param {Set<string>|string[]} [pathTiles] Optional path tiles for vertex coloring
+   * @param {number} [tileSize] Tile size for path tile mapping (required if pathTiles provided)
    */
-  updateFromHeightMap(heightMap) {
+  updateFromHeightMap(heightMap, pathTiles, tileSize) {
     if (!this.islandMesh || !heightMap) return;
+    if (pathTiles != null) this.pathTiles = pathTiles instanceof Set ? pathTiles : new Set(pathTiles);
     const positions = this.islandMesh.geometry.attributes.position;
     const colors = this.islandMesh.geometry.attributes.color;
     const gridSize = Math.sqrt(positions.count) - 1;
     const seaLevel = this.config.seaLevel;
+    const ts = tileSize ?? Math.max(1, Math.floor(gridSize / 16));
 
     for (let i = 0; i < positions.count; i++) {
       const x = Math.floor(i % (gridSize + 1));
@@ -248,7 +508,10 @@ export class IslandVisualizer {
       const h = heightMap[y]?.[x] ?? 0;
       positions.setZ(i, h * this.config.heightScale);
 
-      const color = heightToColor(h, seaLevel);
+      const tx = Math.floor(x / ts);
+      const ty = Math.floor(y / ts);
+      const pathKey = `${tx},${ty}`;
+      const color = this.pathTiles.has(pathKey) ? this.config.pathColor : heightToColor(h, seaLevel);
       const [r, g, b] = hexToRgb(color);
       colors.setXYZ(i, r, g, b);
     }
