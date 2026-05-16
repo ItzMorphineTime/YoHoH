@@ -5,8 +5,10 @@
 
 import * as THREE from 'three';
 import { CAMERA, COMBAT, OVERWORLD, OVERWORLD_RENDER, RENDER, SAILING_RENDER, SHIP_GEOMETRY } from './config.js';
+import { getCombatRenderConfig, getOverworldRenderConfig, getSailingRenderConfig } from './render/RenderConfig.js';
+import { OverworldRenderer } from './render/OverworldRenderer.js'; // Improvements.md §3.1
 
-/** R.3a: Get scale for ship class (combat/overworld/sailing). */
+/** R.3a: Get scale for ship class (combat/sailing — overworld scale lives in OverworldRenderer). */
 function getShipClassScale(shipClassId, view) {
   const classes = SHIP_GEOMETRY?.classes ?? {};
   const c = classes[shipClassId] ?? classes.sloop ?? {};
@@ -14,12 +16,13 @@ function getShipClassScale(shipClassId, view) {
   if (view === 'sailing') return c.sailingScale ?? c.scale ?? 1;
   return c.scale ?? 1;
 }
-import { getCombatRenderConfig, getOverworldRenderConfig, getSailingRenderConfig } from './render/RenderConfig.js';
 
 export class Renderer {
   constructor(container) {
     this.container = container;
-    this.lastOverworldZoom = CAMERA.overworldZoom ?? 0.25;
+    // `lastOverworldZoom` is exposed via a getter further down that forwards to
+    // OverworldRenderer.getLastZoom(). Until init() constructs the sub-renderer,
+    // the getter falls back to CAMERA.overworldZoom.
     this.scene = new THREE.Scene();
     this.camera = null;
     this.renderer = null;
@@ -32,8 +35,11 @@ export class Renderer {
     this.aimArrowMesh = null;
     this.rocksGroup = null;
     this.arenaBorder = null;
-    this.overworldGroup = null;
-    this.overworldShipMesh = null;
+    // Sub-renderers (Improvements.md §3.1) — owned and constructed in init() once
+    // the scene and camera exist. The overworld view (group, meshes, pools, camera
+    // framing) lives in OverworldRenderer.
+    this.overworldRenderer = null;
+
     this.sailingGroup = null;
     this.sailingShipMesh = null;
     this.sailingPathMesh = null;
@@ -67,7 +73,8 @@ export class Renderer {
     this._createShip();
     this._createCannonArcs();
     this._createProjectilePool();
-    this._createOverworld();
+    // Overworld view lives in its own sub-renderer.
+    this.overworldRenderer = new OverworldRenderer(this.scene, this.camera);
     this._createSailingView();
 
     window.addEventListener('resize', () => this.onResize());
@@ -93,9 +100,34 @@ export class Renderer {
     this.arenaBorder.position.z = RENDER.arenaBorderZ;
     this.scene.add(this.arenaBorder);
 
-    // Rocks
+    // Rocks — pool built lazily by _syncRocks() once per combat (Improvements.md §1.2)
     this.rocksGroup = new THREE.Group();
     this.scene.add(this.rocksGroup);
+    this._currentRocks = null; // identity reference to the active rocks array
+  }
+
+  /**
+   * Build (or rebuild) the rocks mesh pool to match the given rocks array.
+   * Disposes prior geometry/material to avoid GPU leaks. Called only when the
+   * rock set changes (typically once per combat). (Improvements.md §1.2)
+   */
+  _syncRocks(rocks) {
+    if (rocks === this._currentRocks) return;
+    const cfg = getCombatRenderConfig();
+    while (this.rocksGroup.children.length > 0) {
+      const mesh = this.rocksGroup.children[0];
+      this.rocksGroup.remove(mesh);
+      mesh.geometry?.dispose?.();
+      mesh.material?.dispose?.();
+    }
+    for (const r of rocks || []) {
+      const geometry = new THREE.CircleGeometry(r.r, cfg.rock.segments);
+      const material = new THREE.MeshBasicMaterial({ color: cfg.rock.color });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(r.x, r.y, 0.5);
+      this.rocksGroup.add(mesh);
+    }
+    this._currentRocks = rocks ?? null;
   }
 
   _createShip() {
@@ -188,18 +220,14 @@ export class Renderer {
     this.projectileMeshes = [];
   }
 
-  _createOverworld() {
-    this.overworldGroup = new THREE.Group();
-    this.overworldGroup.visible = false;
-    this.scene.add(this.overworldGroup);
+  // _createOverworld() removed — overworld view lives in OverworldRenderer
+  // (Improvements.md §3.1). Backwards-compat getters below preserve any
+  // external/internal references to `overworldGroup` / `lastOverworldZoom`.
 
-    const shipGeo = new THREE.ConeGeometry(RENDER.overworldShipRadius, RENDER.overworldShipHeight, RENDER.overworldShipSegments);
-    const shipMat = new THREE.MeshBasicMaterial({ color: RENDER.shipOverworldColor });
-    this.overworldShipMesh = new THREE.Mesh(shipGeo, shipMat);
-    this.overworldShipMesh.rotation.x = Math.PI / 2;
-    this.overworldShipMesh.position.z = 1;
-    this.overworldGroup.add(this.overworldShipMesh);
-  }
+  /** @deprecated Use `overworldRenderer.group`. Kept for compat with hide helpers. */
+  get overworldGroup() { return this.overworldRenderer?.group ?? null; }
+  /** @deprecated Use `overworldRenderer.getLastZoom()`. */
+  get lastOverworldZoom() { return this.overworldRenderer?.getLastZoom?.() ?? (CAMERA.overworldZoom ?? 0.25); }
 
   _createSailingWaterMaterial() {
     if (this._sailingWaterMat) return this._sailingWaterMat;
@@ -360,7 +388,7 @@ export class Renderer {
   }
 
   _hideNonCombatViews() {
-    this.overworldGroup.visible = false;
+    this.overworldRenderer?.setVisible(false);
     this.sailingGroup.visible = false;
   }
 
@@ -371,6 +399,7 @@ export class Renderer {
     this.waterPlane.position.set(0, 0, 0);
     if (this.waterPlane && this._combatWaterMat) this.waterPlane.material = this._combatWaterMat;
     if (this.arenaBorder) this.arenaBorder.visible = true;
+    if (this.rocksGroup) this.rocksGroup.visible = true; // hidden by other view setups
     this.camera.zoom = cfg.camera.zoom;
     this.camera.updateProjectionMatrix();
   }
@@ -437,14 +466,8 @@ export class Renderer {
       this.projectileMeshes[i].visible = false;
     }
 
-    while (this.rocksGroup.children.length > 0) this.rocksGroup.remove(this.rocksGroup.children[0]);
-    for (const r of rocks || []) {
-      const geometry = new THREE.CircleGeometry(r.r, cfg.rock.segments);
-      const material = new THREE.MeshBasicMaterial({ color: cfg.rock.color });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(r.x, r.y, 0.5);
-      this.rocksGroup.add(mesh);
-    }
+    // Rocks: build once per combat; reuse meshes across frames. (Improvements.md §1.2)
+    this._syncRocks(rocks);
   }
 
   updateSailing(sailingShip, shipPosition, travelRoute) {
@@ -455,7 +478,7 @@ export class Renderer {
   }
 
   _hideNonSailingViews() {
-    this.overworldGroup.visible = false;
+    this.overworldRenderer?.setVisible(false);
     if (this.arenaBorder) this.arenaBorder.visible = false;
     if (this.portArcMesh) this.portArcMesh.visible = false;
     if (this.starboardArcMesh) this.starboardArcMesh.visible = false;
@@ -584,12 +607,15 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * Render the overworld view. Delegates entity/camera work to
+   * {@link OverworldRenderer}; this method just toggles shared-mesh visibility
+   * and the water-plane material. (Improvements.md §3.1)
+   */
   updateOverworld(map, shipPosition, currentIsland, displayRoute = null, isSelected = false, pan = { x: 0, y: 0 }, zoomLevel = 1, shipClassId = 'sloop') {
     this._hideNonOverworldViews();
     this._setupOverworldView();
-    if (!map) return;
-    this._updateOverworldEntities(map, shipPosition, currentIsland, displayRoute, isSelected, shipClassId);
-    this._updateOverworldCamera(map, pan, zoomLevel);
+    this.overworldRenderer.update(map, shipPosition, currentIsland, displayRoute, isSelected, pan, zoomLevel, shipClassId);
   }
 
   _hideNonOverworldViews() {
@@ -607,111 +633,7 @@ export class Renderer {
   _setupOverworldView() {
     this.waterPlane.visible = true;
     if (this.waterPlane && this._combatWaterMat) this.waterPlane.material = this._combatWaterMat;
-    this.overworldGroup.visible = true;
-    while (this.overworldGroup.children.length > 1) {
-      this.overworldGroup.remove(this.overworldGroup.children[1]);
-    }
-  }
-
-  _updateOverworldEntities(map, shipPosition, currentIsland, displayRoute, isSelected, shipClassId = 'sloop') {
-    const cfg = getOverworldRenderConfig();
-    const { worldScale, islandRadius, routeWidth } = cfg;
-
-    for (const edge of map.edges) {
-      const { a, b } = edge;
-      const ax = a.position.x * worldScale;
-      const ay = a.position.y * worldScale;
-      const bx = b.position.x * worldScale;
-      const by = b.position.y * worldScale;
-      const dx = bx - ax;
-      const dy = by - ay;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      const isDisplayed = displayRoute && (
-        (edge.a === displayRoute.a && edge.b === displayRoute.b) ||
-        (edge.a === displayRoute.b && edge.b === displayRoute.a)
-      );
-      const isThisSelected = isSelected && isDisplayed;
-      const widthMult = isThisSelected ? cfg.route.selectedWidthMult : (isDisplayed ? cfg.route.hoverWidthMult : 1);
-      let color = isThisSelected ? cfg.route.selectedColor : (isDisplayed ? cfg.route.hoverColor : cfg.route.color);
-      if (!isThisSelected && !isDisplayed) {
-        const mods = getRouteModifiers(edge);
-        const primary = getPrimaryModifier(mods);
-        if (primary === 'stormy') color = cfg.route.stormyColor ?? cfg.route.color;
-        else if (primary === 'patrolled') color = cfg.route.patrolledColor ?? cfg.route.color;
-        else if (primary === 'shoals') color = cfg.route.shoalsColor ?? cfg.route.color;
-      }
-
-      if (isThisSelected && cfg.route.outlineWidth > 0) {
-        const outlineW = routeWidth * widthMult + cfg.route.outlineWidth * 2;
-        const outlineGeo = new THREE.PlaneGeometry(len, outlineW);
-        const outlineMat = new THREE.MeshBasicMaterial({ color: cfg.route.outlineColor, side: THREE.DoubleSide });
-        const outlineMesh = new THREE.Mesh(outlineGeo, outlineMat);
-        outlineMesh.position.set((ax + bx) / 2, (ay + by) / 2, 0.05);
-        outlineMesh.rotation.z = Math.atan2(dy, dx);
-        this.overworldGroup.add(outlineMesh);
-      }
-
-      const geo = new THREE.PlaneGeometry(len, routeWidth * widthMult);
-      const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set((ax + bx) / 2, (ay + by) / 2, 0.1);
-      mesh.rotation.z = Math.atan2(dy, dx);
-      this.overworldGroup.add(mesh);
-    }
-
-    for (const node of map.nodes) {
-      const isCurrent = node === currentIsland;
-      const radiusMult = isCurrent ? cfg.island.currentRadiusMult : 1;
-      const r = islandRadius * radiusMult;
-      const geo = new THREE.CircleGeometry(r, 20);
-      const baseColor = node === map.homeNode ? cfg.island.homeColor : node.dangerous ? cfg.island.dangerColor : node.appealing ? cfg.island.appealColor : cfg.island.defaultColor;
-      const color = isCurrent ? cfg.island.currentColor : baseColor;
-      const mat = new THREE.MeshBasicMaterial({ color });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(node.position.x * worldScale, node.position.y * worldScale, 0.2);
-      this.overworldGroup.add(mesh);
-
-      if (isCurrent && cfg.island.currentRingWidth > 0) {
-        const ringGeo = new THREE.RingGeometry(r, r + cfg.island.currentRingWidth, 24);
-        const ringMat = new THREE.MeshBasicMaterial({ color: cfg.island.currentRingColor, side: THREE.DoubleSide });
-        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-        ringMesh.position.set(node.position.x * worldScale, node.position.y * worldScale, 0.21);
-        this.overworldGroup.add(ringMesh);
-      }
-    }
-
-    this.overworldShipMesh.position.set(shipPosition.x * worldScale, shipPosition.y * worldScale, 1);
-    const overworldScale = getShipClassScale(shipClassId, 'overworld');
-    this.overworldShipMesh.scale.set(overworldScale, overworldScale, overworldScale);
-    this.overworldShipMesh.visible = true;
-  }
-
-  _updateOverworldCamera(map, pan, zoomLevel) {
-    const cfg = getOverworldRenderConfig();
-    const xs = map.nodes.map(n => n.position.x * cfg.worldScale);
-    const ys = map.nodes.map(n => n.position.y * cfg.worldScale);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const rangeX = Math.max(maxX - minX, 100);
-    const rangeY = Math.max(maxY - minY, 100);
-    const baseCx = (minX + maxX) / 2;
-    const baseCy = (minY + maxY) / 2;
-    const padding = 1.15;
-    const halfW = (this.camera.right - this.camera.left) / 2;
-    const halfH = (this.camera.top - this.camera.bottom) / 2;
-    const zoomX = halfW / (rangeX * padding / 2);
-    const zoomY = halfH / (rangeY * padding / 2);
-    const baseZoom = Math.min(zoomX, zoomY, cfg.camera.overworldZoom);
-    const zoom = baseZoom * (zoomLevel ?? 1);
-    this.lastOverworldZoom = zoom;
-    const cx = baseCx + (pan?.x ?? 0);
-    const cy = baseCy + (pan?.y ?? 0);
-    this.camera.zoom = zoom;
-    this.camera.position.set(cx, cy, cfg.camera.positionZ);
-    this.camera.lookAt(cx, cy, 0);
-    this.camera.updateProjectionMatrix();
+    this.overworldRenderer.setVisible(true);
   }
 
   updateShip(x, y, heading) {

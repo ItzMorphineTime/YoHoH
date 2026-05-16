@@ -923,15 +923,39 @@ Source of truth: [island-generator-poc/src/IslandSerializer.js](island-generator
 
 ## 13. Code-Quality Backlog
 
-A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Highlights surface here so they're not forgotten between phases:
+A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Two passes complete; remaining items below.
 
-- 🔴 **Renderer mesh leaks** (overworld + combat rocks) — pooling required for sustained-session stability
-- 🔴 **PortUI re-renders 2× per frame** — gate updates behind state changes
-- 🟡 **`SailingSystem.update` and `updateInCorridor` are duplicated** — extract shared physics helper
-- 🟡 **Save schema has no `schemaVersion`** — add before Phase E ships content saves
-- 🟡 **Split `Renderer.js` (775 LoC) into per-view modules** — readability + testability
-- 🟡 **Extract controllers from `Game.js`** (PortController, SaveController, SettingsBindings)
-- 🟢 **Dirty-flag Minimap / BigMapUI** — skip redundant canvas redraws
+### ✅ Landed (2026-05-16)
+
+**First pass — performance + leaks:**
+- §1.1 — Overworld route/island mesh pool (Three.js GPU leak fix; ~4 200 leaked objects/sec eliminated)
+- §1.2 — Combat rock pool (built once per combat instead of per frame)
+- §1.3 — Per-frame `PortUI.update()` calls removed (was running 2× per frame)
+- §1.4 — `SailingSystem.update` / `updateInCorridor` unified behind shared `_applyControls`/`_integrateMotion`
+- §2.2 — Dirty-flag canvas redraws (overworld Minimap + BigMapUI)
+- §2.3 / §2.4 / §2.5 — `Input.endFrame` no-alloc swap, duplicate `isMouseJustPressed` removed, `Input.destroy()` for listener teardown
+- §3.2 — Overworld map-bounds cache keyed by map identity (no more per-frame `Math.min(...xs)`)
+- §4.1 / §4.2 — Save schema version constant, `loadWithStatus` with diagnostics, main menu surfaces corrupt-save / version-mismatch errors
+
+**Second pass — refactors + correctness:**
+- §2.1 — `_isClickOnUI` / `_isMouseOverCanvas` now hit-test cache keyed by mouse NDC (avoids per-frame `elementFromPoint` reflow)
+- §3.1 (partial) — Overworld view extracted into `src/render/OverworldRenderer.js` (309 lines); Renderer.js shrunk 921 → 695. Latent bug fixed: `getRouteModifiers` / `getPrimaryModifier` were used but unimported in `Renderer.js`
+- §3.3 — Confirmed N/A: cannon arcs already share a single geometry
+- §4.3 — `OverworldScene.update()` now returns the arrived ship state directly; read-clears side channel removed
+- §4.4 — `startingGold` clarified; new `GAME.devCheats` namespace for future dev flags
+- §5.1 (partial) — `PortController` extracted to `src/controllers/PortController.js` (146 lines); Game.js shrunk 600 → 557
+- §5.3 (initial) — `escapeHtml` helper added; applied to highest-risk interpolations (crew names, island names) — full audit pending
+- §6.1 — `Projectile` object pool via `_acquire`/`_recycle` on `CombatSystem` (eliminates per-shot allocations)
+- §6.3 — Encounter chance is now a proper Poisson process (Exp(λ) sampled countdown, dt-independent)
+- **Bug fix:** Main menu (New Game / Continue) was unclickable — `#main-menu-overlay` had no CSS, so it sat behind the canvas layer and clicks were intercepted by `#game-canvas-layer` (`pointer-events: auto`). Added full menu CSS in `index.html` (fixed positioning, z-index 1000, gradient background, button styling, `.hidden` rule).
+
+### ⏳ Remaining
+- 🟡 §3.1 finish — extract `SailingRenderer` and `CombatRenderer`; introduce a `CameraController`
+- 🟡 §5.1 finish — extract `SaveController`, `SettingsBindings`, `OverworldPanZoomController`
+- 🟡 §5.2 — split `PortUI` into per-tab panel classes (Tavern, Shipwright, Market)
+- 🟢 §5.3 — audit remaining `innerHTML` writes for completeness (ship name, contracts, etc. when added)
+- 🟢 §6.2 — Hit-detection spatial grid (only if combat scales beyond ~5 ships)
+- 🟢 §6.4 — Combat friction tuning (needs playtest)
 
 See [Improvements.md](Improvements.md) for full triage, line references, and effort × impact estimates.
 

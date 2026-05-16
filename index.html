@@ -854,6 +854,73 @@
     .port-market-btn:hover:not(:disabled) { background: #3a5a8a; }
     .port-market-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .port-empty, .port-placeholder { color: #8a9aaa; font-style: italic; }
+
+    /* ─── Main Menu Overlay ────────────────────────────────────────────── */
+    /* Must sit ABOVE #game-container (which is position: fixed; inset: 0)
+       and #game-canvas-layer (which has pointer-events: auto and would
+       otherwise eat clicks). High z-index ensures stacking order. */
+    #main-menu-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(12px, 2vh, 28px);
+      background: radial-gradient(ellipse at center, #102035 0%, #050a14 100%);
+      padding: clamp(16px, 4vh, 48px);
+    }
+    #main-menu-overlay.hidden { display: none; }
+    .main-menu-title {
+      font-size: clamp(40px, 8vmin, 96px);
+      letter-spacing: 0.08em;
+      color: #e8d8a0;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8), 0 0 32px rgba(232, 216, 160, 0.15);
+      margin: 0;
+      font-weight: 700;
+    }
+    .main-menu-subtitle {
+      font-size: clamp(14px, 2vmin, 22px);
+      letter-spacing: 0.18em;
+      color: #8aa0b8;
+      text-transform: uppercase;
+      margin: 0 0 clamp(16px, 3vh, 32px) 0;
+    }
+    .main-menu-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(8px, 1.2vh, 14px);
+      width: min(320px, 80vw);
+    }
+    .main-menu-buttons button {
+      font-family: inherit;
+      font-size: clamp(14px, 2vmin, 18px);
+      letter-spacing: 0.06em;
+      padding: clamp(10px, 1.6vh, 16px) clamp(16px, 3vmin, 28px);
+      background: rgba(20, 36, 56, 0.92);
+      color: #e8e6e3;
+      border: 1px solid #3a5a7a;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+    }
+    .main-menu-buttons button:hover:not(:disabled) {
+      background: rgba(42, 74, 106, 0.95);
+      border-color: #6b9b7a;
+    }
+    .main-menu-buttons button:active:not(:disabled) { transform: translateY(1px); }
+    .main-menu-buttons button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .main-menu-buttons button.primary {
+      background: rgba(74, 124, 89, 0.95);
+      border-color: #6b9b7a;
+      color: #f4f0e6;
+      font-weight: 600;
+    }
+    .main-menu-buttons button.primary:hover:not(:disabled) {
+      background: rgba(107, 155, 122, 1);
+      border-color: #aacc88;
+    }
   </style>
 </head>
 <body>

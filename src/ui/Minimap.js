@@ -18,6 +18,17 @@ export class Minimap {
     this._lastOverworldNodes = null;
     this._minimapTooltip = null;
     this._isOverworldView = false;
+    // Dirty-flag cache for the overworld minimap (Improvements.md §2.2).
+    // Combat minimap is left undirtied — everything moves continuously.
+    this._owDirty = {
+      map: null, shipX: NaN, shipY: NaN,
+      currentIsland: null, travelRoute: null, size: 0,
+    };
+  }
+
+  /** Force the overworld minimap to redraw on next update(). */
+  invalidateOverworld() {
+    this._owDirty.map = null;
   }
 
   _resize() {
@@ -237,6 +248,22 @@ export class Minimap {
     if (!this.ctx || !this.canvas || !map) return;
     this._isOverworldView = true;
     this._resize();
+
+    // Improvements.md §2.2: dirty-flag — skip redraw when nothing changed.
+    const sx = shipPosition?.x ?? 0;
+    const sy = shipPosition?.y ?? 0;
+    const d = this._owDirty;
+    if (
+      d.map === map &&
+      d.shipX === sx && d.shipY === sy &&
+      d.currentIsland === currentIsland &&
+      d.travelRoute === travelRoute &&
+      d.size === this.size
+    ) {
+      return;
+    }
+    d.map = map; d.shipX = sx; d.shipY = sy;
+    d.currentIsland = currentIsland; d.travelRoute = travelRoute; d.size = this.size;
 
     const { islandRadius } = OVERWORLD;
     const padding = Math.max(UI_MINIMAP.paddingMin, this.size * UI_MINIMAP.paddingRatio);

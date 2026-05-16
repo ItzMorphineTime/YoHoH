@@ -4,6 +4,7 @@
 
 import { UI, ECONOMY } from '../config.js';
 import { getRouteModifiers } from '../utils/routeModifiers.js';
+import { esc } from '../utils/escapeHtml.js'; // Improvements.md §5.3
 
 const ONBOARDING_KEY = 'yohoh-onboarding-hint';
 const { routeSelection: ROUTE_SELECTION } = UI;
@@ -260,7 +261,7 @@ export class MapUI {
 
         if (cfg.showCurrentIsland !== false && this.elements.routeSelectionCurrent && currentIsland) {
           this.elements.routeSelectionCurrent.style.display = 'block';
-          this.elements.routeSelectionCurrent.innerHTML = `<span class="map-route-label">Docked at</span><span class="map-route-current-name">${currentIsland.name || `Island ${currentIsland.id}`}</span>`;
+          this.elements.routeSelectionCurrent.innerHTML = `<span class="map-route-label">Docked at</span><span class="map-route-current-name">${esc(currentIsland.name || `Island ${currentIsland.id}`)}</span>`;
         } else if (this.elements.routeSelectionCurrent) {
           this.elements.routeSelectionCurrent.style.display = 'none';
         }
@@ -301,7 +302,7 @@ export class MapUI {
             const name = other.name || `Island ${other.id}`;
             const dist = routeInfoItem?.distance ?? 0;
             const isSelected = edge === selectedRoute;
-            return `<div class="map-route-connected-item ${isSelected ? 'map-route-connected-selected' : ''}"><span class="map-route-connected-name">${name}</span><span class="map-route-connected-dist">${dist} units</span></div>`;
+            return `<div class="map-route-connected-item ${isSelected ? 'map-route-connected-selected' : ''}"><span class="map-route-connected-name">${esc(name)}</span><span class="map-route-connected-dist">${dist} units</span></div>`;
           }).join('');
           this.elements.routeSelectionConnected.innerHTML = `<span class="map-route-label">Routes from here</span><div class="map-route-connected-list">${items}</div>`;
           this.elements.routeSelectionConnected.style.display = 'block';

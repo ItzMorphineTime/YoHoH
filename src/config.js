@@ -352,8 +352,18 @@ export const INFAMY = {
 // ─── Game Loop ─────────────────────────────────────────────────────────────
 export const GAME = {
   maxDt: 0.1,
-  startingGold: 100, // For testing; set to 0 for no starting gold
+  /**
+   * Gold the player starts a New Game with. Set to 0 once tuning is locked in;
+   * keep small (≈100) during prototyping so the buy/sell loop is reachable
+   * without grinding combat first. (Improvements.md §4.4)
+   */
+  startingGold: 100,
   defaultShipClass: 'sloop',
+  /** Dev-only conveniences (kept behind a single flag so prod can flip them off). */
+  devCheats: {
+    /** When true, log save/load events to the console. */
+    logSaves: false,
+  },
 };
 
 // ─── Rendering ─────────────────────────────────────────────────────────────

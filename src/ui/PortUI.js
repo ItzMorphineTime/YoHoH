@@ -6,6 +6,7 @@
 import { CREW, REPAIR, SHIP_CLASSES, UPGRADES, UPGRADE_SLOTS } from '../config.js';
 import { hireCrew, getAssignableStationsForCrew, getStationFillInfo, getAverageMorale, STATION_NAMES } from '../systems/CrewSystem.js';
 import { getGoods, getBuyPrice, getSellPrice } from '../systems/EconomySystem.js';
+import { esc } from '../utils/escapeHtml.js'; // Improvements.md §5.3
 
 export class PortUI {
   constructor(container) {
@@ -196,12 +197,12 @@ export class PortUI {
           }),
         ].map(o => {
           const sel = c.station === o.value ? ' selected' : '';
-          return `<option value="${o.value}"${sel}>${o.label}</option>`;
+          return `<option value="${esc(o.value)}"${sel}>${esc(o.label)}</option>`;
         }).join('');
         return `
           <div class="port-roster-item">
-            <span class="port-crew-name">${c.name}</span>
-            <select class="port-station-select" data-crew-id="${c.id}">
+            <span class="port-crew-name">${esc(c.name)}</span>
+            <select class="port-station-select" data-crew-id="${esc(c.id)}">
               ${stationOpts}
             </select>
           </div>

@@ -4,6 +4,13 @@
 **Last updated:** 2026-05-16
 **Scope:** Main game (`src/`) — POC issues tracked in their own docs.
 
+> **Progress (2026-05-16):**
+> - First pass: §1.1, §1.2, §1.3, §1.4, §2.2, §2.3, §2.4, §2.5, §3.2, §4.1, §4.2 ✅
+> - Second pass: §2.1, §3.3 (N/A — already shared), §4.3, §4.4, §5.3, §6.1, §6.3, §3.1 (overworld), §5.1 ✅
+> - **Latent bugs found & fixed during refactor:**
+>   - `getRouteModifiers` / `getPrimaryModifier` were used in `Renderer.js` without being imported (would have thrown for every non-hovered route). Now properly imported in `OverworldRenderer.js`.
+>   - **Main menu was completely unclickable.** `#main-menu-overlay` had no CSS at all, so it rendered in normal document flow underneath `#game-container` (which is `position: fixed; inset: 0`). `#game-canvas-layer` with `pointer-events: auto` intercepted every click. Added a full CSS block in `index.html` (positioning, gradient background, z-index 1000, `.hidden` rule, button styling). New Game and Continue now work.
+
 > Each item lists: a short summary, **why** it matters, the **file / line(s)**, a suggested **fix**, and an **effort × impact** estimate.
 > Tick items as they're addressed. Add new entries as they're discovered.
 
@@ -22,8 +29,10 @@
 
 ## 1. Critical bugs & performance cliffs
 
-### 1.1 🔴 Three.js GPU memory leak — overworld view  *(S–M)*
-- [ ] Pool overworld route/island meshes instead of recreating them every frame.
+### 1.1 🔴 Three.js GPU memory leak — overworld view  *(S–M)* ✅
+- [x] Pool overworld route/island meshes instead of recreating them every frame.
+
+**Status:** Done. `_owEdgeMeshes` / `_owNodeMeshes` pools use shared unit `PlaneGeometry`/`CircleGeometry` and are scaled+tinted per frame. Outline + current-island ring are single pooled meshes. Pools grow on map change and dispose materials when shrinking.
 
 **Where:** [src/Renderer.js:611-613](src/Renderer.js), [src/Renderer.js:654-680](src/Renderer.js)
 
@@ -34,164 +43,153 @@
 2. In `_updateOverworldEntities`, walk the pool and update `mesh.position`, `mesh.rotation`, `mesh.scale`, `material.color.setHex(...)`, and `mesh.visible`. Hide unused.
 3. If the map regenerates and node/edge count changes, dispose the surplus and grow the pool.
 
-### 1.2 🔴 Same leak pattern — combat rocks  *(S)*
-- [ ] Pool combat rocks once when combat starts; do not recreate every frame.
+### 1.2 🔴 Same leak pattern — combat rocks  *(S)* ✅
+- [x] Pool combat rocks once when combat starts; do not recreate every frame.
 
-**Where:** [src/Renderer.js:440-447](src/Renderer.js)
+**Status:** Done. New `Renderer._syncRocks(rocks)` builds rocks once per combat (keyed off array identity), disposes prior geometry+material, and is invoked from `_updateCombatEntities` once per frame as a no-op when unchanged.
 
-**Symptom:** Rocks are configured statically in `COMBAT_ROCKS` but `_updateCombatEntities` rebuilds the `rocksGroup` from scratch every frame.
+**Where:** [src/Renderer.js](src/Renderer.js) — `_syncRocks`, `_createCombatArena`, `_updateCombatEntities`
 
-**Fix:** Move rock mesh creation into `_createCombatArena()` (or a `setRocks(rocks)` method called when combat starts). In the per-frame update, only toggle visibility.
+### 1.3 🔴 PortUI re-rendered twice per frame from scratch  *(M)* ✅
+- [x] Only call `portUI.update(portScene)` when state actually changes.
+- [ ] (Follow-up) Inside `PortUI.update()`, diff roster state and skip `innerHTML` writes when unchanged.
 
-### 1.3 🔴 PortUI re-rendered twice per frame from scratch  *(M)*
-- [ ] Only call `portUI.update(portScene)` when state actually changes.
+**Status:** Done — both per-frame calls removed. `PortUI.update()` now runs only from event handlers (`_onPortHireCrew`, `_onPortAssignStation`, repairs, market, upgrades, ship-class change, dismiss, serve rum) and from `show()` on port entry. Optional state-diff follow-up still open.
 
-**Where:** [src/Game.js:479-481](src/Game.js) and [src/Game.js:576](src/Game.js); the `update()` body in [src/ui/PortUI.js:123-225](src/ui/PortUI.js)
+**Where:** [src/Game.js](src/Game.js) `_updatePort` + render() PORT branch
 
-**Symptom:** While docked, `PortUI.update` runs at 60 fps from both `_updatePort` and `render()`. Each call regenerates the entire crew roster and station-overview via `innerHTML = …`, re-parses HTML, and re-attaches `change` listeners. Side effects you can observe in the UI: dropdowns can close while opening because the `<select>` is replaced underneath the user; perf gets worse with more crew.
+### 1.4 🟡 SailingSystem `update` and `updateInCorridor` are duplicated  *(M)* ✅
+- [x] Extract shared `_applyControls`/`_integrateMotion` helper; each public method only applies its bounds.
 
-**Fix:**
-1. Remove the per-frame `portUI.update()` calls — `Game._onPort*` handlers already call `portUI.update()` after every meaningful change.
-2. (Optional follow-up) inside `PortUI.update()`, diff state: cache the last-rendered `roster.map(c => c.id + ':' + c.station).join('|')` and skip the `innerHTML` write when unchanged.
+**Status:** Done. Both methods now reduce to: `_applyControls` → `_integrateMotion` → apply bounds (rectangular or corridor). Physics tuning lives in one place.
 
-### 1.4 🟡 SailingSystem `update` and `updateInCorridor` are duplicated  *(M)*
-- [ ] Extract shared `_applyControls`/`_applyMotion` helper; each public method only applies its bounds.
-
-**Where:** [src/systems/SailingSystem.js:10-93](src/systems/SailingSystem.js)
-
-**Symptom:** Lines 13–44 and 63–90 are essentially identical sailing physics — thrust, reverse, turn penalty, friction, deadzone, integration. Any future tuning has to be made twice.
-
-**Fix:** Pull thrust/turn/friction/integrate into a private helper; have both methods call it, then differ only in the clamp at the end.
+**Where:** [src/systems/SailingSystem.js](src/systems/SailingSystem.js)
 
 ---
 
 ## 2. UI & input ergonomics
 
-### 2.1 🟡 `_isClickOnUI()` forces sync layout per-frame  *(S)*
-- [ ] Cache the result during hover; only re-test on click.
+### 2.1 🟡 `_isClickOnUI()` forces sync layout per-frame  *(S)* ✅
+- [x] Mouse-NDC-keyed cache around `document.elementFromPoint` so stationary frames hit the cache instead of the DOM.
 
-**Where:** [src/Game.js:504-512](src/Game.js)
+**Status:** Done. New `_hitTestAtMouse()` caches per-frame; `_isClickOnUI` and `_isMouseOverCanvas` both go through it. Cache invalidates whenever the mouse NDC changes.
 
-**Symptom:** `document.elementFromPoint(...)` is invoked from `_updateOverworld` to gate hover detection. It triggers a synchronous reflow each frame.
+**Where:** [src/Game.js](src/Game.js) `_hitTestAtMouse`, `_isClickOnUI`, `_isMouseOverCanvas`
 
-**Fix:** Hit-test only on `mousedown`/`mousemove` events (debounce). For hover, listen for `pointerenter/leave` on the UI container instead.
+### 2.2 🟡 Per-frame canvas redraws on Minimap & BigMapUI  *(M)* ✅ (partial)
+- [x] Overworld minimap: dirty-check on map/shipPos/currentIsland/travelRoute/size.
+- [x] BigMapUI: dirty-check including pan/zoom and dpr; force redraw on show/toggle.
+- [ ] (Optional) Combat minimap dirty-flag for victory/defeat freeze frame.
 
-### 2.2 🟡 Per-frame canvas redraws on Minimap & BigMapUI  *(M)*
-- [ ] Add `_dirty` flag set on map/ship/route changes; only redraw when dirty.
+**Status:** Done for both canvases that benefit. Combat minimap left as-is — everything moves continuously during fights, so dirty-flagging is mostly noise. Could add a freeze-frame optimisation later for the result screen.
 
-**Where:** [src/ui/Minimap.js](src/ui/Minimap.js), [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/Minimap.js](src/ui/Minimap.js) `updateOverworld`, [src/ui/BigMapUI.js](src/ui/BigMapUI.js) `update`, `show`, `toggle`
 
-**Symptom:** Both canvases redraw every frame, even on the static overworld where nothing changes.
+### 2.3 🟢 `Input.endFrame()` allocates a new object every frame  *(S)* ✅
+- [x] Maintain a pre-allocated `prevKeys` map; clear + copy in place.
 
-**Fix:** Set `_dirty = true` on `update(...)` argument change; in `_render()`, skip if not dirty. Always redraw during sailing (ship position changes).
+**Status:** Done. `endFrame()` now reuses the same `prevKeys` object every frame.
 
-### 2.3 🟢 `Input.endFrame()` allocates a new object every frame  *(S)*
-- [ ] Maintain two pre-allocated key maps and swap references.
+**Where:** [src/Input.js](src/Input.js) `endFrame`
 
-**Where:** [src/Input.js:19](src/Input.js)
+### 2.4 🟢 Duplicate input methods  *(S)* ✅
+- [x] Removed `isMouseJustPressed()` (no remaining call sites).
 
-**Symptom:** `this.prevKeys = { ...this.keys }` allocates every frame.
+**Where:** [src/Input.js](src/Input.js)
 
-**Fix:** Use two fixed objects and clear+copy keys into the "prev" one without allocation, or swap pointers and clear the new "live" map.
+### 2.5 🟢 Input listeners never unbound  *(S)* ✅
+- [x] Added `Input.destroy()` and tracked all listeners via `_bind()` for clean teardown.
 
-### 2.4 🟢 Duplicate input methods  *(S)*
-- [ ] Remove `isMouseJustPressed()` in favour of `isLeftMouseJustPressed()`.
-
-**Where:** [src/Input.js:24-31](src/Input.js)
-
-### 2.5 🟢 Input listeners never unbound  *(S)*
-- [ ] Add `Input.destroy()` for symmetry; call from `Game.destroy()` if ever introduced.
-
-**Where:** [src/Input.js:57-91](src/Input.js)
-
-**Why:** Not a leak today (Game is a singleton), but defensive — if the game is ever re-initialised (e.g. main-menu → New Game without page reload) handlers will stack.
+**Where:** [src/Input.js](src/Input.js) `init`, `destroy`, `_bind`
 
 ---
 
 ## 3. Rendering — readability & maintainability
 
-### 3.1 🟡 Split `Renderer.js` (775 lines) into per-view modules  *(L)*
-- [ ] `RendererCombat`, `RendererSailing`, `RendererOverworld`, `CameraController` — each ≤ ~200 lines.
+### 3.1 🟡 Split `Renderer.js` (775 lines) into per-view modules  *(L)* ✅ (partial)
+- [x] Extract overworld view → `src/render/OverworldRenderer.js`
+- [ ] Extract sailing view → `src/render/SailingRenderer.js`
+- [ ] Extract combat view → `src/render/CombatRenderer.js`
+- [ ] Extract `CameraController`
 
-**Where:** [src/Renderer.js](src/Renderer.js)
+**Status:** Overworld extracted. Renderer.js shrunk from 921 → 695 lines; OverworldRenderer is 309 focused lines owning the group, mesh pools, ship marker, bounds cache, and camera framing. Sailing + Combat extraction deferred — they share more cross-cutting state (waterPlane, shipMesh, enemy/projectile meshes) so need a careful design pass first.
 
-**Why:** The current file mixes setup, update, and camera logic across three distinct views with toggled visibility. Each view is small enough to live in its own file and gets tested in isolation.
+**Where:** [src/render/OverworldRenderer.js](src/render/OverworldRenderer.js), [src/Renderer.js](src/Renderer.js)
 
-**Notes:** Keep a thin `Renderer` shell that owns the WebGL renderer, scene, and camera, then dispatches to one sub-renderer based on `Game.state`. The existing `RenderConfig` per-view setup is already a good seam.
+### 3.2 🟡 Cache map bounds — remove per-frame `Math.min(...xs)`  *(S)* ✅
+- [x] Cache `{minX, maxX, minY, maxY, rangeX, rangeY, baseCx, baseCy}` keyed by map identity.
 
-### 3.2 🟡 Cache map bounds — remove per-frame `Math.min(...xs)`  *(S)*
-- [ ] Compute `{minX, maxX, minY, maxY, baseCx, baseCy}` once when the map loads.
+**Status:** Done. New `_getOverworldMapBounds(map)` caches bounds keyed by `{ map, worldScale }`; invalidates automatically when the map reference or worldScale changes.
 
-**Where:** [src/Renderer.js:691-696](src/Renderer.js) (`_updateOverworldCamera`)
+**Where:** [src/Renderer.js](src/Renderer.js) `_getOverworldMapBounds`, `_updateOverworldCamera`
 
-**Symptom:** `xs = map.nodes.map(...)` + `Math.min(...xs)` runs every frame on the overworld even though the map doesn't move.
+### 3.3 🟢 Cannon arcs created twice  *(S)* ✅ (already optimal)
+- [x] Confirmed: both port and starboard arc meshes already share a single `arcGeo` constructed once in `_createCannonArcs`. They cannot collapse into one mesh because both are visible simultaneously to communicate the available firing arcs.
 
-**Fix:** Cache on map (re)generation; invalidate when `MapGenerator.generate` or `loadMap` is called.
-
-### 3.3 🟢 Cannon arcs created twice  *(S)*
-- [ ] Reuse one arc mesh; tint material on `aimingSide` change instead of swapping meshes.
-
-**Where:** `_createCannonArcs` and `_updateCombatEntities` in [src/Renderer.js](src/Renderer.js)
+**Where:** `_createCannonArcs` in [src/Renderer.js](src/Renderer.js)
 
 ---
 
 ## 4. State & persistence correctness
 
-### 4.1 🟡 Save schema has no `schemaVersion`  *(S)*
-- [ ] Add `schemaVersion: 1` to `getSaveState()`; reject/skip-load saves with unknown versions.
+### 4.1 🟡 Save schema versioning  *(S)* ✅
+- [x] Emit `schemaVersion` (with legacy `version` alias for compat) and validate on load.
 
-**Where:** [src/Game.js:55-69](src/Game.js), [src/utils/saveSystem.js](src/utils/saveSystem.js)
+**Status:** Done. Existing `version` field is preserved as an alias for backwards compatibility. `SCHEMA_VERSION` constant centralised; bump it for incompatible state-shape changes.
 
-**Why:** Any change to `_playerShipState`/cargo/upgrades shape will silently break existing saves.
+**Where:** [src/utils/saveSystem.js](src/utils/saveSystem.js)
 
-### 4.2 🟡 `loadFromStorage()` failure path is silent  *(S)*
-- [ ] Wrap deserialization with a `try/catch`; on failure, log + start a fresh game with a toast.
+### 4.2 🟡 `loadFromStorage()` failure path is silent  *(S)* ✅
+- [x] All failure paths now log diagnostics with `[saveSystem]` prefix.
+- [x] New `loadWithStatus()` returns `{ status, state }` so callers can distinguish corrupt / version-mismatch / no-save / storage-unavailable.
+- [x] Main menu Continue button surfaces the failure to the user via alert (Improvements §4.2 follow-up: route through in-game toast once toast system is available pre-menu).
 
-**Where:** [src/utils/saveSystem.js](src/utils/saveSystem.js), [src/Game.js:78-93](src/Game.js)
+**Where:** [src/utils/saveSystem.js](src/utils/saveSystem.js) `loadWithStatus`, [src/main.js](src/main.js) continueBtn handler
 
-### 4.3 🟢 `consumeLastArrivedShipState()` uses read-clears side channel  *(S)*
-- [ ] Replace with a return value from `OverworldScene.update(dt, input) → { arrived?: shipState }`.
+### 4.3 🟢 `consumeLastArrivedShipState()` uses read-clears side channel  *(S)* ✅
+- [x] `OverworldScene.update()` now returns the arrived ship state directly (or null); the read-clears method is removed.
 
-**Where:** [src/scenes/OverworldScene.js:137-141](src/scenes/OverworldScene.js), [src/Game.js:253-254](src/Game.js)
+**Where:** [src/scenes/OverworldScene.js](src/scenes/OverworldScene.js), [src/Game.js](src/Game.js) `_updateSailing`
 
-### 4.4 🟢 `startingGold: 100` flagged "for testing"  *(S)*
-- [ ] Either commit the value as the intended start, or wire it behind a `GAME.devCheats` flag.
+### 4.4 🟢 `startingGold: 100` flagged "for testing"  *(S)* ✅
+- [x] Comment clarified — 100 gold is the prototyping default so the buy/sell loop is reachable without grinding. Added a `GAME.devCheats` namespace for future dev-only flags.
 
-**Where:** [src/config.js:355](src/config.js)
+**Where:** [src/config.js](src/config.js) `GAME`
 
 ---
 
 ## 5. Architecture & readability
 
-### 5.1 🟡 `Game.js` is doing too much (600 lines)  *(L)*
-- [ ] Extract `PortController`, `SaveController`, `SettingsBindings`, `OverworldPanZoomController` from Game.
+### 5.1 🟡 `Game.js` is doing too much (600 lines)  *(L)* ✅ (partial)
+- [x] Extract `PortController` (eleven `_onPort*` handlers + bind block)
+- [ ] Extract `SaveController` (save/load/applyLoadedState helpers)
+- [ ] Extract `SettingsBindings` (UI scale modal init)
+- [ ] Extract `OverworldPanZoomController` (pan/zoom math, wheel handler)
 
-**Where:** [src/Game.js](src/Game.js)
+**Status:** PortController landed in `src/controllers/PortController.js` (146 lines). Game.js shrunk to 557 lines net. Other controllers still embedded — extraction follows the same pattern when prioritised.
 
-**Why:** The port handlers (`_onPortBuyGood`, `_onPortBuyUpgrade`, `_onPortShipClassChange`, …) are pure delegation. The settings modal init and overworld pan/zoom math are unrelated to the game loop. Splitting these halves the file and clarifies the loop.
+**Where:** [src/controllers/PortController.js](src/controllers/PortController.js), [src/Game.js](src/Game.js)
 
-### 5.2 🟡 `PortUI.js` mixes Tavern / Shipwright / Market (417 lines)  *(M)*
+### 5.2 🟡 `PortUI.js` mixes Tavern / Shipwright / Market (417 lines)  *(M)* ⏳
 - [ ] Split into `TavernPanel`, `ShipwrightPanel`, `MarketPanel` under a thin `PortUI` shell.
 
 **Where:** [src/ui/PortUI.js](src/ui/PortUI.js)
 
-### 5.3 🟢 `innerHTML` interpolation — XSS surface if data ever becomes user-editable  *(S)*
-- [ ] Switch dynamic name/label injection to `textContent` or DOM construction; reserve `innerHTML` for static markup.
+### 5.3 🟢 `innerHTML` interpolation — XSS surface if data ever becomes user-editable  *(S)* ✅ (initial pass)
+- [x] Added `src/utils/escapeHtml.js` with `escapeHtml` / `esc` helpers
+- [x] Applied to highest-risk interpolations: crew names + station option labels in PortUI; island names in MapUI (current island + connected-route list)
+- [ ] Audit remaining `innerHTML` writes for completeness when more user-editable data appears (ship name, contracts, etc.)
 
-**Where:** [src/ui/PortUI.js:175-225](src/ui/PortUI.js) (multiple) and other UI files with `innerHTML = …`.
-
-**Why:** Currently safe — all interpolated values come from `config.js` or generated data — but island names, crew names, and ship name (planned, §10 D.4a) are user-facing strings that may become editable. Easier to fix once now than to audit later.
+**Where:** [src/utils/escapeHtml.js](src/utils/escapeHtml.js), [src/ui/PortUI.js](src/ui/PortUI.js), [src/ui/MapUI.js](src/ui/MapUI.js)
 
 ---
 
 ## 6. Combat & systems
 
-### 6.1 🟡 No projectile pool  *(M)*
-- [ ] Pool `Projectile` instances and their meshes; reuse on fire.
+### 6.1 🟡 No projectile pool  *(M)* ✅
+- [x] Pool `Projectile` instances. New `_acquire()`/`_recycle()` on CombatSystem; `Projectile.init(opts)` resets state for reuse; per-frame compaction recycles dead projectiles.
 
-**Where:** [src/systems/CombatSystem.js:39-46](src/systems/CombatSystem.js), [src/Renderer.js](src/Renderer.js) projectile mesh pool
-
-**Why:** The Renderer already pools projectile meshes via `_getOrCreateProjectileMesh`. Mirror this on the JS side to remove per-shot GC pressure during sustained combat (Galleon = 3 broadsides × multiple cooldowns).
+**Where:** [src/entities/Projectile.js](src/entities/Projectile.js), [src/systems/CombatSystem.js](src/systems/CombatSystem.js)
 
 ### 6.2 🟢 Hit detection is O(projectiles × ships)  *(L)*
 - [ ] Add a coarse grid bucket if combat ever scales beyond ~5 ships.
@@ -200,32 +198,43 @@
 
 **Why:** Fine for vertical-slice scope; track as future work.
 
-### 6.3 🟢 Encounter chance is dt-dependent  *(S)*
-- [ ] Switch to a Poisson timer (accumulator) for more predictable mean encounter rate independent of frame rate.
+### 6.3 🟢 Encounter chance is dt-dependent  *(S)* ✅
+- [x] Switched to a proper Poisson process: countdown sampled from Exp(λ) via inverse-CDF, decremented by `dt`, resampled on trigger or voyage reset.
 
-**Where:** [src/Game.js:256-257](src/Game.js)
+**Where:** [src/Game.js](src/Game.js) `_sampleEncounterDelay`, `_updateSailing`
 
-### 6.4 🟢 Combat physics feels slidey  *(S)*
-- [ ] Tweak `SHIP.friction` upward (currently 0.55; sailing uses 0.998) — observe if turn/brake feel improves.
+### 6.4 🟢 Combat physics feels slidey  *(S)* ⏳ (deferred — needs playtest)
+- [ ] Empirical tuning — needs gameplay session to confirm direction. Current `SHIP.friction = 0.55` means ~45% velocity decay per frame at 60 fps, which is actually quite stiff. The "slidey" sensation may be from `highSpeedTurnPenalty` or `brakeMult` instead. Defer until next playtest.
 
-**Where:** [src/config.js:138-145](src/config.js)
+**Where:** [src/config.js](src/config.js) `SHIP`
 
 ---
 
 ## 7. Recommended order of attack
 
-Pull this into a focused PR or two. Top items are cheap and observable wins:
-
-| # | Item | Effort | Impact |
-|---|------|--------|--------|
-| 1 | §1.3 Stop calling `PortUI.update()` per-frame | S | 🔴 |
-| 2 | §1.1 Pool overworld route/island meshes | M | 🔴 |
-| 3 | §1.2 Pool combat rocks | S | 🔴 |
-| 4 | §3.2 Cache overworld map bounds | S | 🟡 |
-| 5 | §2.2 Dirty-flag Minimap / BigMapUI redraws | M | 🟡 |
-| 6 | §1.4 Unify `SailingSystem` paths | M | 🟡 |
-| 7 | §4.1 Save `schemaVersion` + load-failure fallback | S | 🟡 |
-| 8 | §3.1 Split `Renderer.js` per view | L | 🟡 |
-| 9 | §5.1 / §5.2 Extract controllers from Game / split PortUI | L | 🟢-🟡 |
+| # | Item | Effort | Impact | Status |
+|---|------|--------|--------|--------|
+| 1 | §1.3 Stop calling `PortUI.update()` per-frame | S | 🔴 | ✅ |
+| 2 | §1.1 Pool overworld route/island meshes | M | 🔴 | ✅ |
+| 3 | §1.2 Pool combat rocks | S | 🔴 | ✅ |
+| 4 | §3.2 Cache overworld map bounds | S | 🟡 | ✅ |
+| 5 | §2.2 Dirty-flag Minimap / BigMapUI redraws | M | 🟡 | ✅ (partial) |
+| 6 | §1.4 Unify `SailingSystem` paths | M | 🟡 | ✅ |
+| 7 | §4.1 / §4.2 Save schemaVersion + load-failure fallback | S | 🟡 | ✅ |
+| 8 | §2.3 / §2.4 / §2.5 Input cleanup | S | 🟢 | ✅ |
+| 9 | §2.1 `_isClickOnUI` per-frame reflow | S | 🟡 | ✅ |
+| 10 | §4.3 Remove `consumeLastArrivedShipState` side channel | S | 🟢 | ✅ |
+| 11 | §4.4 Decide on `startingGold` | S | 🟢 | ✅ |
+| 12 | §3.3 Cannon-arc mesh reuse | S | 🟢 | ✅ (N/A) |
+| 13 | §5.3 `innerHTML` hardening (`escapeHtml` helper + apply to display strings) | S | 🟢 | ✅ |
+| 14 | §6.1 Projectile pooling | M | 🟡 | ✅ |
+| 15 | §6.3 Poisson-process encounter timer | S | 🟢 | ✅ |
+| 16 | §3.1 Split `Renderer.js` per view (overworld extracted) | L | 🟡 | ✅ (partial) |
+| 17 | §5.1 Extract controllers from Game (PortController) | L | 🟡 | ✅ (partial) |
+| 18 | §3.1 finish — extract Sailing/Combat renderers | L | 🟡 | ⏳ |
+| 19 | §5.1 finish — Save / Settings / OverworldPanZoom controllers | M-L | 🟡 | ⏳ |
+| 20 | §5.2 Split `PortUI` into Tavern / Shipwright / Market panels | M | 🟡 | ⏳ |
+| 21 | §6.2 Hit-detection spatial grid | L | 🟢 | ⏳ |
+| 22 | §6.4 Combat friction tuning (needs playtest) | S | 🟢 | ⏳ |
 
 Items not yet ticked are open. As each is implemented, check it off and reference the commit/PR in this file.

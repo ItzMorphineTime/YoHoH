@@ -74,31 +74,40 @@ export class OverworldScene {
     }
   }
 
+  /**
+   * Advance the scene one tick. Returns a non-null `arrivedShipState` on the
+   * single frame the ship completes a voyage (so callers can persist hull/sails/
+   * leaks across the OVERWORLD ↔ PORT transition). Returns null otherwise.
+   * (Improvements.md §4.3)
+   * @returns {Object|null}
+   */
   update(dt, input) {
-    if (this.travelRoute && this.sailingShip) {
-      const { a, b } = this.travelRoute;
-      const origin = a === this.currentIsland ? a : b;
-      const dest = a === this.currentIsland ? b : a;
-      const corridorWidth = SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER?.sailingCorridorWidth ?? OVERWORLD.sailingCorridorWidth;
-      const corridor = {
-        a: { x: origin.position.x, y: origin.position.y },
-        b: { x: dest.position.x, y: dest.position.y },
-        width: corridorWidth,
-      };
-      const arrived = SailingSystem.updateInCorridor(this.sailingShip, input, dt, corridor);
-      this.sailingShip.updateBilge(dt, this.sailingShip._stationEffects?.bilgePumpMult ?? 1);
-      this.sailingShip.repairTick(dt, this.sailingShip._stationEffects?.repairMult ?? 1, this.sailingShip._stationEffects?.leakRepairMult ?? 1);
-      this.shipPosition.x = this.sailingShip.x;
-      this.shipPosition.y = this.sailingShip.y;
+    if (!(this.travelRoute && this.sailingShip)) return null;
 
-      if (arrived || this.sailingShip.dead) {
-        this._lastArrivedShipState = this._extractShipState(this.sailingShip);
-        this.currentIsland = dest;
-        this.travelRoute = null;
-        this.sailingShip = null;
-        this._updateShipPosition();
-      }
+    const { a, b } = this.travelRoute;
+    const origin = a === this.currentIsland ? a : b;
+    const dest = a === this.currentIsland ? b : a;
+    const corridorWidth = SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER?.sailingCorridorWidth ?? OVERWORLD.sailingCorridorWidth;
+    const corridor = {
+      a: { x: origin.position.x, y: origin.position.y },
+      b: { x: dest.position.x, y: dest.position.y },
+      width: corridorWidth,
+    };
+    const arrived = SailingSystem.updateInCorridor(this.sailingShip, input, dt, corridor);
+    this.sailingShip.updateBilge(dt, this.sailingShip._stationEffects?.bilgePumpMult ?? 1);
+    this.sailingShip.repairTick(dt, this.sailingShip._stationEffects?.repairMult ?? 1, this.sailingShip._stationEffects?.leakRepairMult ?? 1);
+    this.shipPosition.x = this.sailingShip.x;
+    this.shipPosition.y = this.sailingShip.y;
+
+    if (arrived || this.sailingShip.dead) {
+      const arrivedShipState = this._extractShipState(this.sailingShip);
+      this.currentIsland = dest;
+      this.travelRoute = null;
+      this.sailingShip = null;
+      this._updateShipPosition();
+      return arrivedShipState;
     }
+    return null;
   }
 
   getMap() {
@@ -131,13 +140,6 @@ export class OverworldScene {
       bilgeWaterMax: ship.bilgeWaterMax,
       leaks: ship.leaks,
     };
-  }
-
-  /** Get last arrived ship state (for Game to persist). Clears after read. */
-  consumeLastArrivedShipState() {
-    const s = this._lastArrivedShipState ?? null;
-    this._lastArrivedShipState = null;
-    return s;
   }
 
   /** Start travel along route from current island to target. Uses SailingSystem for player control. */

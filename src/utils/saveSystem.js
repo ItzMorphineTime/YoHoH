@@ -1,10 +1,29 @@
 /**
  * YoHoH — Save system (D.9, D.9a)
  * Persists game state to localStorage: ship, crew, islands, gold, infamy, etc.
+ *
+ * Schema versioning (Improvements.md §4.1):
+ * - Every save carries `schemaVersion` (and legacy alias `version`).
+ * - Loaders accept either field; bump SCHEMA_VERSION when state shape changes.
+ * - Failure paths log diagnostics so corrupt saves do not silently degrade
+ *   to "no save". `loadWithStatus()` returns a `{ status, state }` pair for
+ *   callers that want to differentiate cases (e.g. show a toast).
  */
 
 const SAVE_KEY = 'yohoh-save';
-const SAVE_VERSION = 1;
+/** Bump this on incompatible state-shape changes. */
+export const SCHEMA_VERSION = 1;
+/** @deprecated kept for backward-compat with older code that imported SAVE_VERSION */
+export const SAVE_VERSION = SCHEMA_VERSION;
+
+/** Load status codes for loadWithStatus(). */
+export const LOAD_STATUS = Object.freeze({
+  OK: 'ok',
+  NONE: 'none',                 // no save in storage
+  PARSE_ERROR: 'parse-error',   // JSON.parse threw — corrupt save
+  VERSION_MISMATCH: 'version-mismatch', // schema version unknown
+  STORAGE_UNAVAILABLE: 'storage-unavailable', // localStorage threw
+});
 
 /**
  * Serialize game state for persistence.
@@ -13,25 +32,39 @@ const SAVE_VERSION = 1;
  */
 export function serializeSave(state) {
   return JSON.stringify({
-    version: SAVE_VERSION,
+    schemaVersion: SCHEMA_VERSION,
+    version: SCHEMA_VERSION, // legacy alias
     savedAt: Date.now(),
     ...state,
   });
 }
 
+/** Extract the schema version from a parsed save object, tolerating the legacy `version` key. */
+function readSchemaVersion(data) {
+  if (data == null || typeof data !== 'object') return null;
+  return data.schemaVersion ?? data.version ?? null;
+}
+
 /**
- * Deserialize save from JSON. Returns null if invalid.
+ * Deserialize save from JSON. Returns null if invalid; logs a warning on failure.
+ * For richer failure info use loadWithStatus().
  * @param {string} json - JSON string from localStorage
  * @returns {Object|null} Parsed state or null
  */
 export function deserializeSave(json) {
+  let data;
   try {
-    const data = JSON.parse(json);
-    if (data.version !== SAVE_VERSION) return null;
-    return data;
-  } catch {
+    data = JSON.parse(json);
+  } catch (err) {
+    console.warn('[saveSystem] Failed to parse save JSON:', err?.message ?? err);
     return null;
   }
+  const v = readSchemaVersion(data);
+  if (v !== SCHEMA_VERSION) {
+    console.warn(`[saveSystem] Save schema version mismatch (got ${v}, expected ${SCHEMA_VERSION}); ignoring save.`);
+    return null;
+  }
+  return data;
 }
 
 /**
@@ -44,7 +77,9 @@ export function saveToStorage(state) {
     const json = serializeSave(state);
     localStorage.setItem(SAVE_KEY, json);
     return true;
-  } catch {
+  } catch (err) {
+    // Common causes: private-browsing, quota exceeded.
+    console.warn('[saveSystem] saveToStorage failed:', err?.message ?? err);
     return false;
   }
 }
@@ -54,13 +89,36 @@ export function saveToStorage(state) {
  * @returns {Object|null} Parsed state or null if none/invalid
  */
 export function loadFromStorage() {
+  return loadWithStatus().state;
+}
+
+/**
+ * Load and report status so callers can distinguish corrupt vs missing saves.
+ * @returns {{ status: string, state: Object|null }}
+ */
+export function loadWithStatus() {
+  let json;
   try {
-    const json = localStorage.getItem(SAVE_KEY);
-    if (!json) return null;
-    return deserializeSave(json);
-  } catch {
-    return null;
+    json = localStorage.getItem(SAVE_KEY);
+  } catch (err) {
+    console.warn('[saveSystem] localStorage unavailable:', err?.message ?? err);
+    return { status: LOAD_STATUS.STORAGE_UNAVAILABLE, state: null };
   }
+  if (!json) return { status: LOAD_STATUS.NONE, state: null };
+
+  let data;
+  try {
+    data = JSON.parse(json);
+  } catch (err) {
+    console.warn('[saveSystem] Failed to parse save JSON:', err?.message ?? err);
+    return { status: LOAD_STATUS.PARSE_ERROR, state: null };
+  }
+  const v = readSchemaVersion(data);
+  if (v !== SCHEMA_VERSION) {
+    console.warn(`[saveSystem] Save schema version mismatch (got ${v}, expected ${SCHEMA_VERSION}).`);
+    return { status: LOAD_STATUS.VERSION_MISMATCH, state: null };
+  }
+  return { status: LOAD_STATUS.OK, state: data };
 }
 
 /**
@@ -68,7 +126,7 @@ export function loadFromStorage() {
  * @returns {boolean}
  */
 export function hasSave() {
-  return loadFromStorage() != null;
+  return loadWithStatus().status === LOAD_STATUS.OK;
 }
 
 /**
@@ -77,5 +135,7 @@ export function hasSave() {
 export function deleteSave() {
   try {
     localStorage.removeItem(SAVE_KEY);
-  } catch {}
+  } catch (err) {
+    console.warn('[saveSystem] deleteSave failed:', err?.message ?? err);
+  }
 }

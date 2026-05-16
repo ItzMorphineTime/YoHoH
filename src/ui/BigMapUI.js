@@ -20,6 +20,17 @@ export class BigMapUI {
     this.minZoom = 0.5;
     this.maxZoom = 3;
     this._dragStart = null;
+    // Dirty-flag cache (Improvements.md §2.2).
+    this._dirty = {
+      map: null, shipX: NaN, shipY: NaN,
+      currentIsland: null, travelRoute: null,
+      panX: NaN, panY: NaN, zoomLevel: NaN, size: 0, dpr: 0,
+    };
+  }
+
+  /** Force a redraw on next update(). Call when pan/zoom changes outside update(). */
+  invalidate() {
+    this._dirty.map = null;
   }
 
   _resize() {
@@ -114,6 +125,7 @@ export class BigMapUI {
 
   show() {
     this.visible = true;
+    this.invalidate(); // ensure first frame after open paints fresh
     const overlay = document.getElementById('big-map-overlay');
     overlay?.classList.add('visible');
     requestAnimationFrame(() => overlay?.focus());
@@ -129,6 +141,7 @@ export class BigMapUI {
     const overlay = document.getElementById('big-map-overlay');
     overlay?.classList.toggle('visible', this.visible);
     if (this.visible) {
+      this.invalidate();
       requestAnimationFrame(() => overlay?.focus());
       this._centerOnShip();
       this.zoomLevel = 1;
@@ -142,6 +155,26 @@ export class BigMapUI {
   update(map, shipPosition, currentIsland, travelRoute) {
     if (!this.ctx || !this.canvas || !this.visible || !map) return;
     this._resize();
+
+    // Improvements.md §2.2: dirty-flag — skip when nothing changed.
+    const sx = shipPosition?.x ?? 0;
+    const sy = shipPosition?.y ?? 0;
+    const d = this._dirty;
+    if (
+      d.map === map &&
+      d.shipX === sx && d.shipY === sy &&
+      d.currentIsland === currentIsland &&
+      d.travelRoute === travelRoute &&
+      d.panX === this.panX && d.panY === this.panY &&
+      d.zoomLevel === this.zoomLevel &&
+      d.size === this.size && d.dpr === this._dpr
+    ) {
+      return;
+    }
+    d.map = map; d.shipX = sx; d.shipY = sy;
+    d.currentIsland = currentIsland; d.travelRoute = travelRoute;
+    d.panX = this.panX; d.panY = this.panY;
+    d.zoomLevel = this.zoomLevel; d.size = this.size; d.dpr = this._dpr;
 
     const { islandRadius } = OVERWORLD;
     const c = UI.bigMapColors;

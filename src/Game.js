@@ -3,7 +3,7 @@
  * Phase A: Combat | Phase B: Overworld, Sailing, Save/Load
  */
 
-import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES, INFAMY } from './config.js';
+import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES } from './config.js';
 import { loadGoods } from './systems/EconomySystem.js';
 import { Renderer } from './Renderer.js';
 import { Input } from './Input.js';
@@ -15,8 +15,9 @@ import { Minimap } from './ui/Minimap.js';
 import { MapUI } from './ui/MapUI.js';
 import { BigMapUI } from './ui/BigMapUI.js';
 import { PortUI } from './ui/PortUI.js';
-import { hireCrew, getStationEffects, updateMoraleDecay, applyVictoryMoraleBoost } from './systems/CrewSystem.js';
-import { saveToStorage, loadFromStorage } from './utils/saveSystem.js';
+import { getStationEffects, updateMoraleDecay } from './systems/CrewSystem.js';
+import { saveToStorage, loadFromStorage, loadWithStatus, LOAD_STATUS } from './utils/saveSystem.js';
+import { PortController } from './controllers/PortController.js'; // Improvements.md §5.1
 
 export class Game {
   constructor(container) {
@@ -79,6 +80,15 @@ export class Game {
     return loadFromStorage();
   }
 
+  /**
+   * D.9: Load with status — surfaces corrupt-save / version-mismatch cases
+   * so callers can react (e.g. show a toast). (Improvements.md §4.1)
+   * @returns {{ status: string, state: Object|null }}
+   */
+  loadGameWithStatus() {
+    return loadWithStatus();
+  }
+
   /** D.9: Apply loaded state to game. Call before init when continuing. */
   applyLoadedState(state) {
     if (!state) return;
@@ -117,18 +127,23 @@ export class Game {
     this.mapUI.onEnterPort = () => this._enterPort();
 
     this.portUI.init();
-    this.portUI.onLeavePort = () => this._leavePort();
-    this.portUI.onHireCrew = () => this._onPortHireCrew();
-    this.portUI.onAssignStation = (crewId, station) => this._onPortAssignStation(crewId, station);
-    this.portUI.onShipClassChange = (id) => this._onPortShipClassChange(id);
-    this.portUI.onRepairHull = () => this._onPortRepairHull();
-    this.portUI.onRepairSails = () => this._onPortRepairSails();
-    this.portUI.onRepairLeaks = () => this._onPortRepairLeaks();
-    this.portUI.onBuyGood = (goodId) => this._onPortBuyGood(goodId);
-    this.portUI.onSellGood = (goodId) => this._onPortSellGood(goodId);
-    this.portUI.onDismissCrew = (crewId) => this._onPortDismissCrew(crewId);
-    this.portUI.onBuyUpgrade = (upgradeId) => this._onPortBuyUpgrade(upgradeId);
-    this.portUI.onServeRum = () => this._onPortServeRum();
+
+    // Improvements.md §5.1: All port handlers live on PortController. The host
+    // accessors expose just the cross-cutting player state the controller needs
+    // (infamy, unlocked ship classes, current ship class).
+    this.portController = new PortController({
+      portScene: this.portScene,
+      portUI: this.portUI,
+      host: {
+        onLeavePort: () => this._leavePort(),
+        getInfamy: () => this._playerInfamy ?? 0,
+        setInfamy: (v) => { this._playerInfamy = v; },
+        getUnlockedShipClasses: () => this._playerUnlockedShipClasses ?? ['sloop'],
+        setUnlockedShipClasses: (v) => { this._playerUnlockedShipClasses = v; },
+        setShipClass: (id) => { this._playerShipClass = id; },
+      },
+    });
+    this.portController.bindUI();
     this._initOverworldNavControls();
     this._initSettings();
 
@@ -240,7 +255,10 @@ export class Game {
       this.bigMapUI.toggle();
     }
 
-    overworldScene.update(dt, input);
+    // Improvements.md §4.3: OverworldScene.update() returns the arrived ship state
+    // on the single frame the voyage completes (replaces the consume-on-read side channel).
+    const arrivedState = overworldScene.update(dt, input);
+    if (arrivedState) this._playerShipState = arrivedState;
 
     // C.6: morale decays during voyage; C.6c: faster decay when undercrewed
     const maxCrew = SHIP_CLASSES?.[this._playerShipClass ?? 'sloop']?.crewMax ?? 20;
@@ -250,19 +268,34 @@ export class Game {
       sailingShip.setStationEffects(getStationEffects(this._crewRoster ?? [], this._playerShipClass ?? 'sloop'));
     }
 
-    const arrivedState = overworldScene.consumeLastArrivedShipState?.();
-    if (arrivedState) this._playerShipState = arrivedState;
-
-    const encounterChance = COMBAT?.encounterChancePerSecond ?? 0.006;
-    if (overworldScene.isTraveling() && Math.random() < encounterChance * dt) {
-      this._sailingPositionBeforeCombat = { ...overworldScene.getShipPosition() };
-      this.state = GAME_STATES.COMBAT;
-      this.combatScene.init(overworldScene.getSailingShip());
-    } else if (!overworldScene.isTraveling()) {
+    // Improvements.md §6.3: Poisson-process encounter timer — framerate-independent.
+    // Maintain a countdown sampled from Exp(λ); when it crosses 0, trigger and resample.
+    if (overworldScene.isTraveling()) {
+      const lambda = COMBAT?.encounterChancePerSecond ?? 0.006; // events per second
+      if (this._encounterTimer == null || !isFinite(this._encounterTimer)) {
+        this._encounterTimer = this._sampleEncounterDelay(lambda);
+      }
+      this._encounterTimer -= dt;
+      if (this._encounterTimer <= 0) {
+        this._encounterTimer = this._sampleEncounterDelay(lambda);
+        this._sailingPositionBeforeCombat = { ...overworldScene.getShipPosition() };
+        this.state = GAME_STATES.COMBAT;
+        this.combatScene.init(overworldScene.getSailingShip());
+      }
+    } else {
+      this._encounterTimer = null; // reset on arrival; new voyage resamples
       const arrivedIsland = overworldScene.getCurrentIsland();
       if (arrivedIsland?.name) this.mapUI.showToast(`Arrived at ${arrivedIsland.name}!`);
       this.state = GAME_STATES.OVERWORLD;
     }
+  }
+
+  /** Sample an Exp(λ) waiting time for the next encounter. (Improvements.md §6.3) */
+  _sampleEncounterDelay(lambda) {
+    if (!lambda || lambda <= 0) return Infinity;
+    // Inverse-CDF sampling: -ln(U) / λ where U ∈ (0,1].
+    const u = Math.max(1e-9, Math.random());
+    return -Math.log(u) / lambda;
   }
 
   _updateCombat(dt) {
@@ -378,106 +411,13 @@ export class Game {
     this.state = GAME_STATES.OVERWORLD;
   }
 
-  _onPortHireCrew() {
-    const maxCrew = this.portScene.getMaxCrew?.() ?? 20;
-    const result = hireCrew(this.portScene.getCrewRoster(), this.portScene.getGold(), undefined, maxCrew);
-    if (!result) return;
-    const { crew, cost } = result;
-    this.portScene.addCrew(crew);
-    this.portScene.setGold(this.portScene.getGold() - cost);
-    this.portUI.update(this.portScene);
-  }
-
-  _onPortAssignStation(crewId, station) {
-    this.portScene.assignCrewToStation(crewId, station || null);
-    this.portUI.update(this.portScene);
-  }
-
-  _onPortShipClassChange(shipClassId) {
-    const target = shipClassId ?? 'sloop';
-    const unlocked = this._playerUnlockedShipClasses ?? ['sloop'];
-    const brigantineUnlock = INFAMY?.brigantineUnlock ?? 3;
-    const galleonUnlock = INFAMY?.galleonUnlock ?? 5;
-    const brigantineCost = INFAMY?.brigantineCost ?? 500;
-    const galleonCost = INFAMY?.galleonCost ?? 1200;
-    const infamy = this._playerInfamy ?? 0;
-    const gold = this.portScene.getGold?.() ?? 0;
-    const revert = () => this.portUI.update(this.portScene);
-
-    if (target === 'brigantine') {
-      if (infamy < brigantineUnlock) { revert(); return; }
-      if (!unlocked.includes('brigantine') && gold < brigantineCost) { revert(); return; }
-      if (!unlocked.includes('brigantine')) {
-        const newGold = gold - brigantineCost;
-        this.portScene.setGold(newGold);
-        this._playerGold = newGold; // keep in sync for display
-        this._playerUnlockedShipClasses = [...unlocked, 'brigantine'];
-      }
-    } else if (target === 'galleon') {
-      if (infamy < galleonUnlock) { revert(); return; }
-      if (!unlocked.includes('galleon') && gold < galleonCost) { revert(); return; }
-      if (!unlocked.includes('galleon')) {
-        const newGold = gold - galleonCost;
-        this.portScene.setGold(newGold);
-        this._playerGold = newGold;
-        this._playerUnlockedShipClasses = [...unlocked, 'galleon'];
-      }
-    }
-
-    this._playerShipClass = target;
-    this.portScene.shipClassId = target;
-    this.portScene.unlockedShipClasses = this._playerUnlockedShipClasses;
-    this.portScene.adaptShipStateToClass?.();
-    this.portUI.update(this.portScene);
-  }
-
-  _onPortRepairHull() {
-    if (this.portScene.repairHull?.()) this.portUI.update(this.portScene);
-  }
-
-  _onPortRepairSails() {
-    if (this.portScene.repairSails?.()) this.portUI.update(this.portScene);
-  }
-
-  _onPortRepairLeaks() {
-    if (this.portScene.repairLeaks?.()) this.portUI.update(this.portScene);
-  }
-
-  _onPortBuyGood(goodId) {
-    if (this.portScene.buyGood?.(goodId)) this.portUI.update(this.portScene);
-  }
-
-  _onPortSellGood(goodId) {
-    const goldReceived = this.portScene.sellGood?.(goodId) ?? 0;
-    if (goldReceived > 0) {
-      const infamyGain = (INFAMY?.infamyPerGoldFromSale ?? 0.01) * goldReceived;
-      this._playerInfamy = (this._playerInfamy ?? 0) + infamyGain;
-      this.portScene.infamy = this._playerInfamy;
-    }
-    if (goldReceived > 0) this.portUI.update(this.portScene);
-  }
-
-  _onPortDismissCrew(crewId) {
-    if (this.portScene.removeCrew?.(crewId)) this.portUI.update(this.portScene);
-  }
-
-  _onPortBuyUpgrade(upgradeId) {
-    if (this.portScene.buyUpgrade?.(upgradeId)) {
-      this._playerUpgrades = this.portScene.getUpgrades?.() ?? this._playerUpgrades;
-      this.portUI.update(this.portScene);
-    }
-  }
-
-  _onPortServeRum() {
-    if (this.portScene.serveRum?.()) {
-      this._playerCargo = this.portScene.getCargo?.() ?? this._playerCargo;
-      this._crewRoster = [...(this.portScene.getCrewRoster() ?? [])];
-      this.portUI.update(this.portScene);
-    }
-  }
+  // Port-screen handlers now live on PortController (Improvements.md §5.1).
+  // Game keeps _enterPort / _leavePort because they straddle state-machine
+  // transitions; everything in between is the controller's responsibility.
 
   _updatePort(_dt) {
-    this.portUI.update(this.portScene);
+    // PortUI is updated only when state changes (via _onPort* handlers and on entry via show()).
+    // No per-frame work here — the port is otherwise static. (Improvements.md §1.3)
   }
 
   _startSailing(route) {
@@ -501,23 +441,40 @@ export class Game {
     return ok;
   }
 
-  _isClickOnUI() {
+  /**
+   * Run an `elementFromPoint` lookup for the current mouse position, caching by
+   * NDC coords so a stationary mouse returns instantly. `elementFromPoint` forces
+   * a synchronous layout — calling it every frame causes a measurable reflow tax
+   * on the overworld hover path. (Improvements.md §2.1)
+   * @returns {Element|null}
+   */
+  _hitTestAtMouse() {
     const canvas = this.renderer?.renderer?.domElement;
-    if (!canvas) return false;
+    if (!canvas) return null;
+    const mx = this.input.mouse.x;
+    const my = this.input.mouse.y;
+    if (this._hitCacheX === mx && this._hitCacheY === my && this._hitCacheEl !== undefined) {
+      return this._hitCacheEl;
+    }
     const rect = canvas.getBoundingClientRect();
-    const x = rect.left + (this.input.mouse.x + 1) / 2 * rect.width;
-    const y = rect.top + (1 - this.input.mouse.y) / 2 * rect.height;
+    const x = rect.left + (mx + 1) / 2 * rect.width;
+    const y = rect.top + (1 - my) / 2 * rect.height;
     const el = document.elementFromPoint(x, y);
+    this._hitCacheX = mx;
+    this._hitCacheY = my;
+    this._hitCacheEl = el;
+    return el;
+  }
+
+  _isClickOnUI() {
+    const el = this._hitTestAtMouse();
     return el?.closest('#map-ui, #big-map-overlay, #port-overlay, #overworld-map-controls, #settings-btn, #settings-modal, .map-route-selection-panel') != null;
   }
 
   _isMouseOverCanvas() {
     const canvas = this.renderer?.renderer?.domElement;
     if (!canvas) return false;
-    const rect = canvas.getBoundingClientRect();
-    const x = rect.left + (this.input.mouse.x + 1) / 2 * rect.width;
-    const y = rect.top + (1 - this.input.mouse.y) / 2 * rect.height;
-    const el = document.elementFromPoint(x, y);
+    const el = this._hitTestAtMouse();
     return el === canvas || canvas.contains(el);
   }
 
@@ -573,7 +530,7 @@ export class Game {
       document.getElementById('minimap-wrapper')?.style.setProperty('display', 'none');
       document.getElementById('map-ui')?.style.setProperty('display', 'none');
       document.getElementById('overworld-map-controls')?.classList.remove('visible');
-      this.portUI.update(this.portScene);
+      // PortUI DOM is event-driven; do not re-render every frame. (Improvements.md §1.3)
     } else if (this.state === GAME_STATES.COMBAT) {
       const player = combatScene.getPlayer();
       const enemies = combatScene.getEnemies();
