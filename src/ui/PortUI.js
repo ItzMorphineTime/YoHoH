@@ -3,8 +3,8 @@
  * B.9: Port hub | C.2: Tavern UI | B.7: Market UI
  */
 
-import { CREW, REPAIR, SHIP_CLASSES, UPGRADES, UPGRADE_SLOTS } from '../config.js';
-import { hireCrew, getAssignableStationsForCrew, getStationFillInfo, getAverageMorale, STATION_NAMES } from '../systems/CrewSystem.js';
+import { CREW, REPAIR, SHIP_CLASSES, UPGRADES, UPGRADE_SLOTS, INFAMY } from '../config.js'; // Port_Improvements.md §1.1
+import { getStationFillInfo, getAverageMorale, STATION_NAMES } from '../systems/CrewSystem.js';
 import { getGoods, getBuyPrice, getSellPrice } from '../systems/EconomySystem.js';
 import { esc } from '../utils/escapeHtml.js'; // Improvements.md §5.3
 
@@ -23,6 +23,8 @@ export class PortUI {
     this.onDismissCrew = null;
     this.onBuyUpgrade = null;
     this.onServeRum = null;
+    // Port_Improvements.md §5.5: opens the standalone CrewUI overlay
+    this.onManageCrew = null;
   }
 
   init() {
@@ -45,20 +47,58 @@ export class PortUI {
     shipwrightTab?.addEventListener('click', () => this._setTab('shipwright'));
     marketTab?.addEventListener('click', () => this._setTab('market'));
     hireBtn?.addEventListener('click', () => this._onHire());
+    this.overlay?.querySelector('#port-serve-rum')?.addEventListener('click', () => this.onServeRum?.());
+    // Port_Improvements.md §5.5: "Manage Crew" opens the standalone overlay
+    this.overlay?.querySelector('#port-manage-crew')?.addEventListener('click', () => this.onManageCrew?.());
     this.overlay?.querySelector('#port-repair-hull')?.addEventListener('click', () => this.onRepairHull?.());
     this.overlay?.querySelector('#port-repair-sails')?.addEventListener('click', () => this.onRepairSails?.());
     this.overlay?.querySelector('#port-repair-leaks')?.addEventListener('click', () => this.onRepairLeaks?.());
+    // Port_Improvements.md §3.8: clear the activity log
+    this.overlay?.querySelector('#port-action-log-clear')?.addEventListener('click', () => {
+      this._lastPortScene?.clearLog?.();
+      this._updateActionLog(this._lastPortScene);
+    });
 
+    // Port_Improvements.md §3.2: Esc-to-leave with a brief confirmation window.
+    // First Esc shows a toast/title; second Esc within 1.5s actually leaves.
+    this._escPrimedAt = 0;
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.overlay?.classList.contains('visible')) {
-        e.preventDefault();
+      if (e.key !== 'Escape' || !this.overlay?.classList.contains('visible')) return;
+      e.preventDefault();
+      const now = Date.now();
+      if (now - this._escPrimedAt < 1500) {
+        this._escPrimedAt = 0;
+        this._showEscHint(false);
         this.onLeavePort?.();
+      } else {
+        this._escPrimedAt = now;
+        this._showEscHint(true);
+        setTimeout(() => {
+          if (Date.now() - this._escPrimedAt >= 1500) this._showEscHint(false);
+        }, 1600);
       }
     });
   }
 
+  /** Toggle the "Press Esc again to leave" hint on the Leave Port button. */
+  _showEscHint(on) {
+    const btn = this.overlay?.querySelector('.port-close-btn');
+    if (!btn) return;
+    if (on) {
+      if (!btn.dataset.origText) btn.dataset.origText = btn.textContent;
+      btn.textContent = 'Press Esc again to leave';
+      btn.classList.add('esc-primed');
+    } else {
+      if (btn.dataset.origText) btn.textContent = btn.dataset.origText;
+      btn.classList.remove('esc-primed');
+    }
+  }
+
   _setTab(tab) {
     this._activeTab = tab;
+    // Port_Improvements.md §4.2: persist on PortScene so the active tab survives
+    // closing the overlay and re-entering port within the same session.
+    this._lastPortScene?.setActiveTab?.(tab);
     this.overlay?.querySelectorAll('[data-port-tab]').forEach(el => el.classList.remove('active'));
     this.overlay?.querySelector(`[data-port-tab="${tab}"]`)?.classList.add('active');
     this.overlay?.querySelectorAll('.port-panel').forEach(el => el.classList.remove('active'));
@@ -69,9 +109,8 @@ export class PortUI {
     if (this.onHireCrew) this.onHireCrew();
   }
 
-  _onAssignStation(crewId, station) {
-    if (this.onAssignStation) this.onAssignStation(crewId, station);
-  }
+  // _onAssignStation removed — full roster (with station selects) now lives in
+  // the standalone CrewUI overlay. (Port_Improvements.md §5.5)
 
   /** Format upgrade stat deltas for display (C.8). */
   _formatUpgradeStats(upgrade) {
@@ -123,6 +162,8 @@ export class PortUI {
 
   update(portScene) {
     if (!this.overlay || !portScene) return;
+    // Port_Improvements.md §4.2: remember the active port scene so _setTab can persist tab state.
+    this._lastPortScene = portScene;
 
     const island = portScene.getCurrentIsland();
     const roster = portScene.getCrewRoster();
@@ -144,6 +185,9 @@ export class PortUI {
     const infamy = portScene.infamy ?? 0;
     const infamyEl = this.overlay.querySelector('#port-infamy');
     if (infamyEl) infamyEl.textContent = `${Math.floor(infamy)} Infamy`;
+
+    // Port_Improvements.md §3.3: persistent status strip
+    this._updateStatusStrip(portScene, roster);
 
     const hireBtn = this.overlay.querySelector('.port-hire-btn');
     if (hireBtn) {
@@ -184,46 +228,9 @@ export class PortUI {
       }).join('');
     }
 
-    const rosterEl = this.overlay.querySelector('.port-roster');
-    if (rosterEl) {
-      rosterEl.innerHTML = (roster ?? []).map(c => {
-        const assignable = getAssignableStationsForCrew(roster, shipClassId, c.id);
-        const stationOpts = [
-          { value: '', label: '— Unassigned —' },
-          ...assignable.map(s => {
-            const info = fillInfo[s];
-            const slotLabel = info?.slots > 1 ? ` (${info?.filled ?? 0}/${info.slots})` : '';
-            return { value: s, label: `${STATION_NAMES[s] ?? s}${slotLabel}` };
-          }),
-        ].map(o => {
-          const sel = c.station === o.value ? ' selected' : '';
-          return `<option value="${esc(o.value)}"${sel}>${esc(o.label)}</option>`;
-        }).join('');
-        return `
-          <div class="port-roster-item">
-            <span class="port-crew-name">${esc(c.name)}</span>
-            <select class="port-station-select" data-crew-id="${esc(c.id)}">
-              ${stationOpts}
-            </select>
-          </div>
-        `;
-      }).join('') || '<p class="port-empty">No crew. Hire sailors at the bar.</p>';
-
-      rosterEl.querySelectorAll('.port-station-select').forEach(sel => {
-        sel.addEventListener('change', (e) => {
-          const crewId = e.target.dataset.crewId;
-          const val = e.target.value;
-          const station = val || null;
-          this._onAssignStation(crewId, station);
-        });
-      });
-      rosterEl.querySelectorAll('.port-dismiss-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const crewId = e.target.dataset.crewId;
-          if (crewId && this.onDismissCrew) this.onDismissCrew(crewId);
-        });
-      });
-    }
+    // Port_Improvements.md §5.5: the full roster lives in the standalone CrewUI
+    // overlay. The Tavern tab now shows the summary (crew count + morale +
+    // station chips) and a "Manage Crew" button. Nothing more to render here.
 
     const shipClassSelect = this.overlay?.querySelector('#port-ship-class-select');
     if (shipClassSelect && SHIP_CLASSES) {
@@ -278,37 +285,52 @@ export class PortUI {
     if (upgradesEl && UPGRADES && UPGRADE_SLOTS) {
       const equipped = portScene.getUpgrades?.() ?? {};
       const slotLabels = { hull: 'Hull', sails: 'Sails', cannons: 'Cannons', cargo: 'Cargo', utility: 'Utility', boarding: 'Boarding' };
+      // Port_Improvements.md §3.5: collapse each slot to "equipped + Browse"
+      // expander. Expansion state lives on the slot's <details> element.
+      this._expandedSlots = this._expandedSlots ?? new Set();
       upgradesEl.innerHTML = UPGRADE_SLOTS.map(slot => {
         const equippedId = equipped[slot];
         const equippedUp = equippedId ? UPGRADES[equippedId] : null;
         const available = Object.values(UPGRADES).filter(u => u.slot === slot);
-        const equippedHtml = equippedUp
-          ? `<div class="port-upgrade-equipped">Equipped: ${equippedUp.name}</div>`
-          : '';
+        const slotLabel = slotLabels[slot] ?? slot;
+        const equippedLabel = equippedUp ? `${equippedUp.name}` : '<em class="port-upgrade-empty">(empty)</em>';
+        const openAttr = this._expandedSlots.has(slot) ? ' open' : '';
         const itemsHtml = available.map(u => {
           const isEquipped = u.id === equippedId;
           const canBuy = !equippedId && gold >= (u.cost ?? 0);
           const statsText = this._formatUpgradeStats(u);
           return `
-            <div class="port-upgrade-item" data-upgrade-id="${u.id}">
-              <span class="port-upgrade-name">${u.name}</span>
-              <span class="port-upgrade-stats">${statsText}</span>
+            <div class="port-upgrade-item" data-upgrade-id="${esc(u.id)}">
+              <span class="port-upgrade-name">${esc(u.name)}</span>
+              <span class="port-upgrade-stats">${esc(statsText)}</span>
               <span class="port-upgrade-cost">${u.cost ?? 0} gold</span>
-              <button type="button" class="port-upgrade-buy" data-upgrade-id="${u.id}" ${isEquipped || !canBuy ? 'disabled' : ''}>${isEquipped ? 'Equipped' : 'Buy'}</button>
+              <button type="button" class="port-upgrade-buy" data-upgrade-id="${esc(u.id)}" ${isEquipped || !canBuy ? 'disabled' : ''}>${isEquipped ? 'Equipped' : 'Buy'}</button>
             </div>
           `;
         }).join('');
         return `
-          <div class="port-upgrade-slot">
-            <div class="port-upgrade-slot-title">${slotLabels[slot] ?? slot}</div>
-            ${equippedHtml}
-            ${itemsHtml}
-          </div>
+          <details class="port-upgrade-slot" data-slot="${esc(slot)}"${openAttr}>
+            <summary class="port-upgrade-summary">
+              <span class="port-upgrade-slot-title">${esc(slotLabel)}</span>
+              <span class="port-upgrade-equipped-name">${equippedLabel}</span>
+              <span class="port-upgrade-browse-hint">${equippedUp ? 'Installed' : 'Browse'}</span>
+            </summary>
+            <div class="port-upgrade-items">${itemsHtml}</div>
+          </details>
         `;
       }).join('');
+      // Track open/close so a re-render preserves expansion state
+      upgradesEl.querySelectorAll('details.port-upgrade-slot').forEach(el => {
+        el.addEventListener('toggle', () => {
+          const slot = el.dataset.slot;
+          if (!slot) return;
+          if (el.open) this._expandedSlots.add(slot);
+          else this._expandedSlots.delete(slot);
+        });
+      });
       upgradesEl.querySelectorAll('.port-upgrade-buy:not(:disabled)').forEach(btn => {
         btn.addEventListener('click', (e) => {
-          const id = e.target.dataset.upgradeId;
+          const id = e.currentTarget.dataset.upgradeId;
           if (id && this.onBuyUpgrade) this.onBuyUpgrade(id);
         });
       });
@@ -351,15 +373,34 @@ export class PortUI {
       const hullNeeded = (shipState.hullMax ?? 100) - (shipState.hull ?? shipState.hullMax);
       const sailsNeeded = (shipState.sailMax ?? 100) - (shipState.sails ?? shipState.sailMax);
       const leaksCount = Math.floor(shipState.leaks ?? 0);
-      const hullCost = hullNeeded > 0 ? Math.ceil(hullNeeded * (REPAIR?.hullRepairCostPerPoint ?? 0.5)) : 0;
-      const sailsCost = sailsNeeded > 0 ? Math.ceil(sailsNeeded * (REPAIR?.sailRepairCostPerPoint ?? 0.3)) : 0;
-      const leaksCost = leaksCount > 0 ? leaksCount * (REPAIR?.leakRepairCostPerLeak ?? 5) : 0;
+      const hullPerPt = REPAIR?.hullRepairCostPerPoint ?? 0.5;
+      const sailPerPt = REPAIR?.sailRepairCostPerPoint ?? 0.3;
+      const leakPerOne = REPAIR?.leakRepairCostPerLeak ?? 5;
+      const hullCost = hullNeeded > 0 ? Math.ceil(hullNeeded * hullPerPt) : 0;
+      const sailsCost = sailsNeeded > 0 ? Math.ceil(sailsNeeded * sailPerPt) : 0;
+      const leaksCost = leaksCount > 0 ? leaksCount * leakPerOne : 0;
       if (hullVal) hullVal.textContent = `${Math.round(shipState.hull ?? 0)}/${shipState.hullMax ?? 100}${hullCost > 0 ? ` (${hullCost} gold)` : ''}`;
       if (sailsVal) sailsVal.textContent = `${Math.round(shipState.sails ?? 0)}/${shipState.sailMax ?? 100}${sailsCost > 0 ? ` (${sailsCost} gold)` : ''}`;
       if (leaksVal) leaksVal.textContent = `${(shipState.leaks ?? 0).toFixed(1)}${leaksCost > 0 ? ` (${leaksCost} gold)` : ''}`;
-      if (hullBtn) hullBtn.disabled = hullNeeded <= 0 || gold < hullCost;
-      if (sailsBtn) sailsBtn.disabled = sailsNeeded <= 0 || gold < sailsCost;
-      if (leaksBtn) leaksBtn.disabled = leaksCount <= 0 || gold < leaksCost;
+      // Port_Improvements.md §3.6: tooltip with cost breakdown
+      if (hullBtn) {
+        hullBtn.disabled = hullNeeded <= 0 || gold < hullCost;
+        hullBtn.title = hullNeeded > 0
+          ? `${hullNeeded} hull pts × ${hullPerPt} gold = ${hullCost} gold`
+          : 'Hull is fully repaired.';
+      }
+      if (sailsBtn) {
+        sailsBtn.disabled = sailsNeeded <= 0 || gold < sailsCost;
+        sailsBtn.title = sailsNeeded > 0
+          ? `${sailsNeeded} sail pts × ${sailPerPt} gold = ${sailsCost} gold`
+          : 'Sails are fully repaired.';
+      }
+      if (leaksBtn) {
+        leaksBtn.disabled = leaksCount <= 0 || gold < leaksCost;
+        leaksBtn.title = leaksCount > 0
+          ? `${leaksCount} leak${leaksCount === 1 ? '' : 's'} × ${leakPerOne} gold = ${leaksCost} gold`
+          : 'No leaks to repair.';
+      }
     }
 
     // Market panel (B.7)
@@ -373,7 +414,8 @@ export class PortUI {
     const marketListEl = this.overlay?.querySelector('#port-market-list');
     if (marketListEl) {
       const goods = getGoods();
-      const island = portScene.getCurrentIsland?.() ?? null;
+      // Reuse the `island` already resolved at the top of update(); no need to
+      // re-query / shadow. (Port_Improvements.md §1.3)
       const cargo = portScene.getCargo?.() ?? {};
       if (goods.length === 0) {
         marketListEl.innerHTML = '<p class="port-placeholder">Loading goods…</p>';
@@ -414,5 +456,52 @@ export class PortUI {
     }
 
     this._setTab(this._activeTab ?? portScene.getActiveTab?.() ?? 'tavern');
+
+    // Port_Improvements.md §3.8: render the action log
+    this._updateActionLog(portScene);
+  }
+
+  /** Port_Improvements.md §3.3: render the persistent stat bars above the tabs. */
+  _updateStatusStrip(portScene, roster) {
+    if (!this.overlay) return;
+    const shipState = portScene.getShipState?.() ?? portScene.shipState;
+    const hull = shipState?.hull ?? 0;
+    const hullMax = shipState?.hullMax ?? 100;
+    const sails = shipState?.sails ?? 0;
+    const sailMax = shipState?.sailMax ?? 100;
+    const hullPct = hullMax > 0 ? Math.max(0, Math.min(100, (hull / hullMax) * 100)) : 0;
+    const sailsPct = sailMax > 0 ? Math.max(0, Math.min(100, (sails / sailMax) * 100)) : 0;
+    const avgMorale = getAverageMorale(roster);
+    const moralePct = (roster?.length ?? 0) === 0 ? 0 : Math.max(0, Math.min(100, avgMorale * 100));
+    const cargoUsed = portScene.getCargoUsed?.() ?? 0;
+    const cargoCap = portScene.getCargoCapacity?.() ?? 20;
+    const cargoPct = cargoCap > 0 ? Math.max(0, Math.min(100, (cargoUsed / cargoCap) * 100)) : 0;
+
+    const setBar = (fillId, textId, pct, text) => {
+      const fill = this.overlay.querySelector('#' + fillId);
+      const txt = this.overlay.querySelector('#' + textId);
+      if (fill) fill.style.width = `${pct}%`;
+      if (txt) txt.textContent = text;
+    };
+    setBar('port-status-hull-fill',   'port-status-hull-text',   hullPct,   `${Math.round(hull)}/${hullMax}`);
+    setBar('port-status-sails-fill',  'port-status-sails-text',  sailsPct,  `${Math.round(sails)}/${sailMax}`);
+    setBar('port-status-morale-fill', 'port-status-morale-text', moralePct, (roster?.length ?? 0) ? `${Math.round(moralePct)}%` : '—');
+    setBar('port-status-cargo-fill',  'port-status-cargo-text',  cargoPct,  `${cargoUsed}/${cargoCap}`);
+  }
+
+  /** Port_Improvements.md §3.8: render the action log list. */
+  _updateActionLog(portScene) {
+    if (!this.overlay) return;
+    const listEl = this.overlay.querySelector('#port-action-log-list');
+    if (!listEl) return;
+    const entries = portScene?.getActionLog?.() ?? [];
+    if (entries.length === 0) {
+      listEl.innerHTML = '<li style="color:#6a7a8a; font-style: italic;">No recent activity.</li>';
+      return;
+    }
+    listEl.innerHTML = entries.map(e => {
+      const cls = e.kind === 'gain' ? 'log-gain' : e.kind === 'loss' ? 'log-loss' : '';
+      return `<li class="${cls}">${esc(e.text)}</li>`;
+    }).join('');
   }
 }

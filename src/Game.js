@@ -15,9 +15,11 @@ import { Minimap } from './ui/Minimap.js';
 import { MapUI } from './ui/MapUI.js';
 import { BigMapUI } from './ui/BigMapUI.js';
 import { PortUI } from './ui/PortUI.js';
+import { CrewUI } from './ui/CrewUI.js';                            // Port_Improvements.md §5
 import { getStationEffects, updateMoraleDecay } from './systems/CrewSystem.js';
 import { saveToStorage, loadFromStorage, loadWithStatus, LOAD_STATUS } from './utils/saveSystem.js';
-import { PortController } from './controllers/PortController.js'; // Improvements.md §5.1
+import { PortController } from './controllers/PortController.js';   // Improvements.md §5.1
+import { CrewController } from './controllers/CrewController.js';   // Port_Improvements.md §5
 
 export class Game {
   constructor(container) {
@@ -34,6 +36,9 @@ export class Game {
     this.overworldScene = new OverworldScene();
     this.portScene = new PortScene();
     this.portUI = new PortUI(container);
+    // Port_Improvements.md §5: CrewUI shell + controller. Init wires DOM later.
+    this.crewController = null; // built in init() so it can reference portController
+    this.crewUI = null;          // ditto
 
     this._playerGold = GAME?.startingGold ?? 0;
     this._playerInfamy = 0;
@@ -144,6 +149,16 @@ export class Game {
       },
     });
     this.portController.bindUI();
+
+    // Port_Improvements.md §5: standalone crew overlay. CrewController routes
+    // actions to PortController when docked, or directly to CrewSystem when at sea.
+    this.crewController = new CrewController({ host: this._buildCrewControllerHost() });
+    this.crewUI = new CrewUI({ host: this._buildCrewUIHost() });
+    this.crewUI.init();
+    this.portController.setCrewUI?.(this.crewUI); // keep crew overlay in sync with port actions
+    // Tavern "Manage Crew" button → open the standalone overlay
+    this.portUI.onManageCrew = () => this.crewUI?.show();
+
     this._initOverworldNavControls();
     this._initSettings();
 
@@ -329,6 +344,56 @@ export class Game {
     combatScene.update(dt, input);
   }
 
+  /**
+   * Build the host object passed to CrewUI. Captures `this` via arrow functions
+   * so the UI sees live Game state on every read. When docked, reads pull from
+   * the active PortScene (which holds the in-port copy of roster/cargo/gold);
+   * elsewhere they pull from Game's persistent fields. (Port_Improvements.md §5)
+   */
+  _buildCrewUIHost() {
+    const atPort = () => this.state === GAME_STATES.PORT;
+    return {
+      // Data — state-aware to avoid showing a stale Game-side copy while docked
+      getCrewRoster: () => atPort() ? (this.portScene.getCrewRoster() ?? []) : (this._crewRoster ?? []),
+      getShipClassId: () => atPort() ? (this.portScene.getShipClassId?.() ?? this._playerShipClass ?? 'sloop') : (this._playerShipClass ?? 'sloop'),
+      getPlayerCargo: () => atPort() ? (this.portScene.getCargo?.() ?? {}) : (this._playerCargo ?? {}),
+      getMaxCrew: () => {
+        const cls = atPort() ? this.portScene.getShipClassId?.() : this._playerShipClass;
+        return SHIP_CLASSES?.[cls ?? 'sloop']?.crewMax ?? 20;
+      },
+      isAtPort: atPort,
+      getGold: () => atPort() ? (this.portScene.getGold?.() ?? 0) : (this._playerGold ?? 0),
+      // Behaviour — delegated to CrewController so the same UI works at sea or in port
+      onAssignStation: (crewId, station) => this.crewController?.onAssignStation(crewId, station),
+      onDismissCrew: (crewId) => this.crewController?.onDismissCrew(crewId),
+      onServeRum: () => this.crewController?.onServeRum(),
+      onHireCrew: () => this.crewController?.onHireCrew(),
+    };
+  }
+
+  /** Build the host object passed to CrewController. (Port_Improvements.md §5) */
+  _buildCrewControllerHost() {
+    const atPort = () => this.state === GAME_STATES.PORT;
+    return {
+      getState: () => this.state,
+      // Same state-aware sourcing as CrewUI — actions mutate the right copy.
+      getCrewRoster: () => atPort() ? (this.portScene.getCrewRoster() ?? []) : (this._crewRoster ?? []),
+      getShipClassId: () => atPort() ? (this.portScene.getShipClassId?.() ?? this._playerShipClass ?? 'sloop') : (this._playerShipClass ?? 'sloop'),
+      getPlayerCargo: () => atPort() ? (this.portScene.getCargo?.() ?? {}) : (this._playerCargo ?? {}),
+      getGold: () => atPort() ? (this.portScene.getGold?.() ?? 0) : (this._playerGold ?? 0),
+      setGold: (v) => {
+        if (atPort()) this.portScene.setGold?.(v);
+        else this._playerGold = Math.max(0, v);
+      },
+      getSailingShip: () => this.overworldScene?.getSailingShip?.() ?? null,
+      getCombatPlayerShip: () => this.combatScene?.getPlayer?.() ?? null,
+      getPortScene: () => this.portScene,
+      getPortController: () => this.portController,
+      getPortUI: () => this.portUI,
+      getCrewUI: () => this.crewUI,
+    };
+  }
+
   _initOverworldNavControls() {
     const controls = document.getElementById('overworld-map-controls');
     const zoomIn = controls?.querySelector('.overworld-zoom-in');
@@ -399,6 +464,7 @@ export class Game {
     this.portScene.dockFeePaid = dockFee;
     this.portUI.show(this.portScene);
     this.state = GAME_STATES.PORT;
+    this.crewUI?.update?.(); // Port_Improvements.md §5: re-source roster from portScene
   }
 
   _leavePort() {
@@ -409,6 +475,7 @@ export class Game {
     this._playerCargo = this.portScene.getCargo?.() ?? this._playerCargo ?? {};
     this.portUI.hide();
     this.state = GAME_STATES.OVERWORLD;
+    this.crewUI?.update?.(); // Port_Improvements.md §5: re-source roster from Game post-leave
   }
 
   // Port-screen handlers now live on PortController (Improvements.md §5.1).

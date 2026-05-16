@@ -743,6 +743,8 @@
       pointer-events: auto;
     }
     #port-overlay.visible { display: flex; }
+    /* Port_Improvements.md §3.4: container becomes a flex column so the header
+       and tabs are fixed and only the content panel scrolls. */
     .port-panel-container {
       background: rgba(10, 30, 50, 0.98);
       border: 1px solid #2a4a6a;
@@ -750,7 +752,9 @@
       padding: var(--ui-space-lg);
       max-width: min(90vw, 480px);
       max-height: 85vh;
-      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
     .port-header {
       display: flex;
@@ -758,6 +762,7 @@
       gap: var(--ui-space);
       margin-bottom: var(--ui-space);
       flex-wrap: wrap;
+      flex-shrink: 0;
     }
     .port-title { font-size: var(--ui-font-lg); margin: 0; flex: 1; }
     .port-dock-fee { font-size: var(--ui-font-sm); color: #8a9aaa; margin-right: var(--ui-space); }
@@ -772,6 +777,8 @@
       cursor: pointer;
     }
     .port-close-btn:hover { background: #3a5a7a; }
+    /* Port_Improvements.md §3.2: visual cue when Esc is primed */
+    .port-close-btn.esc-primed { background: #cc8844; border-color: #ffaa44; color: #1a1a1a; font-weight: 600; }
     .port-tabs {
       display: flex;
       gap: 4px;
@@ -786,7 +793,252 @@
       cursor: pointer;
     }
     .port-tabs button.active { background: #3a5a7a; border-color: #4a6a8a; color: #e8e6e3; }
+    /* Port_Improvements.md §1.2: tabs were toggling .active classes but panels had
+       no display rule, so all three panels rendered stacked. */
+    .port-panel { display: none; }
+    .port-panel.active { display: block; }
     .port-content h3 { font-size: var(--ui-font-base); margin: 0 0 var(--ui-space); }
+    /* Port_Improvements.md §3.4: only the content area scrolls — header + tabs stay put. */
+    .port-content { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+    .port-tabs { flex-shrink: 0; }
+    /* Port_Improvements.md §3.3: persistent status strip across all tabs */
+    .port-status-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--ui-space);
+      padding: var(--ui-space);
+      margin-bottom: var(--ui-space);
+      background: rgba(20, 36, 56, 0.5);
+      border: 1px solid #233a52;
+      border-radius: var(--ui-radius);
+      flex-shrink: 0;
+    }
+    .port-stat { display: flex; align-items: center; gap: 6px; }
+    .port-stat-label { font-size: 11px; color: #8a9aaa; width: 42px; flex-shrink: 0; }
+    .port-stat-bar {
+      flex: 1;
+      height: 8px;
+      background: #1a2a3a;
+      border-radius: 4px;
+      overflow: hidden;
+      min-width: 30px;
+    }
+    .port-stat-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.15s ease;
+      border-radius: 4px;
+    }
+    .port-stat-hull { background: linear-gradient(90deg, #cc4444, #aacc88); }
+    .port-stat-sails { background: linear-gradient(90deg, #cc8844, #aacc88); }
+    .port-stat-morale { background: linear-gradient(90deg, #cc4488, #aacc88); }
+    .port-stat-cargo { background: linear-gradient(90deg, #4a7c59, #ffcc44); }
+    .port-stat-value { font-size: 11px; color: #e8e6e3; min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+    /* Port_Improvements.md §3.8: scrolling action log */
+    .port-action-log {
+      flex-shrink: 0;
+      margin-top: var(--ui-space);
+      padding: 6px 8px;
+      background: rgba(20, 36, 56, 0.5);
+      border: 1px solid #233a52;
+      border-radius: var(--ui-radius);
+      max-height: 110px;
+      display: flex;
+      flex-direction: column;
+    }
+    .port-action-log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #8a9aaa;
+      margin-bottom: 4px;
+    }
+    .port-action-log-clear {
+      padding: 1px 6px;
+      font-size: 10px;
+      background: #2a3a4a;
+      border: 1px solid #3a4a5a;
+      border-radius: 3px;
+      color: #aaccdd;
+      cursor: pointer;
+    }
+    .port-action-log-clear:hover { background: #3a4a5a; color: #e8e6e3; }
+    .port-action-log-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .port-action-log-list li {
+      font-size: 11px;
+      color: #aaccdd;
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(58, 90, 122, 0.2);
+    }
+    .port-action-log-list li:last-child { border-bottom: none; }
+    .port-action-log-list li.log-gain { color: #aacc88; }
+    .port-action-log-list li.log-loss { color: #cc8844; }
+
+    /* ─── Crew Management overlay (Port_Improvements.md §5) ──────────────── */
+    /* Always-available crew panel — opens via K keybind or the floating
+       "Crew" button. Non-modal during sailing/combat (game keeps running). */
+    .crew-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 95;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: var(--ui-space-lg);
+      pointer-events: auto;
+      background: rgba(5, 12, 24, 0.55);
+    }
+    .crew-overlay.visible { display: flex; }
+    .crew-panel {
+      background: rgba(10, 28, 48, 0.98);
+      border: 1px solid #3a5a7a;
+      border-radius: var(--ui-radius);
+      padding: var(--ui-space-lg);
+      width: min(92vw, 520px);
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    .crew-header {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space);
+      flex-wrap: wrap;
+      margin-bottom: var(--ui-space);
+      position: sticky;
+      top: 0;
+      background: rgba(10, 28, 48, 0.98);
+      padding-bottom: var(--ui-space);
+      border-bottom: 1px solid #233a52;
+      z-index: 1;
+    }
+    .crew-title { font-size: var(--ui-font-lg); margin: 0; flex: 1; }
+    .crew-count-summary, .crew-morale-summary { font-size: var(--ui-font-sm); color: #aaccdd; }
+    .crew-morale-summary span { color: #aacc88; font-weight: 600; }
+    .crew-serve-rum-btn {
+      padding: 4px 10px;
+      background: #6a4a2a;
+      border: 1px solid #8a6a4a;
+      border-radius: 4px;
+      color: #e8e6e3;
+      cursor: pointer;
+      font-size: var(--ui-font-sm);
+    }
+    .crew-serve-rum-btn:hover:not(:disabled) { background: #8a6a4a; }
+    .crew-serve-rum-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .crew-close-btn {
+      width: 28px; height: 28px;
+      padding: 0;
+      background: rgba(74, 58, 58, 0.7);
+      border: 1px solid #6a4a4a;
+      border-radius: 4px;
+      color: #e8c0c0;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .crew-close-btn:hover { background: rgba(122, 74, 74, 0.9); color: #ffd0d0; }
+    .crew-station-overview {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: var(--ui-space);
+      padding: var(--ui-space);
+      background: rgba(26, 42, 62, 0.5);
+      border-radius: var(--ui-radius);
+    }
+    .crew-station-chip {
+      font-size: var(--ui-font-sm);
+      padding: 2px 8px;
+      background: #2a3a4a;
+      border-radius: 4px;
+      color: #aaccdd;
+    }
+    .crew-station-chip.filled { background: rgba(74, 124, 89, 0.4); color: #88cc88; }
+    .crew-station-chip.empty { color: #7a8a9a; }
+    .crew-roster-label { font-size: var(--ui-font-sm); color: #8a9aaa; margin-bottom: 4px; }
+    .crew-roster { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--ui-space); }
+    .crew-roster-item {
+      display: flex; align-items: center; gap: var(--ui-space);
+      padding: 6px 4px;
+      border-bottom: 1px solid rgba(58, 90, 122, 0.3);
+    }
+    .crew-roster-item:last-child { border-bottom: none; }
+    .crew-name { flex: 1; }
+    .crew-morale-pill {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: #1a2a3a;
+      color: #aacc88;
+    }
+    .crew-morale-pill.low { color: #cc8844; }
+    .crew-morale-pill.crit { color: #cc4444; background: rgba(120, 30, 30, 0.3); }
+    .crew-station-select {
+      padding: 4px 8px;
+      background: #2a3a4a;
+      border: 1px solid #3a4a5a;
+      border-radius: 4px;
+      color: #e8e6e3;
+      min-width: 140px;
+    }
+    .crew-dismiss-btn {
+      padding: 2px 8px;
+      font-size: 11px;
+      background: #4a3a3a;
+      border: 1px solid #5a4a4a;
+      border-radius: 4px;
+      color: #cc8888;
+      cursor: pointer;
+    }
+    .crew-dismiss-btn:hover:not(:disabled) { background: #5a4a4a; color: #e8a0a0; }
+    .crew-dismiss-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .crew-port-actions {
+      display: flex; align-items: center; gap: var(--ui-space);
+      padding-top: var(--ui-space);
+      border-top: 1px solid #233a52;
+    }
+    .crew-hire-btn {
+      padding: var(--ui-space) var(--ui-space-lg);
+      background: #4a7c59;
+      border: 1px solid #5a8c69;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      cursor: pointer;
+    }
+    .crew-hire-btn:hover:not(:disabled) { background: #5a8c69; }
+    .crew-hire-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .crew-port-hint { font-size: var(--ui-font-sm); color: #8a9aaa; font-style: italic; }
+    .crew-port-actions.at-sea .crew-port-hint { display: inline; }
+    .crew-empty { color: #8a9aaa; font-style: italic; padding: var(--ui-space); }
+
+    /* Floating "Crew" button — visible whenever overlay is closed and the game is running. */
+    .crew-toggle-btn {
+      position: absolute;
+      top: calc(var(--ui-space-lg) + var(--safe-top));
+      right: calc(80px + var(--safe-right));
+      z-index: 11;
+      padding: 6px 12px;
+      background: rgba(20, 36, 56, 0.92);
+      border: 1px solid #3a5a7a;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      cursor: pointer;
+      font-size: var(--ui-font-sm);
+      pointer-events: auto;
+    }
+    .crew-toggle-btn:hover { background: rgba(42, 74, 106, 0.95); border-color: #6b9b7a; }
+    /* Hide on main menu / when no game is active. */
+    body:not([data-game-state]) .crew-toggle-btn,
+    body[data-game-state="MENU"] .crew-toggle-btn { display: none; }
+    /* Hide while crew overlay itself is open (the close button takes over). */
+    body.crew-open .crew-toggle-btn { display: none; }
     .port-hire-btn {
       padding: var(--ui-space) var(--ui-space-lg);
       background: #4a7c59;
@@ -815,6 +1067,22 @@
     .port-dismiss-btn { padding: 2px 8px; font-size: 11px; background: #4a3a3a; border: 1px solid #5a4a4a; border-radius: 4px; color: #cc8888; cursor: pointer; }
     .port-dismiss-btn:hover { background: #5a4a4a; color: #e8a0a0; }
     .port-station-select { padding: 4px 8px; background: #2a3a4a; border: 1px solid #3a4a5a; border-radius: 4px; color: #e8e6e3; min-width: 140px; }
+    .port-tavern-flavor { color: #8a9aaa; font-size: var(--ui-font-sm); font-style: italic; margin: 0 0 var(--ui-space); }
+    .port-manage-crew-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      margin-top: var(--ui-space);
+      background: rgba(42, 74, 106, 0.95);
+      border: 1px solid #4a6a8a;
+      border-radius: var(--ui-radius);
+      color: #e8e6e3;
+      cursor: pointer;
+      font-size: var(--ui-font-base);
+      text-align: left;
+    }
+    .port-manage-crew-btn:hover { background: rgba(58, 90, 122, 1); border-color: #6b9b7a; }
+    .port-tavern-rumors-placeholder { margin-top: var(--ui-space); color: #6a7a8a; font-size: var(--ui-font-sm); font-style: italic; }
     .port-ship-class { display: flex; align-items: center; gap: var(--ui-space); margin-bottom: 12px; }
     .port-ship-class label { font-size: var(--ui-font-sm); color: #8a9aaa; }
     .port-ship-class-select { padding: 4px 8px; background: #2a3a4a; border: 1px solid #3a4a5a; border-radius: 4px; color: #e8e6e3; min-width: 120px; }
@@ -843,6 +1111,29 @@
     .port-upgrade-buy { padding: 2px 8px; font-size: 11px; background: #2a4a6a; border: 1px solid #3a5a7a; border-radius: 4px; color: #e8e6e3; cursor: pointer; }
     .port-upgrade-buy:hover:not(:disabled) { background: #3a5a8a; }
     .port-upgrade-buy:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Port_Improvements.md §3.5: collapsed upgrade slot summary */
+    .port-upgrade-summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space);
+      padding: 4px 0;
+    }
+    .port-upgrade-summary::-webkit-details-marker { display: none; }
+    .port-upgrade-summary::before {
+      content: '▸';
+      color: #6a7a8a;
+      font-size: 10px;
+      transition: transform 0.1s ease;
+      display: inline-block;
+    }
+    details[open] > .port-upgrade-summary::before { transform: rotate(90deg); }
+    .port-upgrade-slot-title { flex: 0 0 80px; font-size: var(--ui-font-sm); color: #aaccdd; }
+    .port-upgrade-equipped-name { flex: 1; color: #6b9b7a; font-size: var(--ui-font-sm); }
+    .port-upgrade-equipped-name em.port-upgrade-empty { color: #6a7a8a; font-style: italic; }
+    .port-upgrade-browse-hint { font-size: 10px; color: #8a9aaa; }
+    .port-upgrade-items { margin-top: 6px; padding-left: var(--ui-space); display: flex; flex-direction: column; gap: 4px; }
     .port-cargo-summary { font-size: var(--ui-font-sm); color: #8a9aaa; margin-bottom: 8px; }
     .port-market-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
     .port-market-item { display: flex; align-items: center; gap: var(--ui-space); padding: 6px 8px; background: #1a2a3a; border-radius: 4px; }
@@ -967,6 +1258,29 @@
             <span class="port-infamy" id="port-infamy" title="Infamy: earn from victories and trading">0 Infamy</span>
             <button type="button" class="port-close-btn">Leave Port</button>
           </div>
+          <!-- Port_Improvements.md §3.3: persistent status strip — visible across all tabs -->
+          <div class="port-status-strip" id="port-status-strip">
+            <div class="port-stat" title="Hull integrity">
+              <span class="port-stat-label">Hull</span>
+              <div class="port-stat-bar"><div class="port-stat-fill port-stat-hull" id="port-status-hull-fill"></div></div>
+              <span class="port-stat-value" id="port-status-hull-text">—</span>
+            </div>
+            <div class="port-stat" title="Sail integrity (affects speed)">
+              <span class="port-stat-label">Sails</span>
+              <div class="port-stat-bar"><div class="port-stat-fill port-stat-sails" id="port-status-sails-fill"></div></div>
+              <span class="port-stat-value" id="port-status-sails-text">—</span>
+            </div>
+            <div class="port-stat" title="Average crew morale">
+              <span class="port-stat-label">Morale</span>
+              <div class="port-stat-bar"><div class="port-stat-fill port-stat-morale" id="port-status-morale-fill"></div></div>
+              <span class="port-stat-value" id="port-status-morale-text">—</span>
+            </div>
+            <div class="port-stat" title="Cargo hold usage">
+              <span class="port-stat-label">Cargo</span>
+              <div class="port-stat-bar"><div class="port-stat-fill port-stat-cargo" id="port-status-cargo-fill"></div></div>
+              <span class="port-stat-value" id="port-status-cargo-text">—</span>
+            </div>
+          </div>
           <div class="port-tabs">
             <button type="button" data-port-tab="tavern" class="active">Tavern</button>
             <button type="button" data-port-tab="shipwright">Shipwright</button>
@@ -974,7 +1288,8 @@
           </div>
           <div class="port-content">
             <div class="port-panel active" data-panel="tavern">
-              <h3>Crew Management</h3>
+              <h3>Tavern</h3>
+              <p class="port-tavern-flavor">Sailors look for work, captains for fresh hands, and rumours drift on the rum.</p>
               <div class="port-crew-summary">
                 <span>Crew: <span id="port-crew-count">0</span>/<span id="port-crew-max">0</span></span>
                 <span class="port-morale">Morale: <span id="port-morale-value">—</span></span>
@@ -982,8 +1297,9 @@
                 <button type="button" class="port-serve-rum-btn" id="port-serve-rum">Serve Rum (1)</button>
               </div>
               <div class="port-station-overview" id="port-station-overview"></div>
-              <div class="port-roster-label">Crew Roster</div>
-              <div class="port-roster"></div>
+              <!-- Port_Improvements.md §5.5: roster lives in the standalone Crew overlay now -->
+              <button type="button" class="port-manage-crew-btn" id="port-manage-crew">Manage Crew &amp; Stations →</button>
+              <p class="port-tavern-rumors-placeholder">Rumours and contracts will appear here in future updates.</p>
             </div>
             <div class="port-panel" data-panel="shipwright">
               <h3>Shipwright</h3>
@@ -1019,6 +1335,14 @@
               <div class="port-market-list" id="port-market-list"></div>
             </div>
           </div>
+          <!-- Port_Improvements.md §3.8: scrolling action log at the bottom -->
+          <div class="port-action-log" id="port-action-log" aria-live="polite">
+            <div class="port-action-log-header">
+              <span>Activity</span>
+              <button type="button" class="port-action-log-clear" id="port-action-log-clear" title="Clear log">Clear</button>
+            </div>
+            <ul class="port-action-log-list" id="port-action-log-list"></ul>
+          </div>
         </div>
       </div>
       <div id="big-map-overlay" tabindex="0">
@@ -1031,6 +1355,27 @@
           <button class="big-map-close">Close (M or Esc)</button>
         </div>
       </div>
+      <!-- Port_Improvements.md §5: Crew Management overlay — reachable from any
+           game state via the K keybind or the HUD "Crew" button. -->
+      <div id="crew-overlay" class="crew-overlay" tabindex="0">
+        <div class="crew-panel">
+          <div class="crew-header">
+            <h2 class="crew-title">Crew</h2>
+            <span class="crew-count-summary"><span id="crew-count">0</span>/<span id="crew-max">0</span></span>
+            <span class="crew-morale-summary">Morale: <span id="crew-morale-value">—</span></span>
+            <button type="button" class="crew-serve-rum-btn" id="crew-serve-rum">Serve Rum</button>
+            <button type="button" class="crew-close-btn" title="Close (K or Esc)">✕</button>
+          </div>
+          <div class="crew-station-overview" id="crew-station-overview"></div>
+          <div class="crew-roster-label">Crew Roster</div>
+          <div class="crew-roster" id="crew-roster"></div>
+          <div class="crew-port-actions" id="crew-port-actions">
+            <button type="button" class="crew-hire-btn" id="crew-hire-btn">Hire Crew</button>
+            <span class="crew-port-hint">Hiring is only available while docked.</span>
+          </div>
+        </div>
+      </div>
+      <button type="button" id="crew-toggle-btn" class="crew-toggle-btn" title="Crew (K)">👥 Crew</button>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>

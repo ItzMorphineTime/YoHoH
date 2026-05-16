@@ -18,7 +18,28 @@ export class PortScene {
     this.cargo = {}; // { goodId: quantity }
     this.upgrades = {}; // { slotId: upgradeId } — C.7, C.10
     this.activeTab = 'tavern';
+    // Port_Improvements.md §3.8: rolling activity log for the current port visit.
+    // Newest first. Capped to PortScene.actionLogMax.
+    this.actionLog = [];
+    this.actionLogMax = 30;
   }
+
+  /**
+   * Append a one-line activity entry. Optional `kind` ('gain' | 'loss' | 'info').
+   * @param {string} text
+   * @param {string} [kind]
+   */
+  addLogEntry(text, kind = 'info') {
+    if (!text) return;
+    this.actionLog.unshift({ text: String(text), kind, t: Date.now() });
+    if (this.actionLog.length > this.actionLogMax) this.actionLog.length = this.actionLogMax;
+  }
+
+  /** Drain the log (used by Clear button). */
+  clearLog() { this.actionLog = []; }
+
+  /** Snapshot of the log for UI rendering. */
+  getActionLog() { return this.actionLog.slice(); }
 
   init(island, crewRoster = [], gold = 0, shipClassId = null, shipState = null, cargo = {}, upgrades = {}, infamy = 0, unlockedShipClasses = ['sloop']) {
     this.currentIsland = island;
@@ -31,6 +52,7 @@ export class PortScene {
     this.cargo = typeof cargo === 'object' && cargo !== null ? { ...cargo } : {};
     this.upgrades = typeof upgrades === 'object' && upgrades !== null ? { ...upgrades } : {};
     this.activeTab = 'tavern';
+    this.actionLog = []; // Port_Improvements.md §3.8: fresh log per port visit
   }
 
   getUpgrades() {

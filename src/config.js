@@ -146,7 +146,7 @@ export const SHIP = {
 
 // ─── Sailing (route travel) — fallback ───────────────────────────────────────
 export const SAILING = {
-  maxSpeed: 0.1,
+  maxSpeed: 10.0,
   thrust: 0.025,
   friction: 0.998,
   turnRate: 0.015,

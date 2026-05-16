@@ -4,7 +4,7 @@
 **Last updated:** 2026-05-16
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -923,7 +923,7 @@ Source of truth: [island-generator-poc/src/IslandSerializer.js](island-generator
 
 ## 13. Code-Quality Backlog
 
-A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Two passes complete; remaining items below.
+A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Port-specific work is tracked separately in [Port_Improvements.md](Port_Improvements.md). Three passes complete; remaining items below.
 
 ### ✅ Landed (2026-05-16)
 
@@ -949,15 +949,34 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - §6.3 — Encounter chance is now a proper Poisson process (Exp(λ) sampled countdown, dt-independent)
 - **Bug fix:** Main menu (New Game / Continue) was unclickable — `#main-menu-overlay` had no CSS, so it sat behind the canvas layer and clicks were intercepted by `#game-canvas-layer` (`pointer-events: auto`). Added full menu CSS in `index.html` (fixed positioning, z-index 1000, gradient background, button styling, `.hidden` rule).
 
+**Third pass — Port / Crew UX (see Port_Improvements.md):**
+- **Bug fix:** Tavern/Shipwright/Market tab buttons did nothing — `INFAMY` was used in `PortUI.update()` but never imported (threw ReferenceError mid-render) **and** `.port-panel` had no `display: none/block` CSS, so all three panels rendered stacked. Both fixed.
+- **§5 Crew Management extraction (the user's main ask):** new `src/ui/CrewUI.js` (~220 lines) + `src/controllers/CrewController.js` (~80 lines). Standalone overlay reachable from any state via the **K** keybind or a floating "👥 Crew" button. State-aware sourcing (PortScene when docked, Game roster at sea). Station-effects refresh live during sailing/combat. Tavern tab now pivots to a "Manage Crew →" entry point. Cross-refresh in both directions so port actions sync the overlay and vice versa.
+- §3.3 — Persistent status strip (Hull / Sails / Morale / Cargo gradient bars) above the port tabs.
+- §3.4 — Port container converted to flex column with sticky header + status strip + tabs + action log; only the content panel scrolls.
+- §3.5 — Upgrade slots collapsed into `<details>` summary / browse expander, preserving open state across re-renders.
+- §3.6 — Repair buttons gained cost-breakdown `title` tooltips ("40 hull pts × 0.5 gold = 20 gold").
+- §3.8 — PortScene tracks a 30-entry activity log with gain/loss/info colour coding. Activity panel below the tabs with Clear button.
+- §3.2 — Esc-twice exit confirmation (1.5s priming window with amber Leave Port button state).
+- §4.2 — Active tab persists via PortScene.setActiveTab.
+- §4.4 — Audit script flagged the INFAMY bug; one dead `ECONOMY` import in PortController removed; remaining flags were false positives.
+
 ### ⏳ Remaining
+
+**Improvements.md backlog:**
 - 🟡 §3.1 finish — extract `SailingRenderer` and `CombatRenderer`; introduce a `CameraController`
 - 🟡 §5.1 finish — extract `SaveController`, `SettingsBindings`, `OverworldPanZoomController`
-- 🟡 §5.2 — split `PortUI` into per-tab panel classes (Tavern, Shipwright, Market)
+- 🟡 §5.2 / Port_Improvements §4.1 — split `PortUI` into per-tab panel classes (Tavern, Shipwright, Market) — deferred until UX surface settles
 - 🟢 §5.3 — audit remaining `innerHTML` writes for completeness (ship name, contracts, etc. when added)
 - 🟢 §6.2 — Hit-detection spatial grid (only if combat scales beyond ~5 ships)
 - 🟢 §6.4 — Combat friction tuning (needs playtest)
 
-See [Improvements.md](Improvements.md) for full triage, line references, and effort × impact estimates.
+**Port_Improvements.md backlog:**
+- 🟡 Port_Improvements §4.3 — diff-based DOM updates inside panels (deferred; no longer urgent post-§1.3)
+- 🟢 Port_Improvements §3.7 — market price-trend memory (Phase D)
+- 🟢 Infamy progress bar towards next ship-class unlock (split off from §3.3)
+
+See [Improvements.md](Improvements.md) and [Port_Improvements.md](Port_Improvements.md) for full triage, line references, and effort × impact estimates.
 
 ---
 

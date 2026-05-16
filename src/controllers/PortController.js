@@ -11,7 +11,7 @@
  * during the session and are synced back to host on leavePort().
  */
 
-import { ECONOMY, INFAMY, CREW } from '../config.js';
+import { INFAMY, CREW } from '../config.js';
 import { hireCrew } from '../systems/CrewSystem.js';
 
 /**
@@ -31,6 +31,25 @@ export class PortController {
     this.portScene = portScene;
     this.portUI = portUI;
     this.host = host;
+    // Optional reference to CrewUI so crew-related changes refresh the
+    // standalone crew overlay too. Set via setCrewUI() after construction
+    // because CrewUI is built later in Game.init(). (Port_Improvements.md §5)
+    this.crewUI = null;
+  }
+
+  /** Allow Game to register the standalone crew overlay for refresh syncs. */
+  setCrewUI(crewUI) {
+    this.crewUI = crewUI;
+  }
+
+  /** Refresh CrewUI if it's been registered. */
+  _refreshCrewUI() {
+    this.crewUI?.update?.();
+  }
+
+  /** Append a one-line entry to the port action log. (Port_Improvements.md §3.8) */
+  _log(text, kind = 'info') {
+    this.portScene?.addLogEntry?.(text, kind);
   }
 
   /** Wire UI callbacks. Idempotent. */
@@ -59,28 +78,51 @@ export class PortController {
     const { crew, cost } = result;
     this.portScene.addCrew(crew);
     this.portScene.setGold(this.portScene.getGold() - cost);
+    this._log(`Hired ${crew?.name ?? 'a sailor'} (−${cost} gold)`, 'loss');
     this.portUI.update(this.portScene);
+    this._refreshCrewUI();
   }
 
   onAssignStation(crewId, station) {
     this.portScene.assignCrewToStation(crewId, station || null);
     this.portUI.update(this.portScene);
+    this._refreshCrewUI();
   }
 
   onDismissCrew(crewId) {
-    if (this.portScene.removeCrew?.(crewId)) this.portUI.update(this.portScene);
+    const roster = this.portScene.getCrewRoster?.() ?? [];
+    const crew = roster.find(c => c.id === crewId);
+    if (this.portScene.removeCrew?.(crewId)) {
+      this._log(`Dismissed ${crew?.name ?? 'crew'}`, 'info');
+      this.portUI.update(this.portScene);
+      this._refreshCrewUI();
+    }
   }
 
   // ─── Repairs ──────────────────────────────────────────────────────────────
 
-  onRepairHull()  { if (this.portScene.repairHull?.())  this.portUI.update(this.portScene); }
-  onRepairSails() { if (this.portScene.repairSails?.()) this.portUI.update(this.portScene); }
-  onRepairLeaks() { if (this.portScene.repairLeaks?.()) this.portUI.update(this.portScene); }
+  onRepairHull()  {
+    const cost = this.portScene.repairHull?.();
+    if (cost) { this._log(`Hull repaired (−${cost} gold)`, 'loss'); this.portUI.update(this.portScene); }
+  }
+  onRepairSails() {
+    const cost = this.portScene.repairSails?.();
+    if (cost) { this._log(`Sails repaired (−${cost} gold)`, 'loss'); this.portUI.update(this.portScene); }
+  }
+  onRepairLeaks() {
+    const cost = this.portScene.repairLeaks?.();
+    if (cost) { this._log(`Leaks plugged (−${cost} gold)`, 'loss'); this.portUI.update(this.portScene); }
+  }
 
   // ─── Market ───────────────────────────────────────────────────────────────
 
   onBuyGood(goodId) {
-    if (this.portScene.buyGood?.(goodId)) this.portUI.update(this.portScene);
+    const gold0 = this.portScene.getGold?.() ?? 0;
+    if (this.portScene.buyGood?.(goodId)) {
+      const spent = gold0 - (this.portScene.getGold?.() ?? 0);
+      this._log(`Bought ${goodId} (−${spent} gold)`, 'loss');
+      this.portUI.update(this.portScene);
+    }
   }
 
   onSellGood(goodId) {
@@ -90,6 +132,7 @@ export class PortController {
       const newInfamy = (this.host?.getInfamy?.() ?? 0) + infamyGain;
       this.host?.setInfamy?.(newInfamy);
       this.portScene.infamy = newInfamy;
+      this._log(`Sold ${goodId} (+${goldReceived} gold)`, 'gain');
       this.portUI.update(this.portScene);
     }
   }
@@ -97,14 +140,19 @@ export class PortController {
   // ─── Upgrades & Rum ───────────────────────────────────────────────────────
 
   onBuyUpgrade(upgradeId) {
+    const gold0 = this.portScene.getGold?.() ?? 0;
     if (this.portScene.buyUpgrade?.(upgradeId)) {
+      const spent = gold0 - (this.portScene.getGold?.() ?? 0);
+      this._log(`Installed ${upgradeId} (−${spent} gold)`, 'loss');
       this.portUI.update(this.portScene);
     }
   }
 
   onServeRum() {
     if (this.portScene.serveRum?.()) {
+      this._log('Served rum to crew', 'gain');
       this.portUI.update(this.portScene);
+      this._refreshCrewUI();
     }
   }
 
