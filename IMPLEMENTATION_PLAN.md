@@ -1,9 +1,10 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
-**Document status:** Draft v1.0 (reviewed)  
-**Last updated:** 2026-01-31  
-**Target:** Small indie prototype — PC web browser  
-**Tech stack:** HTML5, JavaScript (ES6+), Three.js  
+**Document status:** Draft v1.1 (reviewed)
+**Last updated:** 2026-05-16
+**Target:** Small indie prototype — PC web browser
+**Tech stack:** HTML5, JavaScript (ES6+), Three.js
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -15,12 +16,14 @@
 5. [Phase 1: Procedural Map Generation (POC)](#5-phase-1-procedural-map-generation-poc) ★ Core Feature
 6. [Phase A: Fun First Combat (Milestone A)](#6-phase-a-fun-first-combat-milestone-a)
 7. [Phase B: Trading Loop (Milestone B)](#7-phase-b-trading-loop-milestone-b)
-8. [Phase B.5: Core Gameplay & Rendering](#8-phase-b5-core-gameplay--rendering) ★ Next Step (incl. §8.6 Map UI UX/UI)
+8. [Phase B.5: Core Gameplay & Rendering](#8-phase-b5-core-gameplay--rendering) (incl. §8.6 Map UI UX/UI)
 9. [Phase C: Crew + Upgrades (Milestone C)](#9-phase-c-crew--upgrades-milestone-c)
 10. [Phase D: Vertical Slice (Milestone D)](#10-phase-d-vertical-slice-milestone-d)
-11. [Polish & Stretch Goals](#11-polish--stretch-goals)
-12. [Risk Mitigations](#12-risk-mitigations)
-13. [Story Expansion (Over-Arching Narrative)](#13-story-expansion-over-arching-narrative)
+11. [Phase E: POC → Main Game Integration](#11-phase-e-poc--main-game-integration) ★ Next Step
+12. [Polish & Stretch Goals](#12-polish--stretch-goals)
+13. [Code-Quality Backlog](#13-code-quality-backlog)
+14. [Risk Mitigations](#14-risk-mitigations)
+15. [Story Expansion (Over-Arching Narrative)](#15-story-expansion-over-arching-narrative)
 
 ---
 
@@ -30,14 +33,18 @@
 Build the YoHoH prototype as a browser-based game using Three.js for rendering. The game uses a **top-down orthographic view** (2.5D) with stylized 3D/2D assets.
 
 ### 1.2 Milestone Mapping (from GDD §18)
-| Phase | Milestone | Focus |
-|-------|------------|-------|
-| 0 | Foundation | Project setup, renderer, basic scene |
-| **1** | **Procedural Map POC** | **Center-out planar graph generation; islands + routes** ★ |
-| A | Fun First Combat | Ship handling, shooting, 2 enemy types, basic loot |
-| B | Trading Loop | 6–8 goods, market UI, buy/sell, repairs, variance |
-| C | Crew + Upgrades | Hire crew, stations, 6–8 upgrades, ship tier 2 |
-| D | Vertical Slice | 8–12 islands, contracts, 1 lieutenant boss, tuned economy |
+| Phase | Milestone | Focus | Status |
+|-------|------------|-------|--------|
+| 0 | Foundation | Project setup, renderer, basic scene | ✓ |
+| **1** | **Procedural Map POC** | **Delaunay planar graph; islands + routes** ★ | ✓ |
+| **1b** | **Island Terrain POC** | **Simplex-noise terrain, buildings, props, paths** ★ | ✓ |
+| A | Fun First Combat | Ship handling, shooting, 2 enemy types, basic loot | ✓ |
+| B | Trading Loop | 6–8 goods, market UI, buy/sell, repairs, variance | ✓ |
+| B.5 | Core Polish | Sailing feel, arrival toast, Chart Screen, UI scaling | 🔄 |
+| C | Crew + Upgrades | Hire crew, stations, upgrades, ship tiers, Infamy | ✓ |
+| D | Vertical Slice | 8–12 islands, contracts, 1 lieutenant boss, save/load | 🔄 |
+| **E** | **POC Integration** | **Use POC exports as authoring tools for live game data** ★ | ⏳ |
+| Polish | Effects & Polish | Particles, audio, accessibility, ship naming | ⏳ |
 
 ### 1.3 World & Lore
 The game is set in **The Shattered Seas**—a fractured archipelago where five Pirate Kings dominate the outer waters. See [LORE.md](LORE.md) for full world-building and King backstories. Lore data (`public/data/lore.json`) and `config.LORE` support in-game flavor (rumors, island descriptions).
@@ -82,26 +89,35 @@ Demo/
 ├── index.html
 ├── package.json
 ├── vite.config.js
-├── map-generator-poc/           # Phase 1: Standalone proof of concept ✓
+├── map-generator-poc/           # Phase 1: Standalone proof of concept ✓ — authoring tool
 │   ├── index.html
+│   ├── Saves/                  # Exported map JSON files (yohoh-map-*.json)
 │   ├── src/
 │   │   ├── main.js             # UI, event handlers, render loop
 │   │   ├── MapGenerator.js     # Delaunay-based planar graph + pirate enrichment
 │   │   ├── MapVisualizer.js    # Three.js renderer, gizmo, pan/zoom
 │   │   ├── MapEditor.js        # addNode, removeNode, addEdge, removeEdge
-│   │   ├── MapSerializer.js   # serialize/deserialize for Save/Load
+│   │   ├── MapSerializer.js    # serialize/deserialize — schema-compatible with main game
 │   │   └── SeededRNG.js        # Pseudo-random with seed
 │   └── package.json
-├── island-generator-poc/       # Island terrain POC: 3D terrain, buildings, props, post-processing
+├── island-generator-poc/       # Phase 1b: Island terrain authoring tool ✓
 │   ├── index.html              # Settings: Graphics modal (Display, Graphics, Post-processing)
+│   ├── saves/                  # Exported island JSON files (yohoh-island-*.json) — ~13 MB each (heightMap + buildings + props)
 │   ├── src/
 │   │   ├── main.js             # UI, event handlers, render loop
-│   │   ├── IslandGenerator.js  # Simplex noise terrain, island properties
+│   │   ├── IslandGenerator.js  # Tile-based simplex noise terrain, island properties
 │   │   ├── IslandVisualizer.js # Three.js renderer, PostProcessing integration
-│   │   ├── PostProcessing.js    # EffectComposer, SSAO, Bloom, FXAA, Film
+│   │   ├── IslandEditor.js     # Brush edit (raise/lower/flatten/plateau/smooth)
+│   │   ├── IslandBuildingPlacer.js # Place/remove/rotate buildings; terrain flattening
 │   │   ├── IslandPropPlacer.js # Prop placement, selection, gizmo integration
-│   │   ├── PropTypes.js        # Prop definitions (BerryBush, OakTree, PalmTree, Rock)
-│   │   └── ...
+│   │   ├── IslandPathfinder.js # A* pathfinding + MST; path terrain smoothing
+│   │   ├── IslandSerializer.js # serialize/deserialize — heightMap + config + buildings + props + island props
+│   │   ├── BuildingTypes.js    # Tavern, Shipwright, Market, Lighthouse, Warehouse, Fort, Docks, Sanctuary, Castle, Blacksmith
+│   │   ├── PropTypes.js        # BerryBush, OakTree, PalmTree, Rock — FBX-backed
+│   │   ├── PropMeshLoader.js   # FBX loader + caching for prop meshes
+│   │   ├── PostProcessing.js   # EffectComposer, SSAO, Bloom, FXAA, Film
+│   │   ├── WaterShader.js      # Animated water for island view
+│   │   └── SeededRNG.js
 │   └── package.json
 ├── PlanarGraphPython/           # Reference: Python implementation
 │   └── main.py
@@ -153,12 +169,11 @@ Demo/
 │   │   ├── PortUI.js            # Tavern, Shipwright, Market
 │   │   └── MenuUI.js            # (future) Main menu
 │   └── utils/
-│       ├── math.js
-│       ├── rng.js
 │       ├── routeModifiers.js   # B.4: stormy, patrolled, shoals
 │       ├── upgrades.js         # C.7, C.10: upgrade stat overrides
 │       └── saveSystem.js       # D.9: localStorage save/load
-└── IMPLEMENTATION_PLAN.md
+├── IMPLEMENTATION_PLAN.md
+└── Improvements.md             # Code-quality / perf backlog (companion to this plan)
 ```
 
 ---
@@ -273,7 +288,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Status:** Implemented. Combat arena with player ship, enemies, projectiles, cannon arcs.
 
-### 5.1 Sailing & Handling (§8.1)
+### 6.1 Sailing & Handling (§8.1)
 | # | Task | Status |
 |---|------|--------|
 | A.1 | Ship entity | ✓ `Ship.js`: position, rotation, velocity, momentum model |
@@ -281,7 +296,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | A.3 | Cannon arcs | ✓ Port/starboard arcs; visual preview (cone mesh) |
 | A.4 | HUD | ✓ Hull, sails, speed, cannon keys |
 
-### 5.2 Naval Combat (§8.2)
+### 6.2 Naval Combat (§8.2)
 | # | Task | Status |
 |---|------|--------|
 | A.5 | Broadside firing | ✓ Aim-then-fire (Q/E: first press = aim arrow, second = fire); cooldown |
@@ -289,7 +304,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | A.7 | Damage model | ✓ Hull HP, Sails (speed mult), Crew effectiveness; bilge/leaks (hull damage → leaks → bilge water → reduced speed) |
 | A.8 | Combat arena | ✓ Bounded sea with rocks; `CombatScene.js` |
 
-### 5.3 Enemies (§10.1)
+### 6.3 Enemies (§10.1)
 | # | Task | Status |
 |---|------|--------|
 | A.9 | Enemy base | ✓ `Enemy.js`: extends Ship-like behavior |
@@ -297,7 +312,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | A.11 | Raider AI | ✓ Rush, aggressive |
 | A.12 | Basic loot | ✓ On victory: gold + salvage; R to restart |
 
-### 5.4 Deliverables
+### 6.4 Deliverables
 - [x] Player ship moves with momentum + turning
 - [x] Cannons fire port/starboard with arc preview
 - [x] 2 enemy types (Trader, Raider) with distinct AI
@@ -311,7 +326,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 
 **Status:** Trading loop complete. Overworld map, travel, economy (B.6–B.8), port (B.9–B.10a), economy sinks (B.11), route modifiers (B.4) implemented.
 
-### 6.1 Overworld Map (§7.1)
+### 7.1 Overworld Map (§7.1)
 | # | Task | Status |
 |---|------|--------|
 | B.1 | Island graph | ✓ `MapGenerator.generate(config)` — Delaunay planar graph (shared from POC) |
@@ -327,9 +342,9 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.3h | Route length | ✓ expansionDistance 85 (longer routes); island/route click thresholds adjusted |
 | B.3i | Chart Screen | ✓ M key opens/closes; pan (drag), zoom (scroll +/−), Center on Ship; alignment/scale fixes |
 | B.3j | Sailing rendering | ✓ SAILING_RENDER.islandRadius for origin/dest island circles; corridor width aligned with movement boundary |
-| B.4 | Route modifiers | — Stormy, patrolled, shoals (derived from `distanceFromHome` and `hazard`) |
+| B.4 | Route modifiers | ✓ Stormy, patrolled, shoals (derived from `distanceFromHome` and `hazard`); colors + UI labels in `utils/routeModifiers.js` |
 
-### 6.2 Economy (§8.3)
+### 7.2 Economy (§8.3)
 | # | Task | Details |
 |---|------|---------|
 | B.5 | Goods config | ✓ `goods.json`: 8 goods (Rum, Timber, Cloth, Iron, Powder, Cannon Parts, Spices, Pearls) |
@@ -337,7 +352,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.7 | Market UI | ✓ `PortUI.js`: buy/sell list, cargo hold, goods with prices |
 | B.8 | Cargo system | ✓ Ship cargo capacity per class; load/unload at port via buy/sell |
 
-### 6.3 Port & Repairs (§8.6)
+### 7.3 Port & Repairs (§8.6)
 | # | Task | Details |
 |---|------|---------|
 | B.9 | Port hub | ✓ PortScene, PortUI: Market, Shipwright, Tavern (Crew Management: hire, assign, dismiss) |
@@ -345,7 +360,7 @@ Each island has pirate-themed fields for map generation and gameplay:
 | B.10a | Leak repair at port | ✓ Pay gold to repair leaks at Shipwright (§9.0.6 I.10) |
 | B.11 | Economy sinks | ✓ Repairs (gold); ✓ dock fees (ECONOMY.dockFee); ✓ supplies (ECONOMY.suppliesCost on voyage start) |
 
-### 6.4 Deliverables
+### 7.4 Deliverables
 - [x] Overworld map with procedurally generated islands, click-to-travel
 - [x] Market UI: buy/sell goods, cargo hold, island-specific prices
 - [x] Repairs at shipwright (§9.0.6 I.2)
@@ -726,9 +741,160 @@ GAME.defaultShipClass: 'sloop'
 
 ---
 
-## 11. Polish & Stretch Goals
+## 11. Phase E: POC → Main Game Integration ★ Next Step
 
-### 11.1 Effects & Particles (Rendering Polish)
+**Goal:** Promote the two POCs from research scratchpads into **first-class authoring tools** for the live game. The artists/designers use the POCs offline to craft 2D map layouts and 3D islands, export JSON, and the main game loads those exports as canonical content.
+
+**Status:** ⏳ Planned. Map schema is already shared between POC and main game (compatible serializers). Island schema needs a consumer (3D island rendering in main game) and a content pipeline.
+
+### 11.1 Vision
+
+```
+┌────────────────────┐   yohoh-map-*.json     ┌──────────────────────┐
+│ map-generator-poc  │ ─────────────────────▶ │ public/data/maps/    │
+│  (Delaunay editor) │     (planar graph)     │   default.json       │
+└────────────────────┘                        └──────────────────────┘
+                                                       │
+                                                       ▼
+┌──────────────────────┐  yohoh-island-*.json  ┌──────────────────────┐
+│ island-generator-poc │ ──────────────────▶   │ public/data/islands/ │
+│ (3D island authoring)│  (heightMap, props)   │  dead_mans_cay.json  │
+└──────────────────────┘                       └──────────────────────┘
+                                                       │
+                                                       ▼
+                                              ┌──────────────────────┐
+                                              │  Main Game runtime   │
+                                              │   loads JSON →       │
+                                              │   OverworldScene +   │
+                                              │   IslandScene (new)  │
+                                              └──────────────────────┘
+```
+
+**Authoring loop:** Designer opens POC → edits → exports JSON → drops in `public/data/` → main game picks up on next load.
+
+### 11.2 Schema Reference (shipped formats)
+
+#### 11.2.1 Map JSON (from `map-generator-poc/Saves/`)
+Source of truth: [map-generator-poc/src/MapSerializer.js](map-generator-poc/src/MapSerializer.js). Already byte-compatible with [src/map/MapSerializer.js](src/map/MapSerializer.js).
+
+```json
+{
+  "version": 1,
+  "seed": 1,
+  "homeNodeId": 31,
+  "nodes": [
+    {
+      "id": 0,
+      "x": 0, "y": 0,
+      "dangerous": false,
+      "appealing": false,
+      "name": "Home Port",
+      "description": "...",
+      "treasureLevel": 0,
+      "portType": "port",       // none | outpost | harbor | port | sanctuary
+      "hazard": "none",         // none | reefs | storms | treacherous | fog | serpents | coral | darkness | fire
+      "faction": "pirate",      // neutral | british | spanish | french | pirate
+      "rumors": ""
+    }
+    // …
+  ],
+  "edges": [[20, 2], [1, 20], …]   // [aId, bId]
+}
+```
+
+Each node carries everything `OverworldScene` already consumes — no schema changes needed.
+
+#### 11.2.2 Island JSON (from `island-generator-poc/saves/`)
+Source of truth: [island-generator-poc/src/IslandSerializer.js](island-generator-poc/src/IslandSerializer.js).
+
+```json
+{
+  "version": 1,
+  "seed": 1769831220383,
+  "name": "Dead Man's Sands",
+  "description": "…",
+  "dangerous": false,
+  "appealing": false,
+  "treasureLevel": 0,
+  "portType": "harbor",
+  "hazard": "none",
+  "faction": "pirate",
+  "rumors": "",
+  "theme": "normal",                // normal | volcanic | icey | swampy
+  "config": {                       // generation knobs
+    "gridSize": 128, "tileSize": 8, "elevationScale": 1.2,
+    "islandRadius": 0.42, "noiseOctaves": 5, "frequency": 2.2,
+    "persistence": 0.45, "lacunarity": 2.1, "seaLevel": 0.12,
+    "coastFalloff": 2.2, "coastIrregularity": 0.35,
+    "elongation": 0.5, "terrainRoughness": 0.7, "tileVariation": 0
+  },
+  "display": { /* wireframe, shadows, post-FX settings — optional */ },
+  "heightMap": [[0.0, 0.1, …], …],  // gridSize × gridSize floats, 0–1 normalised
+  "buildings": [
+    { "type": "tavern", "x": 60, "y": 40, "rotation": 0, "width": 2, "height": 1 },
+    { "type": "docks",  "x": 80, "y": 20, "rotation": 90, "width": 3, "height": 1 }
+    // type ∈ tavern | shipwright | market | lighthouse | warehouse | fort |
+    //        docks | dragon_sanctuary | castle | blacksmith
+  ],
+  "props": [
+    { "type": "palm_tree_01", "tx": 30, "ty": 45, "rotation": 0,
+      "offsetX": 0, "offsetY": 0, "offsetZ": 0, "scale": 8 }
+    // type ∈ berry_bush_01 | oak_tree_01 | palm_tree_01 | palm_tree_02 | rock_01 | rock_06 | …
+  ]
+}
+```
+
+**Size note:** Full exports are ~13 MB each because `heightMap` is a flat 2D array of `gridSize²` floats. For shipped content, ship the **config + seed** only (≈4 KB) and re-generate the heightMap at load time — see §11.4 T.5.
+
+### 11.3 Integration Tasks
+
+| # | Task | Details | Effort |
+|---|------|---------|--------|
+| E.1 | **Establish content directories** | Create `public/data/maps/` and `public/data/islands/`; copy initial exports from POC Saves dirs | S |
+| E.2 | **Map loader in main game** | `main.js`/Game accepts a `--map=<filename>` URL param or `GAME.defaultMap` config to load from `public/data/maps/*.json` instead of `generateMap()` | S |
+| E.3 | **Island data registry** | New `public/data/islands/index.json` maps node-id → island filename; falls back to procedural if missing | S |
+| E.4 | **IslandScene (new)** | Add a 5th game state `ISLAND`; new scene loads an island JSON, renders 3D terrain + buildings + props (port a slimmed `IslandVisualizer` from POC into `src/scenes/IslandScene.js`) | L |
+| E.5 | **Port → Island bridge** | When player docks at an island that has an island JSON, transition to `ISLAND` state for walking around; if not, fall back to current `PORT` UI overlay | M |
+| E.6 | **Building → Port UI mapping** | Building types resolve to existing port services: `tavern → Tavern panel`, `shipwright → Shipwright panel`, `market → Market panel`, `dragon_sanctuary → Sanctuary handler (Phase D §S.7)` | M |
+| E.7 | **Lightweight island runtime** | Strip POC editor/edit-mode/brush code; ship only the renderer + interaction. Keep `BuildingTypes`, `PropTypes`, `IslandPathfinder`, `IslandVisualizer` (read-only mode) | M |
+| E.8 | **Schema-versioning** | Both serializers already emit `version: 1`. Add explicit `schemaVersion` constants and reject newer/older formats with a clear error | S |
+| E.9 | **Authoring docs** | Short `docs/AUTHORING.md` explaining the POC → JSON → main-game flow for designers | S |
+| E.10 | **POC builds shipped** | `npm run build` in each POC; serve `island-generator-poc/dist/` and `map-generator-poc/dist/` from `/tools/island/` and `/tools/map/` so they're accessible from the main game's menu | M |
+
+### 11.4 Content-Pipeline Decisions
+
+| # | Decision | Recommendation |
+|---|----------|----------------|
+| T.1 | Where do exports live? | `public/data/maps/`, `public/data/islands/` — Vite serves them as static; runtime fetches with `fetch('/data/...')` |
+| T.2 | One canonical map vs many? | Ship one curated default (`default.json`); allow `Continue` to use a player-edited saved map; keep procedural generation as a fallback when no JSON exists |
+| T.3 | Island JSON: ship heightMap or regenerate? | **Regenerate from config + seed** — drops file size 99% (4 KB vs 13 MB). Authoring tool exports with heightMap for backup; production build strips it via `scripts/strip-heightmap.js` |
+| T.4 | Mapping islands → island files | `public/data/islands/index.json`: `{ "<nodeId>": "<filename>" }`. Unmapped nodes use a default island JSON keyed by `portType` + `hazard` + `theme` |
+| T.5 | Build script | `scripts/import-poc-content.js` — copies latest POC exports into `public/data/`, strips heightMaps, validates schema |
+| T.6 | Loading flow | On main-game boot: `fetch('/data/maps/default.json')` → if fails, `generateMap()` fallback. On port entry: `fetch('/data/islands/index.json')` → resolve filename → load island JSON |
+
+### 11.5 Deliverables
+
+- [ ] `public/data/maps/default.json` — one curated map shipped with the game
+- [ ] `public/data/islands/*.json` — at least 3 hand-authored islands (Home, dangerous, sanctuary)
+- [ ] `public/data/islands/index.json` — node-id → filename
+- [ ] `src/scenes/IslandScene.js` — runtime renderer for island JSON (read-only; port from POC)
+- [ ] `Game.js` gains an `ISLAND` state; transition wired from `_enterPort` when an island file exists
+- [ ] Building → service mapping (Tavern/Shipwright/Market) intact when arriving via island scene
+- [ ] `scripts/import-poc-content.js` — content pipeline
+- [ ] `docs/AUTHORING.md` — designer workflow
+- [ ] POC `dist/` builds served from `/tools/map/`, `/tools/island/`
+
+### 11.6 Open Questions
+
+- **Camera mode in ISLAND state.** Stay orthographic (consistent with sailing/combat) or switch to perspective with orbit controls (POC default)? Recommend orthographic + slight tilt for visual continuity with the sailing view.
+- **Player avatar on island.** Walk-around character, or click-driven service selection ("Click building to enter")? MVP: click-to-enter, no avatar — buildings act like menu buttons in 3D.
+- **Persistence of edits on play-load.** If the player edits the world via the POC and the saved game references a previous version, what wins? Recommend: save embeds map JSON (already does via `mapJson`) so player saves are self-contained.
+
+---
+
+## 12. Polish & Stretch Goals
+
+### 12.1 Effects & Particles (Rendering Polish)
 | # | Task | Details |
 |---|------|---------|
 | P.1 | Cannon muzzle flash | Brief flash/smoke at ship when firing |
@@ -739,14 +905,14 @@ GAME.defaultShipClass: 'sloop'
 | P.6 | Projectile trail | Subtle trail or smoke behind cannonballs |
 | P.7 | Particle pool | Reusable particle system for performance |
 
-### 11.2 Polish (Post–Phase D)
-- **Effects & particles:** muzzle flash, impact splash, damage VFX, wake trails, water ripples (see §10.1)
+### 12.2 Polish (Post–Phase D)
+- **Effects & particles:** muzzle flash, impact splash, damage VFX, wake trails, water ripples (see §12.1)
 - Boarding resolution (§8.2.4): grapple → "Plunder Deep" / "Secure & Sail"
 - Fast travel (ferries)
 - Accessibility: rebindable controls, UI scaling
 - Audio: cannons, ambience, music stings
 
-### 11.3 Stretch
+### 12.3 Stretch
 - Procedural encounter modifiers
 - Ship tier 3 (Frigate): larger ship class; 4+ gunner slots; unlock at Infamy 7 (§9.0.6 I.11)
 - Stronghold boss (multi-phase)
@@ -755,7 +921,23 @@ GAME.defaultShipClass: 'sloop'
 
 ---
 
-## 12. Risk Mitigations
+## 13. Code-Quality Backlog
+
+A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Highlights surface here so they're not forgotten between phases:
+
+- 🔴 **Renderer mesh leaks** (overworld + combat rocks) — pooling required for sustained-session stability
+- 🔴 **PortUI re-renders 2× per frame** — gate updates behind state changes
+- 🟡 **`SailingSystem.update` and `updateInCorridor` are duplicated** — extract shared physics helper
+- 🟡 **Save schema has no `schemaVersion`** — add before Phase E ships content saves
+- 🟡 **Split `Renderer.js` (775 LoC) into per-view modules** — readability + testability
+- 🟡 **Extract controllers from `Game.js`** (PortController, SaveController, SettingsBindings)
+- 🟢 **Dirty-flag Minimap / BigMapUI** — skip redundant canvas redraws
+
+See [Improvements.md](Improvements.md) for full triage, line references, and effort × impact estimates.
+
+---
+
+## 14. Risk Mitigations
 
 | Risk | Mitigation |
 |------|------------|
@@ -768,11 +950,11 @@ GAME.defaultShipClass: 'sloop'
 
 ---
 
-## 13. Story Expansion (Over-Arching Narrative)
+## 15. Story Expansion (Over-Arching Narrative)
 
 **Goal:** Integrate the Shattered Seas lore—dragons, Pirate Kings, rescue mission—into the gameplay loop as an over-arching narrative that drives progression and gives meaning to contracts, encounters, and boss fights. See [LORE.md](LORE.md) for full world-building.
 
-### 13.1 Core Narrative Arc
+### 15.1 Core Narrative Arc
 
 | Beat | Description | Phase |
 |------|-------------|-------|
@@ -782,7 +964,7 @@ GAME.defaultShipClass: 'sloop'
 | **Climax** | Defeat a Lieutenant → reveal stronghold. Raid stronghold → rescue captured dragons, unique loot. | D |
 | **Resolution** | Deliver rescued eggs/young dragons to sanctuary. Build reputation as a dragon-saver; Kings may hunt the player. | D, Stretch |
 
-### 13.2 Story Beats by Phase (Granular)
+### 15.2 Story Beats by Phase (Granular)
 
 | Phase | Beat | Trigger | Outcome |
 |-------|------|---------|---------|
@@ -797,7 +979,7 @@ GAME.defaultShipClass: 'sloop'
 | **Stretch** | Jasper aid | Dragon rescue count ≥ N, honorable play | Jasper appears mid-fight or guides to sanctuary |
 | **Stretch** | King confrontation | Multiple Lieutenants defeated | Ebon Flameheart as ultimate boss |
 
-### 13.3 King-Specific Narrative Hooks
+### 15.3 King-Specific Narrative Hooks
 
 Each Pirate King ties to distinct story content. Vertical slice (Phase D) can focus on **one** King; stretch expands to all.
 
@@ -811,7 +993,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 
 **Phase D focus:** Pick one hunting King (e.g. Mordekai or Ebon) for Lieutenant + stronghold. Jasper can appear as optional ally flavor.
 
-### 13.4 Dragon Breed Integration
+### 15.4 Dragon Breed Integration
 
 | Dragon | Breed | Domain / Location | Hunted By | Rescue Contract Fit |
 |--------|-------|-------------------|-----------|---------------------|
@@ -823,7 +1005,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 
 **Data:** `lore.json` dragons block; `contracts.json` can reference `dragonBreed` for flavor and rewards.
 
-### 13.5 Narrative Systems
+### 15.5 Narrative Systems
 
 | # | System | Details | Phase |
 |---|--------|---------|-------|
@@ -836,7 +1018,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 | N.7 | **Jasper ally hook** | Optional: honorable play or dragon rescue triggers Jasper aid (e.g. mid-fight assist, sanctuary guidance). | Stretch |
 | N.8 | **Infamy gates** | Story content unlocks at Infamy 2, 4, 6… (rumors, contracts, Lieutenant availability). | C, D |
 
-### 13.6 Story-Driven Content by Phase
+### 15.6 Story-Driven Content by Phase
 
 #### Phase B / B.5 (Foundation)
 - Island descriptions reference Shattered Seas, Pirate Kings, dragons (MapGenerator `enrichPirateData`).
@@ -864,7 +1046,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - Dragon sanctuary building/supplying.
 - Blackfang rescue (free from Ebon).
 
-### 13.7 Data & Config Hooks
+### 15.7 Data & Config Hooks
 
 | Asset | Purpose |
 |-------|---------|
@@ -876,7 +1058,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 | Island `hazard` | `fire`, `fog`, `serpent`, `coral`, `darkness` map to King domains. |
 | `STORY_STATE` (save) | `eggsDelivered`, `lieutenantsDefeated`, `strongholdsRevealed`, `dragonRescueCount`. |
 
-### 13.8 Implementation Checklist
+### 15.8 Implementation Checklist
 
 | # | Task | Phase | Depends On |
 |---|------|-------|------------|
@@ -892,7 +1074,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 | S.10 | Jasper ally hook (optional) | Stretch | S.8, dragon rescue count |
 | S.11 | Multiple Lieutenants, King bosses | Stretch | S.5–S.7 |
 
-### 13.9 Tone & Integration
+### 15.9 Tone & Integration
 
 - **Tone:** Adventurous, slightly comedic, readable fantasy piracy—darker when Kings are involved.
 - **Light touch:** Story supports gameplay; avoid heavy cutscenes. Rumors, contracts, and encounter flavor carry the narrative.
@@ -974,3 +1156,14 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] Save system (`src/utils/saveSystem.js`)
 - [x] Ship persistence (class, state, crew, upgrades) (§9.0.6 I.9)
 - [x] Main menu (index.html + main.js)
+
+### Phase E (POC → Main Game Integration) — Planned
+- [ ] `public/data/maps/default.json` (curated map from `map-generator-poc`)
+- [ ] `public/data/islands/index.json` (node-id → island filename)
+- [ ] `public/data/islands/*.json` (≥3 hand-authored islands)
+- [ ] `src/scenes/IslandScene.js` (read-only runtime; ports `IslandVisualizer` from POC)
+- [ ] `Game.js` — new `ISLAND` state + `_enterIsland` transition
+- [ ] Building-type → port-service mapping (tavern/shipwright/market/sanctuary)
+- [ ] `scripts/import-poc-content.js` (content pipeline: copy + strip heightMap + validate)
+- [ ] `docs/AUTHORING.md` (designer workflow)
+- [ ] POC builds served at `/tools/map/` and `/tools/island/`
