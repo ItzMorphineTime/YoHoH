@@ -21,6 +21,10 @@
   <strong><a href="https://itzmorphinetime.github.io/YoHoH/">View Presentation GDD →</a></strong>
 </p>
 
+<p align="center">
+  <strong><a href="https://itzmorphinetime.github.io/YoHoH/LOREBOOK.html">Read Lore Book →</a></strong>
+</p>
+
 ---
 
 ## Overview
@@ -29,7 +33,7 @@
 
 > *See [LORE.md](LORE.md) for the full world backstory and the Five Pirate Kings.*
 > *See the [Presentation GDD](https://itzmorphinetime.github.io/YoHoH/) for a visual presentation (GitHub Pages).*
-> *See [docs/STORYBOOK.html](docs/STORYBOOK.html) for in-depth lore on each Pirate King (click to open modals).*
+> *See [docs/LOREBOOK.html](docs/LOREBOOK.html) for in-depth lore on the world and characters.*
 > *Presentation King cards have a 📖 button to view lore. Run `npm run extract-lore` after updating LORE.md to refresh presentation data.*
 > *The presentation includes an interactive **3D Models** slide—click any model card to preview in 3D (drag to rotate, scroll to zoom, view presets).*
 > *For the full implementation plan see [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). For the running list of code-quality / perf improvements see [Improvements.md](Improvements.md).*
@@ -255,7 +259,7 @@ YoHoH/
 ├── LICENSE, FAN_CONTENT_POLICY.md
 ├── Images/                 # 2D art (Pirate Kings, dragons, ships, islands, maps, familiars)
 ├── 3D_Models/              # FBX assets — dragons, items, props, pirate kings
-├── docs/                   # Presentation GDD (GitHub Pages), 3D viewer, STORYBOOK
+├── docs/                   # Presentation GDD (GitHub Pages), 3D viewer, LOREBOOK
 ├── src/
 │   ├── main.js             # Bootstrap, main menu wiring
 │   ├── config.js           # Centralized config (WORLD, CAMERA, COMBAT, ECONOMY, UI, …)
@@ -323,4 +327,4 @@ Files stay on disk; only the index entries are removed. After this, `npm install
 
 ## License
 
-MIT (or as specified in the repository)
+As specified in the repository

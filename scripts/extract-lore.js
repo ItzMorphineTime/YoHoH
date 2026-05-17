@@ -9,7 +9,7 @@
  * - docs/data/pirate-kings-lore.json    (backwards compatibility)
  *
  * Also injects window.LORE_DATA and window.PIRATE_KINGS_LORE into index.html/docs/index.html
- * when a placeholder or previous generated data block is present.
+ * and LOREBOOK.html/docs/LOREBOOK.html when placeholders or previous generated data blocks are present.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
@@ -21,6 +21,11 @@ if (!root) throw new Error('Could not find LORE.md in current or parent folders.
 
 const lorePath = join(root, 'LORE.md');
 const presentationPath = existsSync(join(root, 'docs', 'index.html')) ? join(root, 'docs', 'index.html') : join(root, 'index.html');
+const lorebookPath = existsSync(join(root, 'docs', 'LOREBOOK.html'))
+  ? join(root, 'docs', 'LOREBOOK.html')
+  : existsSync(join(root, 'LOREBOOK.html'))
+    ? join(root, 'LOREBOOK.html')
+    : null;
 const outputDirs = [join(root, 'public', 'data'), join(root, 'docs', 'data')];
 
 const IMAGE_FALLBACKS = {
@@ -359,8 +364,9 @@ for (const dir of outputDirs) {
   console.log(`Wrote ${dir}`);
 }
 
-if (existsSync(presentationPath)) {
-  const html = readFileSync(presentationPath, 'utf-8');
+function injectLoreDataIntoHtml(htmlPath, label) {
+  if (!htmlPath || !existsSync(htmlPath)) return;
+  const html = readFileSync(htmlPath, 'utf-8');
   const inline = `<script>window.LORE_DATA=${JSON.stringify(lore)};window.PIRATE_KINGS_LORE=window.LORE_DATA.pirateKings;</script>`;
   const patterns = [
     /<!--\s*LORE_DATA\s*-->/,
@@ -369,9 +375,13 @@ if (existsSync(presentationPath)) {
     /<script>window\.PIRATE_KINGS_LORE=[\s\S]*?<\/script>/,
   ];
   const p = patterns.find(re => re.test(html));
-  if (!p) throw new Error('No lore data placeholder or existing lore data script found in index.html. Add <!-- LORE_DATA --> before the rendering script.');
-  writeFileSync(presentationPath, html.replace(p, inline), 'utf-8');
-  console.log(`Injected lore data into ${presentationPath}`);
+  if (!p) throw new Error(`No lore data placeholder or existing lore data script found in ${label}. Add <!-- LORE_DATA --> before the rendering script.`);
+  writeFileSync(htmlPath, html.replace(p, inline), 'utf-8');
+  console.log(`Injected lore data into ${htmlPath}`);
 }
+
+if (existsSync(presentationPath)) injectLoreDataIntoHtml(presentationPath, 'index.html');
+if (lorebookPath) injectLoreDataIntoHtml(lorebookPath, 'LOREBOOK.html');
+else console.warn('LOREBOOK.html not found; skipping standalone lorebook injection.');
 
 console.log(`Extracted ${lore.pirateKings.length} Pirate Kings, ${lore.storyLore.beats.length} story beats, ${lore.loreBook.chapters.length} lorebook chapters, ${lore.reveal.layers.length} reveal layers, and ${lore.jasperQuestline.quests.length} Jasper quests.`);
