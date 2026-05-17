@@ -15,6 +15,9 @@ function getShipStatsFromConfig(classConfig, opts = {}, useSailing = false) {
   // affect every ship class (the class-specific override would otherwise
   // shadow `SAILING.maxSpeed` entirely).
   const speedMult = useSailing ? (SAILING?.speedMultiplier ?? 1) : 1;
+  // accelMultiplier scales thrust ONLY (independent of speedMultiplier) so we
+  // can dial acceleration feel without changing top speed. (Sailing_Improvements.md)
+  const accelMult = useSailing ? (SAILING?.accelMultiplier ?? 1) : 1;
   const rawMaxSpeed = opts.maxSpeed ?? cls?.[`${prefix}MaxSpeed`] ?? cls?.maxSpeed ?? base.maxSpeed;
   const rawThrust = opts.thrust ?? cls?.[`${prefix}Thrust`] ?? cls?.thrust ?? base.thrust;
   // SAILING/COMBAT-PREFIX BUG FIX: `friction` and `brakeMult` were previously
@@ -30,7 +33,7 @@ function getShipStatsFromConfig(classConfig, opts = {}, useSailing = false) {
     crewMax: opts.crewMax ?? cls?.crewMax ?? COMBAT.crewMax,
     bilgeWaterMax: opts.bilgeWaterMax ?? cls?.bilgeWaterMax ?? (BILGE?.bilgeWaterMax ?? 100),
     maxSpeed: rawMaxSpeed * speedMult,
-    thrust: rawThrust * speedMult,
+    thrust: rawThrust * speedMult * accelMult,
     friction: opts.friction ?? cls?.[`${prefix}Friction`] ?? cls?.friction ?? base.friction,
     turnRate: opts.turnRate ?? cls?.[`${prefix}TurnRate`] ?? cls?.turnRate ?? base.turnRate,
     brakeMult: opts.brakeMult ?? cls?.[`${prefix}BrakeMult`] ?? cls?.brakeMult ?? base.brakeMult,

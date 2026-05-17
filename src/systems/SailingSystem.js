@@ -71,13 +71,15 @@ export class SailingSystem {
     const wDown = input.isKeyDown('KeyW');
     const sDown = input.isKeyDown('KeyS');
 
-    // Forward / reverse thrust (scaled by frameScale so accel is per-second)
+    // Forward thrust (scaled by frameScale so accel is per-second)
     if (wDown) {
       ship.speed = Math.min(ship.speed + thrust * s, effectiveMax);
     }
-    const reverseMult = SAILING_SYSTEM?.reverseSpeedMult ?? 0.5;
+    // S = brake only. Ships in YoHoH do not reverse — clamp at 0 so holding S
+    // bleeds off forward speed but can never push the ship backward.
+    // (Sailing_Improvements.md: no-reverse policy)
     if (sDown) {
-      ship.speed = Math.max(ship.speed - thrust * brakeMult * s, -effectiveMax * reverseMult);
+      ship.speed = Math.max(ship.speed - thrust * brakeMult * s, 0);
     }
     // Stash for HUD / tooltip
     ship._windMult = windMult;

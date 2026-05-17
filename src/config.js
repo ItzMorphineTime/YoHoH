@@ -230,14 +230,21 @@ export const SHIP = {
 // `speedMultiplier` knob below — it is applied AFTER the per-class lookup so it
 // actually affects every ship.
 export const SAILING = {
-  maxSpeed: 10.0,         // fallback only; class `sailingMaxSpeed` shadows this
+  maxSpeed: 3.5,         // fallback only; class `sailingMaxSpeed` shadows this
   thrust: 0.025,
   friction: 0.998,
   turnRate: 0.015,
   brakeMult: 0.75,
   highSpeedTurnPenalty: 0.4,
-  /** Global tuning knob applied after per-class lookup. 1 = base, 2 = doubled, etc. */
+  /** Global tuning knob applied to maxSpeed AND thrust (preserves time-to-max). */
   speedMultiplier: 1.0,
+  /**
+   * Global tuning knob applied to thrust ONLY (changes acceleration without
+   * changing top speed). Lower = more deliberate ramp-up; ship feels heavier.
+   * 1.0 = base (instant snap to max at 60fps because base thrust > effMax).
+   * 0.05 ≈ ~1.5s to reach top speed for a sloop. (Sailing_Improvements.md)
+   */
+  accelMultiplier: 0.05,
   /** Reference fps the per-frame numbers above were tuned at. dt scaling preserves feel across fps. */
   referenceFps: 60,
 };
@@ -420,10 +427,13 @@ export const ECONOMY = {
 
 // ─── Sailing System (shared physics) ───────────────────────────────────────
 export const SAILING_SYSTEM = {
+  /** Speed below which a drifting ship snaps to 0 (only when no W/S is held). */
   speedDeadzone: 0.02,
+  /** Floor for the high-speed turn penalty multiplier. */
   minTurnPenalty: 0.3,
-  reverseSpeedMult: 0.5,
+  /** Numerical epsilon for corridor length checks. */
   corridorLenEpsilon: 0.001,
+  // reverseSpeedMult removed — Sailing_Improvements.md: ships never reverse.
 };
 
 // ─── Infamy (C.11) — progression; unlocks ship tiers ───────────────────────

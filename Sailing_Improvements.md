@@ -17,6 +17,10 @@
 > 2. `SailingSystem._applyControls` — deadzone snap now only runs when **neither W nor S is held**. Previously, at high framerates the per-tick thrust delta could be smaller than the deadzone, causing the ship to snap back to 0 every frame even during active acceleration.
 >
 > **Set Sail click "nothing happens" diagnosis:** The user's log shows `startTravel OK` and `state=SAILING` — so the click chain WAS working. The perception of "nothing happens" was actually the ship-not-moving bug: pressing Set Sail did start the voyage, but the ship was stuck at the origin so the player saw no visual change.
+>
+> **Feel tuning pass (2026-05-17):** After fixing movement, acceleration was visibly too fast (ship snapped to top speed in <0.1s) and pressing S could push the ship into reverse. Two more fixes:
+> 1. **`SAILING.accelMultiplier` (default 0.05)** — new global knob, scales thrust independently from `speedMultiplier`. At 0.05, sloops now take ~1.5s to reach top speed instead of snapping. Lower for heavier feel; higher for snappier. Applied in `Ship.getShipStatsFromConfig` as `thrust = rawThrust * speedMult * accelMult`. Combat thrust unaffected (only `useSailing` paths read `accelMultiplier`).
+> 2. **No reverse** — `SailingSystem._applyControls` now clamps the S-key path at **0** instead of `-effectiveMax * reverseMult`. Ships in YoHoH never reverse; S is a brake-only key. Removed the now-unused `SAILING_SYSTEM.reverseSpeedMult` config field.
 
 ---
 
