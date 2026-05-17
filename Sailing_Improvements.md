@@ -6,7 +6,11 @@
 
 > Tracks sailing-specific issues: bugs (some long-latent), physics correctness, UX gaps, and structural improvements.
 
-> **Progress (2026-05-17):** First pass complete — §1.1, §1.2, §1.3, §1.4, §1.6, §1.7, §2.1, §2.3, §2.4, §2.5, §2.6, §2.7, §2.8, §2.9, §4.1, §4.2, §4.3, §4.4, §4.5 landed plus split-out items #23 (wind arrow), #25 (approach ring), #26 (minimap telegraph), #27 (cancel-voyage penalty), #28 (`?` help overlay). §1.5 (wake mesh rotation verification) and §2.10 (drop lateral corridor input) deferred — both need a visual playtest to decide direction. §3.1 (config consolidation) deferred — large refactor for low impact relative to the gameplay items just landed.
+> **Progress (2026-05-17):** Second pass landed — §3.5 voyage state events (lastTravelRoute diff removed, replaced with `departed`/`approaching`/`arrived`/`sunk`/`cancelled` queue on OverworldScene drained by `Game._drainVoyageEvents` at the top of every `update()`), plus the #24 split-off (hull-repair / bilge-pump / leaks trend arrows in the HUD, driven by new `Ship.getHullRepairRate()` / `Ship.getBilgeNetRate()`).
+>
+> **First-pass items complete:** §1.1, §1.2, §1.3, §1.4, §1.6, §1.7, §2.1, §2.3, §2.4, §2.5, §2.6, §2.7, §2.8, §2.9, §3.5, §4.1, §4.2, §4.3, §4.4, §4.5 plus split-outs #23 (wind arrow), #24 (HUD trend arrows), #25 (approach ring), #26 (minimap telegraph), #27 (cancel-voyage penalty), #28 (`?` help overlay).
+>
+> **Deferred (need design / visual playtest):** §1.5 wake-mesh rotation verification, §2.10 lateral corridor input. **Deferred (large refactor, low immediate impact):** §3.1 config consolidation, §3.2 SailingSystem instance refactor, §3.3 / §3.4 VoyageController extraction.
 >
 > **Diagnostic build (2026-05-17):** User reported "ship doesn't move on W" + "Set Sail click does nothing" after the first pass. Built a toggleable **debug overlay** (`` ` `` / backtick to toggle) with live state, rolling event log, and Copy / Download buttons. Instrumented `_startSailing`, `startTravel`, the canvas route-click hit-test, `_onStartSailing`, and `console.warn`/`error` so the overlay reveals exactly where the chain breaks. Also defensively reordered `startTravel` so a thrown error during `createShip`/`setStationEffects` can no longer leave the scene in a half-traveling state. See §6 below for the diagnostic playbook.
 >

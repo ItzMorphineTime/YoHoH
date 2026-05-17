@@ -49,6 +49,9 @@ class Node {
     this.hazard = 'none';
     this.faction = 'neutral';
     this.rumors = '';
+    // Charting_Improvements.md §5.4: fog of war. Home port starts discovered;
+    // every other island flips on first arrival (OverworldScene marks dest).
+    this.discovered = false;
   }
   generateDistances() {
     this.distances = this.connections.map(c => Vector2.distSq(this.position, c.position));
@@ -296,6 +299,8 @@ export function generateMap(config) {
   }
 
   const homeNode = nodes[0];
+  // Charting_Improvements.md §5.4: fog of war — home is always discovered.
+  homeNode.discovered = true;
   computeDistancesFromHome(homeNode);
   nodes.forEach(n => n.generateDistances());
   enrichPirateData(nodes, rng);

@@ -329,6 +329,48 @@
       pointer-events: none;
       white-space: nowrap;
     }
+    /* Charting_Improvements.md §1.2: chart-screen island tooltip — richer multi-row */
+    .big-map-tooltip {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 1010;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #e8e6e3;
+      background: rgba(10, 22, 40, 0.97);
+      border: 1px solid #3a5a7a;
+      border-radius: 5px;
+      pointer-events: none;
+      max-width: 260px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      display: none;
+    }
+    .big-map-tooltip-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffd88a;
+      margin-bottom: 4px;
+    }
+    .big-map-tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: #cfdce6;
+    }
+    .big-map-tooltip-row .label { color: #7a8a9a; }
+    .big-map-tooltip-desc {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #233a52;
+      color: #b8c4d0;
+      font-style: italic;
+    }
+    .big-map-tooltip .tag-danger { color: #d88080; }
+    .big-map-tooltip .tag-safe { color: #aacc88; }
+    .big-map-tooltip .tag-home { color: #ffcc44; }
+    .big-map-tooltip .tag-undiscovered { color: #7a8a9a; font-style: italic; }
     #map-ui {
       position: absolute;
       top: calc(var(--ui-space-lg) + var(--safe-top));
@@ -687,6 +729,27 @@
       flex-wrap: wrap;
       justify-content: center;
     }
+    /* Charting_Improvements.md §1.5: live voyage info strip on the chart */
+    .chart-voyage-strip {
+      display: flex;
+      gap: var(--ui-space-lg);
+      align-items: center;
+      justify-content: center;
+      padding: 6px 14px;
+      background: rgba(10, 22, 40, 0.85);
+      border: 1px solid #2a4a6a;
+      border-radius: var(--ui-radius);
+      font: 13px/1.4 'Segoe UI', system-ui, sans-serif;
+      color: #e8e6e3;
+    }
+    .chart-voyage-cell { display: flex; flex-direction: column; align-items: center; min-width: 60px; }
+    .chart-voyage-cell .label {
+      font-size: 10px;
+      color: #7a8a9a;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .chart-voyage-cell span:last-child { font-weight: 600; color: #ffd88a; }
     .chart-screen-controls button {
       padding: var(--ui-space) var(--ui-space-lg);
       background: #2a4a6a;
@@ -1448,11 +1511,20 @@
       </div>
       <div id="big-map-overlay" tabindex="0">
         <h2 class="chart-screen-title">Chart Screen</h2>
-        <canvas id="big-map-canvas"></canvas>
+        <!-- Charting_Improvements.md §1.5: live voyage info strip — visible only while sailing -->
+        <div class="chart-voyage-strip" id="chart-voyage-strip" style="display:none">
+          <div class="chart-voyage-cell"><span class="label">To</span><span id="chart-voyage-dest">—</span></div>
+          <div class="chart-voyage-cell"><span class="label">Dist</span><span id="chart-voyage-distance">—</span></div>
+          <div class="chart-voyage-cell"><span class="label">ETA</span><span id="chart-voyage-eta">—</span></div>
+          <div class="chart-voyage-cell"><span class="label">Bearing</span><span id="chart-voyage-bearing">—</span></div>
+          <div class="chart-voyage-cell"><span class="label">Wind</span><span id="chart-voyage-wind">—</span></div>
+        </div>
+        <canvas id="big-map-canvas" role="img" aria-label="Chart Screen"></canvas>
         <div class="chart-screen-controls">
-          <button class="chart-zoom-out" title="Zoom out">−</button>
-          <button class="chart-center-btn">Center on Ship</button>
-          <button class="chart-zoom-in" title="Zoom in">+</button>
+          <button class="chart-zoom-out" title="Zoom out (−)">−</button>
+          <button class="chart-center-btn" title="Center on Ship (0)">Center on Ship</button>
+          <button class="chart-fit-btn" title="Fit Map to Screen (F)">Fit Map</button>
+          <button class="chart-zoom-in" title="Zoom in (+)">+</button>
           <button class="big-map-close">Close (M or Esc)</button>
         </div>
       </div>

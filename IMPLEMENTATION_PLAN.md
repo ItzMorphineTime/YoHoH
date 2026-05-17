@@ -4,7 +4,7 @@
 **Last updated:** 2026-05-16
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -966,6 +966,23 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - **§4.3** `ROUTE_MODIFIER_EFFECTS` config: stormy (thrust × 0.75, hull damage), patrolled (encounter rate × 2), shoals (corridor narrowed × 0.65, bilge intake). Stacked multiplicatively. Applied per-tick by `OverworldScene._applyRouteModifiers()` with a base-physics cache to prevent ratcheting.
 - **§4.4** Cargo overload: `CARGO_LOAD` config (softCap 80%, max 25% speed / 20% turn penalty at full hold). Applied once at `startTravel`.
 
+**Fifth pass — Sailing follow-ups (2026-05-17):**
+- **§1.7** Drift-to-stop deadzone lowered to 0.005 (was 0.02) so the snap at the tail end of a coast is no longer visible.
+- **§3.5** `MapUI._lastTravelRoute` diff removed. Voyage state events (`departed`, `approaching`, `arrived`, `sunk`, `cancelled`) emitted from `OverworldScene` and drained at the top of `Game.update()` via `_drainVoyageEvents`. Toasts now fire from a single dispatcher; future subscribers (logger, achievements) plug in cleanly.
+- **§4.2 Corridor sub-events** — `CORRIDOR_EVENTS` config; `OverworldScene._spawnCorridorEvents` rolls 1–3 lateral events per voyage (flotsam, debris, whirlpool, friendly); proximity-triggered via `_checkCorridorEvents` → `consumeTriggeredEvents`; Game applies effects (gold, hull damage, speed drag, toast); Renderer pools pulsing CircleGeometry meshes; Minimap renders coloured dots.
+- **§4.5 Autopilot + heading-to-dock helper** — new `AUTOPILOT` config; `H` snaps ship rotation to current bearing (one-shot, with compass toast); `Shift+H` toggles sustained autopilot that throttles to 70% effective max and steers toward the bearing via a Proxy input wrapper; auto-disengages on encounter warning, manual WASD just-press, or voyage end. HUD mode line swaps to a highlight banner; debug overlay shows live target + heading delta + which synthesized keys are pressed.
+- **Polish split-offs:**
+  - **#23** Wind arrow drawn next to compass on Minimap + BigMapUI.
+  - **#24** HUD trend arrows on Hull (↑ green, pulses with carpenter), Bilge (↓ orange while pumping wins / ↑ red + pulse while flooding), Leaks (↓ green, pulses with carpenter). Powered by new `Ship.getHullRepairRate()` / `Ship.getBilgeNetRate()`. CSS lives in `index.html`.
+  - **#25** 3D approach-zone ring (`Renderer.sailingApproachRingMesh`) pulses opacity + scale at destination when `voyageInfo.progress ≥ 0.85`.
+  - **#26** Minimap telegraph — pulsing red enemy dot ahead of the ship along bearing during the encounter warning window.
+  - **#27** Cancel-voyage penalty (`CANCEL_VOYAGE.goldCost`, `moraleLossPerCrew`); toast now reads "Turned back · -5 gold · crew morale -10%".
+  - **#28** New `src/ui/HelpOverlay.js` with `?` / Shift+/ keybind. Sections: Anywhere, Overworld, Sailing, Combat, Port, Debug overlay. HUD gains `?` button (`hud-help-btn`).
+
+**Diagnostic build (2026-05-17):**
+- `src/ui/DebugOverlay.js` — toggleable on `` ` `` (backtick); live sections for Game / Overworld / Ship / Sailing plus rolling event log. Copy / Download buttons (clipboard API + textarea fallback; Blob download). Shortcuts: Shift+L clear, Shift+C copy, Shift+D download. Pipes `console.warn` / `console.error` and window errors into the log. Defensive `startTravel` reorder so a thrown error during ship creation can't strand the scene in a half-traveling state.
+- **Bug fixes uncovered:** `Ship.getShipStatsFromConfig` was reading `cls.friction` / `cls.brakeMult` even when `useSailing=true` (combat friction 0.55 was clobbering sailing's 0.998). `SailingSystem._applyControls` deadzone snap was firing during active thrust at high fps. Both fixed. New `SAILING.accelMultiplier` (0.05) controls accel feel independently of top speed; S-key now clamps at 0 — ships never reverse.
+
 **Third pass — Port / Crew UX (see Port_Improvements.md):**
 - **Bug fix:** Tavern/Shipwright/Market tab buttons did nothing — `INFAMY` was used in `PortUI.update()` but never imported (threw ReferenceError mid-render) **and** `.port-panel` had no `display: none/block` CSS, so all three panels rendered stacked. Both fixed.
 - **§5 Crew Management extraction (the user's main ask):** new `src/ui/CrewUI.js` (~220 lines) + `src/controllers/CrewController.js` (~80 lines). Standalone overlay reachable from any state via the **K** keybind or a floating "👥 Crew" button. State-aware sourcing (PortScene when docked, Game roster at sea). Station-effects refresh live during sailing/combat. Tavern tab now pivots to a "Manage Crew →" entry point. Cross-refresh in both directions so port actions sync the overlay and vice versa.
@@ -994,13 +1011,38 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - 🟢 Infamy progress bar towards next ship-class unlock (split off from §3.3)
 
 **Sailing_Improvements.md backlog:**
+- 🟡 Sailing §3.2 — make `SailingSystem` an instance (consistency with `CombatSystem`)
 - 🟡 Sailing §3.3 / §3.4 — extract `VoyageController` once mechanics keep growing
 - 🟡 Sailing §3.1 — consolidate `SAILING.*` / `WIND` / `ARRIVAL` / `CARGO_LOAD` / `ROUTE_MODIFIER_EFFECTS` into a single nested namespace
-- 🟢 Sailing §4.2 — corridor sub-events (flotsam, debris, mini-events)
-- 🟢 Sailing §4.5 — heading-hint / autopilot helper
-- 🟢 Sailing §1.5 — wake mesh rotation visual verification
+- 🟢 Sailing §1.5 — wake mesh rotation visual verification (needs non-symmetrical wake texture)
 - 🟢 Sailing §2.10 — drop / repurpose lateral corridor movement (design decision)
-- 🟢 Various polish split-offs: wind arrow on minimap, repair/pump bar indicators, 3D arrival ring, minimap enemy telegraph, cancel-voyage penalty, `?` overlay sheet
+
+**Sixth pass — Charting UX (2026-05-17, see Charting_Improvements.md):**
+
+*Design calls:* Chart Screen stays **strategic-only** (Charting §10.1 stretch). **Fog of war: always on.**
+
+- **§2.1** Minimap is now DPR-aware — `_resize` multiplies the buffer by `min(2, devicePixelRatio)`, ctx transform compensates, dirty-flag tracks `dpr` for monitor-change redraws.
+- **§1.2** Chart-screen island tooltip — `_lastTransform` captures the projection; `_onHoverMove` inverts CSS→buffer→world; `_buildTooltipHTML` renders name + port + treasure + hazard + faction + distance + description (or "??? · Uncharted" under fog).
+- **§1.3** Second legend row on chart for route colours (Active / Safe / Stormy / Patrolled / Shoals).
+- **§1.4** Corridor events as dots on the chart (mirror minimap palette).
+- **§1.5** Live voyage strip across top of chart: To / Dist / ETA / Bearing / Wind, hidden when not sailing. HTML+CSS overlay above the canvas, refreshed every `BigMapUI.update`.
+- **§1.6** New `Fit Map` button on chart toolbar (also `F` keybind). `_fitMap()` reads visible-island bbox, sets zoom 0.9 + pan offset so centroid lands at screen centre.
+- **§1.7** Keyboard pan/zoom on chart: `+`/`-` zoom, arrow keys pan, `0`/`Home` reset, `F` fit-map.
+- **§2.5** Ship heading line on chart (mirrors minimap), only while traveling.
+- **§5.1** Animated flow-direction dashes on the active route (chart + minimap) — origin→destination ordering, `lineDashOffset = -performance.now()/60`.
+- **§5.3** Pulsing "you are here" — chart's current-island dashed ring fades + expanding halo. Dirty-flag includes a 50 ms `animTick` so it keeps pulsing when docked.
+- **§5.4 Fog of war (always on — Chart Screen only)** — new `src/utils/fogOfWar.js` (`isNodeVisible` / `isEdgeVisible` / `FOG_UNKNOWN_LABEL`). `Node.discovered` persisted in `MapSerializer`; home discovered at gen, others flip on arrival. Toast 📜 *"Chart updated — X added."* on first arrival. **Scope (revised 2026-05-17):** fog applies to `BigMapUI` ONLY. The 3D overworld, corner minimap, and bottom MapUI route panel always show full info — they're the action surfaces where the player needs to decide what to sail toward. Chart is the "captain's chart" abstraction that lags behind direct observation.
+- **§6.1** ARIA — `role="img"` + dynamic `aria-label` on both map canvases (chart counts discovered/total islands); connected-routes list uses `role="list"` + `role="listitem"` with per-route `aria-label`.
+
+**Charting_Improvements.md backlog (remaining):**
+- 🟡 Charting §3.3 — MapUI panel innerHTML rebuild content-signature
+- 🟡 Charting §2.4 / §4.2 / §4.3 — Extract shared `MapRenderer` + `MapTransform` (large refactor)
+- 🟡 Charting §1.8 — Refactor Chart pan model to world-space camera target (bundles with above)
+- 🟠 Charting §3.2 — Full keyboard navigation of the route list (focus management + arrow keys)
+- 🟢 Charting §5.x — Multi-band route paint, grid overlay, voyage trail, unreachable highlight, PNG export
+- 🟢 Charting §2.2 / §2.7 / §4.1 / §4.4 / §7.x / §6.2 — Minimap freeze when chart open, animated wind arrow, cached bounds, single palette, listener cleanup, DPR-change listener, color-blind icons
+- 🟢 *Stretch (Charting §10):* interactive chart (sail/heading from chart), click-to-select from minimap, drop duplicate "Routes from here" list
+- See [Charting_Improvements.md](Charting_Improvements.md) for the full triage.
 
 See [Improvements.md](Improvements.md), [Port_Improvements.md](Port_Improvements.md), and [Sailing_Improvements.md](Sailing_Improvements.md) for full triage, line references, and effort × impact estimates.
 

@@ -20,6 +20,10 @@ import { CAMERA, OVERWORLD, RENDER, SHIP_GEOMETRY } from '../config.js';
 import { getOverworldRenderConfig } from './RenderConfig.js';
 import { getRouteModifiers, getPrimaryModifier } from '../utils/routeModifiers.js';
 
+// Charting_Improvements.md §5.4: fog of war is scoped to the Chart Screen
+// (BigMapUI) ONLY. The 3D overworld is the action surface — you set sail from
+// here — so it shows the full archipelago without fog. (Design call 2026-05-17.)
+
 /** R.3a: Get scale for ship class in the overworld view. */
 function overworldShipScale(shipClassId) {
   const classes = SHIP_GEOMETRY?.classes ?? {};
@@ -144,6 +148,7 @@ export class OverworldRenderer {
     let selectedEdgeInfo = null;
     for (let i = 0; i < map.edges.length; i++) {
       const edge = map.edges[i];
+      const mesh = this._edgeMeshes[i];
       const { a, b } = edge;
       const ax = a.position.x * worldScale;
       const ay = a.position.y * worldScale;
@@ -167,7 +172,6 @@ export class OverworldRenderer {
         else if (primary === 'shoals') color = cfg.route.shoalsColor ?? cfg.route.color;
       }
 
-      const mesh = this._edgeMeshes[i];
       mesh.visible = true;
       mesh.position.set((ax + bx) / 2, (ay + by) / 2, 0.1);
       mesh.rotation.z = Math.atan2(dy, dx);
@@ -208,6 +212,7 @@ export class OverworldRenderer {
     let currentNodeInfo = null;
     for (let i = 0; i < map.nodes.length; i++) {
       const node = map.nodes[i];
+      const mesh = this._nodeMeshes[i];
       const isCurrent = node === currentIsland;
       const radiusMult = isCurrent ? cfg.island.currentRadiusMult : 1;
       const r = islandRadius * radiusMult;
@@ -217,7 +222,6 @@ export class OverworldRenderer {
         : node.appealing ? cfg.island.appealColor
         : cfg.island.defaultColor;
       const color = isCurrent ? cfg.island.currentColor : baseColor;
-      const mesh = this._nodeMeshes[i];
       const nx = node.position.x * worldScale;
       const ny = node.position.y * worldScale;
       mesh.visible = true;

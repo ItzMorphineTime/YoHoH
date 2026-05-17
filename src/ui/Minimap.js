@@ -5,6 +5,10 @@
 import { OVERWORLD, UI } from '../config.js';
 import { getRouteModifiers, getPrimaryModifier } from '../utils/routeModifiers.js';
 
+// Charting_Improvements.md §5.4: fog of war is scoped to the Chart Screen only.
+// The minimap is a tactical radar / always-on overlay — it shows the full graph
+// so the player can always see what's around them. (Design call 2026-05-17.)
+
 const { minimap: UI_MINIMAP } = UI;
 
 export class Minimap {
@@ -14,6 +18,10 @@ export class Minimap {
     this.ctx = null;
     this.size = UI_MINIMAP.sizeDefault;
     this.padding = UI_MINIMAP.sizeDefault * UI_MINIMAP.paddingRatio;
+    // Charting_Improvements.md §2.1: track device pixel ratio so hi-DPI displays
+    // get a crisp render. Buffer = CSS size × dpr; ctx transform compensates so
+    // existing draw code remains in CSS-pixel coordinates.
+    this._dpr = 1;
     this._lastOverworldTransform = null;
     this._lastOverworldNodes = null;
     this._minimapTooltip = null;
@@ -22,7 +30,7 @@ export class Minimap {
     // Combat minimap is left undirtied — everything moves continuously.
     this._owDirty = {
       map: null, shipX: NaN, shipY: NaN,
-      currentIsland: null, travelRoute: null, size: 0,
+      currentIsland: null, travelRoute: null, size: 0, dpr: 0,
     };
   }
 
@@ -37,11 +45,23 @@ export class Minimap {
     const w = wrapper.clientWidth || this.size;
     const h = wrapper.clientHeight || this.size;
     const s = Math.min(w, h, UI_MINIMAP.sizeMaxCustom ?? 320);
-    if (s !== this.size) {
-      this.size = Math.max(UI_MINIMAP.sizeMin, s);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const targetSize = Math.max(UI_MINIMAP.sizeMin, s);
+    const bufferSize = (targetSize * dpr) | 0;
+    if (targetSize !== this.size || bufferSize !== this.canvas.width || dpr !== this._dpr) {
+      this.size = targetSize;
+      this._dpr = dpr;
       this.padding = Math.max(UI_MINIMAP.paddingMin, this.size * UI_MINIMAP.paddingRatio);
-      this.canvas.width = this.size;
-      this.canvas.height = this.size;
+      // Charting_Improvements.md §2.1: hi-DPI buffer + matching ctx transform so
+      // draw code keeps using CSS pixels. Setting canvas.width resets ALL ctx
+      // state — must reapply the transform after.
+      this.canvas.width = bufferSize;
+      this.canvas.height = bufferSize;
+      this.canvas.style.width = `${this.size}px`;
+      this.canvas.style.height = `${this.size}px`;
+      if (this.ctx) this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Force redraw — transform reset invalidated the dirty-flag cache.
+      this.invalidateOverworld();
     }
   }
 
@@ -53,6 +73,9 @@ export class Minimap {
     this.canvas.classList.add('minimap-canvas');
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
+    // Charting_Improvements.md §6.1: ARIA role + initial label (refreshed per draw)
+    this.canvas.setAttribute('role', 'img');
+    this.canvas.setAttribute('aria-label', 'Mini chart');
     wrapper.innerHTML = '';
     wrapper.appendChild(this.canvas);
 
@@ -263,12 +286,14 @@ export class Minimap {
       d.currentIsland === currentIsland &&
       d.travelRoute === travelRoute &&
       d.size === this.size &&
+      d.dpr === this._dpr &&
       d.eventsSig === eventsSig
     ) {
       return;
     }
     d.map = map; d.shipX = sx; d.shipY = sy;
     d.currentIsland = currentIsland; d.travelRoute = travelRoute; d.size = this.size;
+    d.dpr = this._dpr;
     d.eventsSig = eventsSig;
 
     const { islandRadius } = OVERWORLD;
@@ -325,6 +350,26 @@ export class Minimap {
       this.ctx.moveTo(pa.px, pa.py);
       this.ctx.lineTo(pb.px, pb.py);
       this.ctx.stroke();
+
+      // Charting_Improvements.md §5.1: animated flow-direction dashes on the
+      // active route — same pattern as the chart, just scaled smaller.
+      if (isActiveRoute && currentIsland) {
+        const origin = (edge.a === currentIsland) ? edge.a : edge.b;
+        const dest   = (edge.a === currentIsland) ? edge.b : edge.a;
+        const ph = toScreen(origin.position.x, origin.position.y);
+        const pt = toScreen(dest.position.x,   dest.position.y);
+        const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        this.ctx.save();
+        this.ctx.strokeStyle = c.shipStroke ?? '#88ff88';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.setLineDash([6, 4]);
+        this.ctx.lineDashOffset = -(t / 60);
+        this.ctx.beginPath();
+        this.ctx.moveTo(ph.px, ph.py);
+        this.ctx.lineTo(pt.px, pt.py);
+        this.ctx.stroke();
+        this.ctx.restore();
+      }
     }
 
     for (const node of nodes) {
@@ -469,6 +514,13 @@ export class Minimap {
     this._lastOverworldTransform = { cx, cy, midX, midY, scale };
     this._lastOverworldNodes = nodes;
     this._lastOverworldIslandRadius = islandRadius;
+
+    // Charting_Improvements.md §6.1: concise screen-reader summary
+    const here = currentIsland?.name ?? (currentIsland ? `Island ${currentIsland.id}` : 'open sea');
+    const aria = travelRoute
+      ? `Mini chart. Sailing from ${here}.`
+      : `Mini chart. Docked at ${here}.`;
+    this.canvas.setAttribute('aria-label', aria);
   }
 
   _onMinimapMouseMove(e) {

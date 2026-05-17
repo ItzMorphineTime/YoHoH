@@ -323,7 +323,13 @@ export class Game {
           `${e.early ? 'Docked at' : 'Arrived at'} ${e.destination?.name ?? 'port'}!`,
           'success',
         );
-        this.debug?.log(`voyage event: arrived${e.early ? ' (early dock)' : ''} → ${e.destination?.name}`);
+        // Charting_Improvements.md §5.4: extra fanfare for first-time discoveries
+        if (e.newlyDiscovered) {
+          setTimeout(() => {
+            this.mapUI?.showToast?.(`📜 Chart updated — ${e.destination?.name ?? 'a new island'} added.`, 'success');
+          }, 1200);
+        }
+        this.debug?.log(`voyage event: arrived${e.early ? ' (early dock)' : ''}${e.newlyDiscovered ? ' (discovered)' : ''} → ${e.destination?.name}`);
         break;
       case 'cancelled':
         this.debug?.log(`voyage event: cancelled (toast handled by _cancelVoyage)`);
@@ -1068,7 +1074,8 @@ export class Game {
         const chartShipPos = sailingShip
           ? { x: sailingShip.x, y: sailingShip.y }
           : shipPos;
-        bigMapUI.update(map, chartShipPos, currentIsland, travelRoute);
+        // Charting_Improvements.md §1.4 / §1.5: corridor events + voyage strip on the chart
+        bigMapUI.update(map, chartShipPos, currentIsland, travelRoute, corridorEvents, voyageInfo, sailingShip);
       }
     } else if (this.state === GAME_STATES.PORT) {
       document.getElementById('hud')?.style.setProperty('display', 'none');

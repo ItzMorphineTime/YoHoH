@@ -39,6 +39,8 @@ export function serialize(map) {
       hazard: n.hazard ?? 'none',
       faction: n.faction ?? 'neutral',
       rumors: n.rumors ?? '',
+      // Charting_Improvements.md §5.4: persist fog-of-war state per island
+      discovered: !!n.discovered,
     })),
     edges: edges.map(({ a, b }) => [a.id, b.id]),
   }, null, 2);
@@ -63,10 +65,15 @@ export function deserialize(json) {
     hazard: n.hazard ?? 'none',
     faction: n.faction ?? 'neutral',
     rumors: n.rumors ?? '',
+    // Charting_Improvements.md §5.4: restore fog-of-war state.
+    // Older saves (pre-fog) default to true so existing games are not erased.
+    discovered: n.discovered ?? true,
   }));
 
   const nodeById = new Map(nodes.map(n => [n.id, n]));
   const homeNode = nodeById.get(data.homeNodeId ?? 0) ?? nodes[0];
+  // Charting_Improvements.md §5.4: home is always discovered (safety net for legacy saves)
+  if (homeNode) homeNode.discovered = true;
 
   for (const [aId, bId] of data.edges) {
     const a = nodeById.get(aId);

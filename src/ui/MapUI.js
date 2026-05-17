@@ -6,6 +6,10 @@ import { UI, ECONOMY } from '../config.js';
 import { getRouteModifiers } from '../utils/routeModifiers.js';
 import { esc } from '../utils/escapeHtml.js'; // Improvements.md §5.3
 
+// Charting_Improvements.md §5.4: fog of war is scoped to the Chart Screen
+// (BigMapUI) only. The bottom MapUI panel is the action surface — players
+// see full destination info here so they can decide whether to sail.
+
 const ONBOARDING_KEY = 'yohoh-onboarding-hint';
 const { routeSelection: ROUTE_SELECTION } = UI;
 
@@ -313,9 +317,12 @@ export class MapUI {
             const name = other.name || `Island ${other.id}`;
             const dist = routeInfoItem?.distance ?? 0;
             const isSelected = edge === selectedRoute;
-            return `<div class="map-route-connected-item ${isSelected ? 'map-route-connected-selected' : ''}"><span class="map-route-connected-name">${esc(name)}</span><span class="map-route-connected-dist">${dist} units</span></div>`;
+            // Charting_Improvements.md §6.1: each route as a labelled listitem
+            const aria = `Route to ${name}, ${dist} units${isSelected ? ', selected' : ''}`;
+            return `<div role="listitem" aria-label="${esc(aria)}" class="map-route-connected-item ${isSelected ? 'map-route-connected-selected' : ''}"><span class="map-route-connected-name">${esc(name)}</span><span class="map-route-connected-dist">${dist} units</span></div>`;
           }).join('');
-          this.elements.routeSelectionConnected.innerHTML = `<span class="map-route-label">Routes from here</span><div class="map-route-connected-list">${items}</div>`;
+          // Charting_Improvements.md §6.1: container is a list with a label
+          this.elements.routeSelectionConnected.innerHTML = `<span class="map-route-label" id="map-route-connected-label">Routes from here</span><div class="map-route-connected-list" role="list" aria-labelledby="map-route-connected-label">${items}</div>`;
           this.elements.routeSelectionConnected.style.display = 'block';
         } else if (this.elements.routeSelectionConnected) {
           this.elements.routeSelectionConnected.style.display = 'none';

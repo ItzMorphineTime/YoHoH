@@ -138,10 +138,14 @@ export class OverworldScene {
 
     if (arrived || this.sailingShip.dead) {
       const arrivedShipState = this._extractShipState(this.sailingShip);
+      // Charting_Improvements.md §5.4: fog of war — first arrival reveals the island
+      const newlyDiscovered = !dest.discovered;
+      if (!this.sailingShip.dead) dest.discovered = true;
       // Sailing_Improvements.md §3.5: emit terminal voyage event
       this._voyageEvents.push({
         type: this.sailingShip.dead ? 'sunk' : 'arrived',
         destination: { id: dest.id, name: dest.name ?? `Island ${dest.id}` },
+        newlyDiscovered,
       });
       this.currentIsland = dest;
       this.travelRoute = null;
@@ -260,12 +264,16 @@ export class OverworldScene {
     const { a, b } = this.travelRoute;
     const dest = a === this.currentIsland ? b : a;
     const arrivedShipState = this._extractShipState(this.sailingShip);
+    // Charting_Improvements.md §5.4: fog of war — early-dock still discovers
+    const newlyDiscovered = !dest.discovered;
+    dest.discovered = true;
     // Sailing_Improvements.md §3.5: emit terminal voyage event with `early` flag
     // so the dispatcher can pick "Docked at X." vs. "Arrived at X!".
     this._voyageEvents.push({
       type: 'arrived',
       destination: { id: dest.id, name: dest.name ?? `Island ${dest.id}` },
       early: true,
+      newlyDiscovered,
     });
     this.currentIsland = dest;
     this.travelRoute = null;
