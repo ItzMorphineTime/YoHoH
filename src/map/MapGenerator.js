@@ -305,10 +305,15 @@ export function generateMap(config) {
     b: nodes[b],
   }));
 
+  // Sailing_Improvements.md §4.1: per-map global wind direction (radians, ship convention:
+  // 0 = blowing toward +Y, π/2 = toward +X). Used by SailingSystem to bonus/penalise speed.
+  const windAngleRad = rng.next() * Math.PI * 2;
+
   return {
     nodes,
     edges: edgeList,
     homeNode,
     seed: rng.getSeed(),
+    wind: { angleRad: windAngleRad },
   };
 }

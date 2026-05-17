@@ -474,7 +474,7 @@ export class Renderer {
     this._hideNonSailingViews();
     this._setupSailingView(shipPosition);
     this._updateSailingEntities(sailingShip, shipPosition, travelRoute);
-    this._updateSailingCamera(shipPosition);
+    this._updateSailingCamera(shipPosition, sailingShip); // §2.6: pass ship for speed-aware zoom
   }
 
   _hideNonSailingViews() {
@@ -556,15 +556,22 @@ export class Renderer {
     if (this.sailingShipMesh) this.sailingShipMesh.visible = !sailingShip;
 
     // S.3 Wake / trail: show behind ship when moving
+    // Sailing_Improvements.md §2.9: threshold is now a fraction of effective max
+    // so the wake appears reliably even when sails/crew/bilge cut speed.
     if (this.sailingWakeMesh) {
       if (!sailingShip) {
         this.sailingWakeMesh.visible = false;
       } else {
       const wake = cfg.wake ?? {};
-      const threshold = wake.speedThreshold ?? 0.02;
+      // Backwards-compat: treat numbers ≥ 1 as "use as absolute"; otherwise as a fraction.
+      const rawThreshold = wake.speedThreshold ?? 0.1;
       const speed = sailingShip.speed ?? 0;
       const maxSpeed = sailingShip?.effectiveMaxSpeed ?? sailingShip?.maxSpeed ?? 0.1;
-      if (Math.abs(speed) > threshold && maxSpeed > 0) {
+      const speedFactorAbs = maxSpeed > 0 ? Math.abs(speed) / maxSpeed : 0;
+      const passesThreshold = rawThreshold < 1
+        ? speedFactorAbs > rawThreshold       // fraction of effective max
+        : Math.abs(speed) > rawThreshold;     // legacy absolute number
+      if (passesThreshold && maxSpeed > 0) {
         const speedFactor = Math.min(1, Math.abs(speed) / maxSpeed);
         const wakeLenMax = wake.lengthMax ?? 40;
         const actualLen = speedFactor * wakeLenMax;
@@ -585,7 +592,7 @@ export class Renderer {
     }
   }
 
-  _updateSailingCamera(shipPosition) {
+  _updateSailingCamera(shipPosition, sailingShip = null) {
     const cfg = getSailingRenderConfig();
     const targetX = shipPosition.x * cfg.worldScale;
     const targetY = shipPosition.y * cfg.worldScale;
@@ -601,7 +608,20 @@ export class Renderer {
     }
     const sx = this._sailingCameraX;
     const sy = this._sailingCameraY;
-    this.camera.zoom = cfg.camera.zoom;
+    // Sailing_Improvements.md §2.6: speed-relative zoom — pull out up to ~15% at top speed.
+    const baseZoom = cfg.camera.zoom;
+    let targetZoom = baseZoom;
+    if (sailingShip) {
+      const maxSpeed = sailingShip.effectiveMaxSpeed ?? sailingShip.maxSpeed ?? 0;
+      if (maxSpeed > 0) {
+        const speedFactor = Math.min(1, Math.abs(sailingShip.speed ?? 0) / maxSpeed);
+        targetZoom = baseZoom * (1 - 0.15 * speedFactor); // up to 15% wider FoV at top speed
+      }
+    }
+    const prevZoom = this._sailingCameraZoom ?? baseZoom;
+    const zoomLerp = 0.08;
+    this._sailingCameraZoom = prevZoom + (targetZoom - prevZoom) * zoomLerp;
+    this.camera.zoom = this._sailingCameraZoom;
     this.camera.position.set(sx, sy, cfg.camera.positionZ);
     this.camera.lookAt(sx, sy, 0);
     this.camera.updateProjectionMatrix();

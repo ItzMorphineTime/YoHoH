@@ -66,3 +66,23 @@ export function getCargoCapacityWithUpgrades(shipClassId, equipped) {
   const overrides = getUpgradeStatOverrides(equipped, shipClassId);
   return (overrides.cargoCapacity != null ? overrides.cargoCapacity : base);
 }
+
+/**
+ * Sailing_Improvements.md §4.4: compute cargo overload multipliers given a
+ * load ratio (cargoUsed / cargoCapacity, clamped to [0, 1]).
+ * Returns `{ maxSpeedMult, turnRateMult }` — both ≤ 1.
+ */
+export function getCargoLoadPenalty(loadRatio, cargoLoadCfg) {
+  const cfg = cargoLoadCfg ?? {};
+  const softCap = cfg.softCap ?? 0.8;
+  const maxPenalty = cfg.maxPenalty ?? 0.25;
+  const maxTurnPenalty = cfg.maxTurnPenalty ?? 0.2;
+  const r = Math.max(0, Math.min(1, loadRatio ?? 0));
+  if (r <= softCap) return { maxSpeedMult: 1, turnRateMult: 1 };
+  // Linear ramp from softCap → 1.0 over [0, maxPenalty]
+  const t = (r - softCap) / Math.max(1e-6, 1 - softCap);
+  return {
+    maxSpeedMult: 1 - maxPenalty * t,
+    turnRateMult: 1 - maxTurnPenalty * t,
+  };
+}

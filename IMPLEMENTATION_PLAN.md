@@ -4,7 +4,7 @@
 **Last updated:** 2026-05-16
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -923,7 +923,7 @@ Source of truth: [island-generator-poc/src/IslandSerializer.js](island-generator
 
 ## 13. Code-Quality Backlog
 
-A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Port-specific work is tracked separately in [Port_Improvements.md](Port_Improvements.md). Three passes complete; remaining items below.
+A living list of code-quality, performance, and correctness fixes lives in [Improvements.md](Improvements.md). Port-specific work is tracked in [Port_Improvements.md](Port_Improvements.md); sailing-specific work in [Sailing_Improvements.md](Sailing_Improvements.md). Four passes complete; remaining items below.
 
 ### ✅ Landed (2026-05-16)
 
@@ -948,6 +948,23 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - §6.1 — `Projectile` object pool via `_acquire`/`_recycle` on `CombatSystem` (eliminates per-shot allocations)
 - §6.3 — Encounter chance is now a proper Poisson process (Exp(λ) sampled countdown, dt-independent)
 - **Bug fix:** Main menu (New Game / Continue) was unclickable — `#main-menu-overlay` had no CSS, so it sat behind the canvas layer and clicks were intercepted by `#game-canvas-layer` (`pointer-events: auto`). Added full menu CSS in `index.html` (fixed positioning, z-index 1000, gradient background, button styling, `.hidden` rule).
+
+**Fourth pass — Sailing physics + UX (see Sailing_Improvements.md):**
+- **§1.1 / §1.2 dt-scaling + speedMultiplier** — `SailingSystem` now uses `frameScale(dt) = dt * SAILING.referenceFps`; thrust, turn rate, position all scaled; friction uses `Math.pow(friction, frameScale)`. New `SAILING.speedMultiplier` applied after per-class lookup so global tuning actually works. The user's earlier `SAILING.maxSpeed = 10.0` bump is now an inert (but preserved) fallback with documentation.
+- **§1.3** Chart Screen (M) now pauses sailing physics, encounters, station-effects refresh, morale decay.
+- **§1.4** Encounter-timer resets centralised in `_resetEncounterTimer()` — fires on arrival, defeat, voyage cancel.
+- **§1.6** `effectiveMaxSpeed` now cached per tick + new `getEffectiveMaxSpeedBreakdown()` for HUD tooltips. `ship.beginTick()` invalidates.
+- **§2.1** Voyage HUD panel: To / Dist / ETA / 8-point Bearing with off-axis ↻↺ indicator. Backed by `OverworldScene.getVoyageInfo()`.
+- **§2.3** Arrival zone + "Press F to dock" prompt at >85% of corridor. `OverworldScene.isApproachingDestination()` + `earlyDock()`.
+- **§2.4** Pre-encounter warning (`COMBAT.encounterWarning`, default 3s) with flee window — hold W ≥ 70% of the window + pass `fleeSuccessChance` roll = "You outran them!" Otherwise combat starts.
+- **§2.5** Stations-active pill row on sailing HUD showing chip per station (filled/partial/empty) with tooltips.
+- **§2.6** Speed-relative camera: up to 15% wider FoV at top speed, smoothed.
+- **§2.7** Sailing mode line shows `WASD ▸ Sail · K ▸ Crew · M ▸ Chart · Esc ▸ Cancel`.
+- **§2.8** Cancel-voyage button (MapUI `↺ Cancel Voyage`) wires `Game._cancelVoyage()` — snapshots ship state, returns to OVERWORLD at origin.
+- **§2.9** Wake threshold normalised to fraction of effective max (default 0.1 = wake at >10% capacity); legacy absolute values still accepted.
+- **§4.1** Per-map wind direction (randomised at map-gen, persisted via MapSerializer); `SailingSystem.computeWindMultiplier` applies up to +25%/-20% based on heading-vs-wind cosine alignment; HUD voyage panel shows wind row.
+- **§4.3** `ROUTE_MODIFIER_EFFECTS` config: stormy (thrust × 0.75, hull damage), patrolled (encounter rate × 2), shoals (corridor narrowed × 0.65, bilge intake). Stacked multiplicatively. Applied per-tick by `OverworldScene._applyRouteModifiers()` with a base-physics cache to prevent ratcheting.
+- **§4.4** Cargo overload: `CARGO_LOAD` config (softCap 80%, max 25% speed / 20% turn penalty at full hold). Applied once at `startTravel`.
 
 **Third pass — Port / Crew UX (see Port_Improvements.md):**
 - **Bug fix:** Tavern/Shipwright/Market tab buttons did nothing — `INFAMY` was used in `PortUI.update()` but never imported (threw ReferenceError mid-render) **and** `.port-panel` had no `display: none/block` CSS, so all three panels rendered stacked. Both fixed.
@@ -976,7 +993,16 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - 🟢 Port_Improvements §3.7 — market price-trend memory (Phase D)
 - 🟢 Infamy progress bar towards next ship-class unlock (split off from §3.3)
 
-See [Improvements.md](Improvements.md) and [Port_Improvements.md](Port_Improvements.md) for full triage, line references, and effort × impact estimates.
+**Sailing_Improvements.md backlog:**
+- 🟡 Sailing §3.3 / §3.4 — extract `VoyageController` once mechanics keep growing
+- 🟡 Sailing §3.1 — consolidate `SAILING.*` / `WIND` / `ARRIVAL` / `CARGO_LOAD` / `ROUTE_MODIFIER_EFFECTS` into a single nested namespace
+- 🟢 Sailing §4.2 — corridor sub-events (flotsam, debris, mini-events)
+- 🟢 Sailing §4.5 — heading-hint / autopilot helper
+- 🟢 Sailing §1.5 — wake mesh rotation visual verification
+- 🟢 Sailing §2.10 — drop / repurpose lateral corridor movement (design decision)
+- 🟢 Various polish split-offs: wind arrow on minimap, repair/pump bar indicators, 3D arrival ring, minimap enemy telegraph, cancel-voyage penalty, `?` overlay sheet
+
+See [Improvements.md](Improvements.md), [Port_Improvements.md](Port_Improvements.md), and [Sailing_Improvements.md](Sailing_Improvements.md) for full triage, line references, and effort × impact estimates.
 
 ---
 

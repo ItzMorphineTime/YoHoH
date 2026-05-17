@@ -7,11 +7,12 @@
 import { createShip } from '../entities/ships.js';
 import { SailingSystem } from '../systems/SailingSystem.js';
 import { getStationEffects } from '../systems/CrewSystem.js';
-import { getCreateShipOptsFromUpgrades } from '../utils/upgrades.js';
+import { getCreateShipOptsFromUpgrades, getCargoLoadPenalty, getCargoCapacityWithUpgrades } from '../utils/upgrades.js';
 import { generateMap } from '../map/MapGenerator.js';
 import { deserialize, serialize } from '../map/MapSerializer.js';
 import { getRouteModifiers } from '../utils/routeModifiers.js';
-import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER } from '../config.js';
+import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER, ARRIVAL, ROUTE_MODIFIER_EFFECTS, CARGO_LOAD } from '../config.js';
+import { getGoods } from '../systems/EconomySystem.js';
 
 export class OverworldScene {
   constructor() {
@@ -87,11 +88,19 @@ export class OverworldScene {
     const { a, b } = this.travelRoute;
     const origin = a === this.currentIsland ? a : b;
     const dest = a === this.currentIsland ? b : a;
-    const corridorWidth = SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER?.sailingCorridorWidth ?? OVERWORLD.sailingCorridorWidth;
+    let corridorWidth = SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER?.sailingCorridorWidth ?? OVERWORLD.sailingCorridorWidth;
+
+    // Sailing_Improvements.md §4.3: apply route modifiers as live gameplay effects.
+    // Cache base physics on the ship once so we can restore-and-reapply each tick
+    // without "ratcheting" (otherwise multipliers stack on themselves).
+    this._applyRouteModifiers(dt, corridorWidth);
+    corridorWidth = this._modifiedCorridorWidth ?? corridorWidth;
+
     const corridor = {
       a: { x: origin.position.x, y: origin.position.y },
       b: { x: dest.position.x, y: dest.position.y },
       width: corridorWidth,
+      wind: this.map?.wind ?? null, // Sailing_Improvements.md §4.1
     };
     const arrived = SailingSystem.updateInCorridor(this.sailingShip, input, dt, corridor);
     this.sailingShip.updateBilge(dt, this.sailingShip._stationEffects?.bilgePumpMult ?? 1);
@@ -104,10 +113,58 @@ export class OverworldScene {
       this.currentIsland = dest;
       this.travelRoute = null;
       this.sailingShip = null;
+      this._modifiedCorridorWidth = null;
+      this._routeBasePhysics = null;
       this._updateShipPosition();
       return arrivedShipState;
     }
     return null;
+  }
+
+  /**
+   * Sailing_Improvements.md §4.3: re-apply route modifier multipliers to ship
+   * physics (thrust, maxSpeed) and tick ongoing effects (hull wear, bilge from
+   * shoals). Modifiers stack multiplicatively.
+   */
+  _applyRouteModifiers(dt, baseCorridorWidth) {
+    const ship = this.sailingShip;
+    const edge = this.travelRoute;
+    if (!ship || !edge) return;
+    // Cache the ship's untouched base physics so we can recompute cleanly each tick.
+    if (!this._routeBasePhysics || this._routeBasePhysics.shipRef !== ship) {
+      this._routeBasePhysics = {
+        shipRef: ship,
+        thrust: ship.thrust,
+        maxSpeed: ship.maxSpeed,
+        friction: ship.friction,
+      };
+    }
+    const base = this._routeBasePhysics;
+    let thrustMult = 1, maxSpeedMult = 1, frictionTarget = base.friction;
+    let corridorWidthMult = 1, hullDmgPerSec = 0, bilgePerSec = 0;
+    const mods = getRouteModifiers(edge) ?? [];
+    for (const m of mods) {
+      const eff = ROUTE_MODIFIER_EFFECTS[m];
+      if (!eff) continue;
+      if (eff.thrustMult) thrustMult *= eff.thrustMult;
+      if (eff.maxSpeedMult) maxSpeedMult *= eff.maxSpeedMult;
+      if (eff.frictionPower != null) frictionTarget = Math.min(frictionTarget, eff.frictionPower);
+      if (eff.corridorWidthMult) corridorWidthMult *= eff.corridorWidthMult;
+      if (eff.hullDamagePerSecond) hullDmgPerSec += eff.hullDamagePerSecond;
+      if (eff.bilgeWaterPerSecond) bilgePerSec += eff.bilgeWaterPerSecond;
+    }
+    ship.thrust = base.thrust * thrustMult;
+    ship.maxSpeed = base.maxSpeed * maxSpeedMult;
+    ship.friction = frictionTarget;
+    this._modifiedCorridorWidth = baseCorridorWidth * corridorWidthMult;
+    // Ongoing damage / bilge intake from the route
+    if (hullDmgPerSec > 0 && !ship.dead) {
+      ship.hull = Math.max(0, ship.hull - hullDmgPerSec * dt);
+      if (ship.hull <= 0) ship.dead = true;
+    }
+    if (bilgePerSec > 0) {
+      ship.bilgeWater = Math.min(ship.bilgeWaterMax ?? 100, (ship.bilgeWater ?? 0) + bilgePerSec * dt);
+    }
   }
 
   getMap() {
@@ -124,6 +181,84 @@ export class OverworldScene {
 
   isTraveling() {
     return !!this.travelRoute;
+  }
+
+  /**
+   * Sailing_Improvements.md §2.3: true when the ship has crossed the arrival
+   * approach line (last ~15% of the corridor by default) but hasn't yet
+   * auto-arrived. Lets the HUD show a "press F to dock" affordance.
+   */
+  isApproachingDestination() {
+    const info = this.getVoyageInfo();
+    if (!info) return false;
+    const threshold = ARRIVAL?.approachFraction ?? 0.85;
+    return info.progress >= threshold;
+  }
+
+  /**
+   * Force-finalise the current voyage at the destination. Returns the same
+   * arrivedShipState payload that `update()` would have returned on the
+   * arrival frame; or null if not traveling. (Sailing_Improvements.md §2.3)
+   */
+  earlyDock() {
+    if (!this.travelRoute || !this.sailingShip) return null;
+    const { a, b } = this.travelRoute;
+    const dest = a === this.currentIsland ? b : a;
+    const arrivedShipState = this._extractShipState(this.sailingShip);
+    this.currentIsland = dest;
+    this.travelRoute = null;
+    this.sailingShip = null;
+    this._updateShipPosition();
+    return arrivedShipState;
+  }
+
+  /**
+   * Return a snapshot of the current voyage for HUD use, or null when idle.
+   * (Sailing_Improvements.md §2.1)
+   *   destination       — { name, id }
+   *   distanceRemaining — world units along the corridor centre-line
+   *   distanceTotal     — total route length
+   *   progress          — 0–1
+   *   bearingRad        — heading TO destination (atan2(dx, dy) sailing convention)
+   *   headingDeltaRad   — bearingRad − ship.rotation, wrapped to [-π, π]
+   *   etaSec            — estimated seconds at current speed (null if drifting/zero/reverse)
+   */
+  getVoyageInfo() {
+    if (!this.travelRoute || !this.sailingShip) return null;
+    const { a, b } = this.travelRoute;
+    const origin = a === this.currentIsland ? a : b;
+    const dest = a === this.currentIsland ? b : a;
+    const sx = this.sailingShip.x;
+    const sy = this.sailingShip.y;
+    const ox = origin.position.x;
+    const oy = origin.position.y;
+    const dx = dest.position.x - ox;
+    const dy = dest.position.y - oy;
+    const total = Math.sqrt(dx * dx + dy * dy);
+    // Project ship onto the corridor centre-line to derive progress + remaining.
+    const t = total > 0 ? ((sx - ox) * dx + (sy - oy) * dy) / (total * total) : 1;
+    const clampedT = Math.max(0, Math.min(1, t));
+    const progress = clampedT;
+    const remaining = total * (1 - clampedT);
+    // Bearing from ship to destination in the ship's coordinate convention
+    // (forward = +Y at rotation=0 → ship moves by (sin r, cos r)).
+    const sdx = dest.position.x - sx;
+    const sdy = dest.position.y - sy;
+    const bearing = Math.atan2(sdx, sdy);
+    let headingDelta = bearing - (this.sailingShip.rotation ?? 0);
+    // Wrap to [-π, π]
+    headingDelta = ((headingDelta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    const speed = this.sailingShip.speed ?? 0;
+    const etaSec = speed > 0 ? remaining / speed : null;
+    return {
+      destination: { name: dest.name ?? `Island ${dest.id}`, id: dest.id },
+      distanceRemaining: remaining,
+      distanceTotal: total,
+      progress,
+      bearingRad: bearing,
+      headingDeltaRad: headingDelta,
+      etaSec,
+    };
   }
 
   /** Extract ship state for persistence (arrival, port, save). */
@@ -143,12 +278,20 @@ export class OverworldScene {
   }
 
   /** Start travel along route from current island to target. Uses SailingSystem for player control. */
-  startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null, upgrades = {}) {
-    if (this.travelRoute) return false;
-    if (!this.currentIsland) return false;
+  startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null, upgrades = {}, cargo = null) {
+    if (this.travelRoute) {
+      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog(`startTravel BLOCKED: already traveling on [${this.travelRoute.a?.id}↔${this.travelRoute.b?.id}]`);
+      return false;
+    }
+    if (!this.currentIsland) {
+      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog('startTravel BLOCKED: no current island');
+      return false;
+    }
     const edge = this._findEdge(this.currentIsland, targetIsland);
-    if (!edge) return false;
-    this.travelRoute = edge;
+    if (!edge) {
+      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog(`startTravel BLOCKED: no edge between [${this.currentIsland.id}] and [${targetIsland?.id}]`);
+      return false;
+    }
     const dx = targetIsland.position.x - this.currentIsland.position.x;
     const dy = targetIsland.position.y - this.currentIsland.position.y;
     const stateOpts = shipState ? {
@@ -159,17 +302,58 @@ export class OverworldScene {
       leaks: shipState.leaks,
     } : {};
     const upgradeOpts = getCreateShipOptsFromUpgrades(upgrades, shipClassId, true);
-    this.sailingShip = createShip(shipClassId, {
-      x: this.currentIsland.position.x,
-      y: this.currentIsland.position.y,
-      rotation: Math.atan2(dx, dy),
-      isPlayer: true,
-      useSailing: true,
-      ...stateOpts,
-      ...upgradeOpts,
-    });
-    this.sailingShip.setStationEffects(getStationEffects(crewRoster, shipClassId));
+    // Sailing_Improvements.md (debug): build everything first; commit travelRoute LAST so
+    // a thrown exception in createShip / station effects can't leave us with travelRoute
+    // set + sailingShip null (which would permanently block future startTravel calls).
+    let newShip;
+    try {
+      newShip = createShip(shipClassId, {
+        x: this.currentIsland.position.x,
+        y: this.currentIsland.position.y,
+        rotation: Math.atan2(dx, dy),
+        isPlayer: true,
+        useSailing: true,
+        ...stateOpts,
+        ...upgradeOpts,
+      });
+      newShip.setStationEffects(getStationEffects(crewRoster, shipClassId));
+    } catch (err) {
+      console.error('[OverworldScene.startTravel] failed to create sailing ship:', err);
+      return false;
+    }
+    this.sailingShip = newShip;
+    this.travelRoute = edge;
+    this._routeBasePhysics = null; // force per-ship base physics rebuild
+    this._modifiedCorridorWidth = null;
+    // Sailing_Improvements.md §4.4: cargo overload — applied once at start, then
+    // stored as a pre-modifier baseline (route-modifier code respects it via
+    // _routeBasePhysics).
+    if (cargo) this._applyCargoLoadPenalty(cargo, shipClassId, upgrades);
+    if (typeof window !== 'undefined' && window.__yohohDebugLog) {
+      window.__yohohDebugLog(`startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)}`);
+    }
     return true;
+  }
+
+  /** Sailing_Improvements.md §4.4: apply a one-shot cargo-load penalty to the sailing ship. */
+  _applyCargoLoadPenalty(cargo, shipClassId, upgrades) {
+    if (!this.sailingShip || !cargo) return;
+    const cap = getCargoCapacityWithUpgrades(shipClassId, upgrades);
+    if (!(cap > 0)) return;
+    const goods = getGoods();
+    let used = 0;
+    for (const [goodId, qty] of Object.entries(cargo)) {
+      if (qty <= 0) continue;
+      const good = goods.find(g => g.id === goodId);
+      used += (good?.unitSize ?? 1) * qty;
+    }
+    const ratio = used / cap;
+    const { maxSpeedMult, turnRateMult } = getCargoLoadPenalty(ratio, CARGO_LOAD);
+    this.sailingShip.maxSpeed *= maxSpeedMult;
+    this.sailingShip.thrust *= maxSpeedMult; // keep accel proportional
+    this.sailingShip.turnRate *= turnRateMult;
+    // Stash for the HUD/tooltip if we want to surface it later.
+    this.sailingShip._cargoLoadInfo = { ratio, maxSpeedMult, turnRateMult };
   }
 
   _findEdge(a, b) {

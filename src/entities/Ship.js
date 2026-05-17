@@ -10,16 +10,30 @@ function getShipStatsFromConfig(classConfig, opts = {}, useSailing = false) {
   const cls = classConfig;
   const prefix = useSailing ? 'sailing' : '';
   const base = useSailing ? SAILING : SHIP;
+  // Sailing_Improvements.md §1.2: apply the global speed/thrust multiplier
+  // AFTER the per-class lookup so changes to SAILING.speedMultiplier actually
+  // affect every ship class (the class-specific override would otherwise
+  // shadow `SAILING.maxSpeed` entirely).
+  const speedMult = useSailing ? (SAILING?.speedMultiplier ?? 1) : 1;
+  const rawMaxSpeed = opts.maxSpeed ?? cls?.[`${prefix}MaxSpeed`] ?? cls?.maxSpeed ?? base.maxSpeed;
+  const rawThrust = opts.thrust ?? cls?.[`${prefix}Thrust`] ?? cls?.thrust ?? base.thrust;
+  // SAILING/COMBAT-PREFIX BUG FIX: `friction` and `brakeMult` were previously
+  // pulled from `cls.friction` / `cls.brakeMult` (the COMBAT values) even when
+  // useSailing was true — so sloops in sailing mode were using friction 0.55
+  // (instant decay) instead of 0.998 (gentle drift). That made the sailing
+  // ship's per-tick speed fall below the deadzone (0.02) and snap back to 0
+  // every frame at higher framerates, so the ship would not move at all.
+  // Now look up `cls.sailingFriction` / `cls.sailingBrakeMult` first.
   return {
     hullMax: opts.hullMax ?? cls?.hullMax ?? COMBAT.hullMax,
     sailMax: opts.sailMax ?? cls?.sailMax ?? COMBAT.sailMax,
     crewMax: opts.crewMax ?? cls?.crewMax ?? COMBAT.crewMax,
     bilgeWaterMax: opts.bilgeWaterMax ?? cls?.bilgeWaterMax ?? (BILGE?.bilgeWaterMax ?? 100),
-    maxSpeed: opts.maxSpeed ?? cls?.[`${prefix}MaxSpeed`] ?? cls?.maxSpeed ?? base.maxSpeed,
-    thrust: opts.thrust ?? cls?.[`${prefix}Thrust`] ?? cls?.thrust ?? base.thrust,
-    friction: opts.friction ?? cls?.friction ?? base.friction,
+    maxSpeed: rawMaxSpeed * speedMult,
+    thrust: rawThrust * speedMult,
+    friction: opts.friction ?? cls?.[`${prefix}Friction`] ?? cls?.friction ?? base.friction,
     turnRate: opts.turnRate ?? cls?.[`${prefix}TurnRate`] ?? cls?.turnRate ?? base.turnRate,
-    brakeMult: opts.brakeMult ?? cls?.brakeMult ?? base.brakeMult,
+    brakeMult: opts.brakeMult ?? cls?.[`${prefix}BrakeMult`] ?? cls?.brakeMult ?? base.brakeMult,
     highSpeedTurnPenalty: opts.highSpeedTurnPenalty ?? cls?.[`${prefix}HighSpeedTurnPenalty`] ?? cls?.highSpeedTurnPenalty ?? base.highSpeedTurnPenalty,
     cannonCooldown: opts.cannonCooldown ?? cls?.cannonCooldown ?? COMBAT.cannonCooldown,
   };
@@ -109,9 +123,34 @@ export class Ship {
     return this._stationEffects?.sailSpeedMult ?? 1;
   }
 
-  /** Effective max speed: sails, crew, bilge water, sailing station */
+  /** Effective max speed: sails, crew, bilge water, sailing station.
+   *  Sailing_Improvements.md §1.6: results cached per "tick" (invalidated when
+   *  any input changes via beginTick()). Reads stay an O(1) field lookup; the
+   *  recompute happens at most once between beginTick() calls.
+   */
   get effectiveMaxSpeed() {
-    return this.maxSpeed * this.sailSpeedMult * this.crewMult * this.bilgeSpeedMult * this.sailingStationMult;
+    if (this._effMaxSpeedCache != null) return this._effMaxSpeedCache;
+    const sailMult = this.sailSpeedMult;
+    const crewMult = this.crewMult;
+    const bilgeMult = this.bilgeSpeedMult;
+    const stationMult = this.sailingStationMult;
+    const total = this.maxSpeed * sailMult * crewMult * bilgeMult * stationMult;
+    this._effMaxSpeedCache = total;
+    this._effMaxSpeedBreakdown = { base: this.maxSpeed, sailMult, crewMult, bilgeMult, stationMult, total };
+    return total;
+  }
+
+  /** Per-tick breakdown of effectiveMaxSpeed (for HUD tooltips). */
+  getEffectiveMaxSpeedBreakdown() {
+    // Trigger getter to populate if needed.
+    void this.effectiveMaxSpeed;
+    return this._effMaxSpeedBreakdown ?? null;
+  }
+
+  /** Sailing_Improvements.md §1.6: invalidate the effective-max cache. Call once per frame. */
+  beginTick() {
+    this._effMaxSpeedCache = null;
+    this._effMaxSpeedBreakdown = null;
   }
 
   /** Set station effects (from CrewSystem.getStationEffects) */

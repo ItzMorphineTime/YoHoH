@@ -168,6 +168,66 @@
     }
     .hud-cannon-status { color: #7a9a8a; margin-left: auto; }
     .hud-mode { color: #aacc88; }
+    /* Sailing_Improvements.md §2.1: voyage info panel */
+    .hud-voyage {
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 12px;
+      min-width: 140px;
+    }
+    .hud-voyage-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--ui-space);
+      font-size: var(--ui-font-sm);
+    }
+    .hud-voyage-label { color: #7a8a9a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .hud-voyage-value { color: #e8e6e3; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .hud-voyage-dock-prompt {
+      margin-top: 6px;
+      padding: 4px 8px;
+      background: rgba(74, 124, 89, 0.4);
+      border: 1px solid rgba(107, 155, 122, 0.7);
+      border-radius: 4px;
+      color: #aacc88;
+      font-size: var(--ui-font-sm);
+      text-align: center;
+      animation: hud-dock-pulse 1.2s ease-in-out infinite;
+    }
+    .hud-voyage-dock-prompt kbd {
+      padding: 1px 5px;
+      background: rgba(20, 36, 56, 0.95);
+      border: 1px solid #6b9b7a;
+      border-radius: 3px;
+      color: #e8e6e3;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    @keyframes hud-dock-pulse {
+      0%, 100% { background: rgba(74, 124, 89, 0.4); }
+      50% { background: rgba(107, 155, 122, 0.6); }
+    }
+    /* Sailing_Improvements.md §2.5: stations pill row */
+    .hud-stations {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 6px 12px;
+    }
+    .hud-stations-label { color: #7a8a9a; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .hud-stations-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .hud-stations-chip {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: #2a3a4a;
+      border-radius: 3px;
+      color: #8a9aaa;
+    }
+    .hud-stations-chip.filled { background: rgba(74, 124, 89, 0.4); color: #88cc88; }
+    .hud-stations-chip.partial { background: rgba(106, 90, 58, 0.4); color: #e8c088; }
+    .hud-stations-chip.empty { background: rgba(58, 58, 58, 0.3); color: #6a7a8a; }
 
     #minimap-wrapper {
       position: absolute;
@@ -311,6 +371,18 @@
       cursor: pointer;
     }
     .map-enter-port-btn:hover { background: #5a8c69; }
+    /* Sailing_Improvements.md §2.8: cancel voyage mid-route — visible only while traveling */
+    .map-cancel-voyage-btn {
+      margin-top: calc(var(--ui-space) * 0.5);
+      padding: 4px 10px;
+      background: rgba(106, 74, 58, 0.92);
+      border: 1px solid #8a6a4a;
+      border-radius: var(--ui-radius);
+      color: #e8c0a0;
+      font-size: var(--ui-font-sm);
+      cursor: pointer;
+    }
+    .map-cancel-voyage-btn:hover { background: rgba(138, 106, 74, 1); color: #ffd0a0; }
     .map-onboarding-hint {
       display: flex;
       align-items: center;

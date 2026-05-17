@@ -3,7 +3,8 @@
  * Phase A: Combat | Phase B: Overworld, Sailing, Save/Load
  */
 
-import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES } from './config.js';
+import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES, ROUTE_MODIFIER_EFFECTS } from './config.js';
+import { getRouteModifiers } from './utils/routeModifiers.js';
 import { loadGoods } from './systems/EconomySystem.js';
 import { Renderer } from './Renderer.js';
 import { Input } from './Input.js';
@@ -16,6 +17,7 @@ import { MapUI } from './ui/MapUI.js';
 import { BigMapUI } from './ui/BigMapUI.js';
 import { PortUI } from './ui/PortUI.js';
 import { CrewUI } from './ui/CrewUI.js';                            // Port_Improvements.md §5
+import { DebugOverlay } from './ui/DebugOverlay.js';                // Sailing_Improvements.md: debug
 import { getStationEffects, updateMoraleDecay } from './systems/CrewSystem.js';
 import { saveToStorage, loadFromStorage, loadWithStatus, LOAD_STATUS } from './utils/saveSystem.js';
 import { PortController } from './controllers/PortController.js';   // Improvements.md §5.1
@@ -36,6 +38,7 @@ export class Game {
     this.overworldScene = new OverworldScene();
     this.portScene = new PortScene();
     this.portUI = new PortUI(container);
+    this.debug = new DebugOverlay(); // backtick (`) toggles
     // Port_Improvements.md §5: CrewUI shell + controller. Init wires DOM later.
     this.crewController = null; // built in init() so it can reference portController
     this.crewUI = null;          // ditto
@@ -130,6 +133,7 @@ export class Game {
     this.mapUI.onStartSailing = (route) => this._startSailing(route);
     this.mapUI.onDeselectRoute = () => { this._selectedRoute = null; };
     this.mapUI.onEnterPort = () => this._enterPort();
+    this.mapUI.onCancelVoyage = () => this._cancelVoyage(); // Sailing_Improvements.md §2.8
 
     this.portUI.init();
 
@@ -155,6 +159,20 @@ export class Game {
     this.crewController = new CrewController({ host: this._buildCrewControllerHost() });
     this.crewUI = new CrewUI({ host: this._buildCrewUIHost() });
     this.crewUI.init();
+    this.debug.init();
+    // Expose a global hook so other modules (MapUI, etc) can log into the debug overlay
+    // without having to import it directly. (Sailing_Improvements.md debug)
+    if (typeof window !== 'undefined') {
+      window.__yohohDebugLog = (msg) => this.debug?.log(msg);
+      // Pipe console.warn / console.error into the debug overlay too
+      const origWarn = console.warn.bind(console);
+      const origError = console.error.bind(console);
+      console.warn = (...args) => { origWarn(...args); this.debug?.log('⚠ ' + args.map(String).join(' ')); };
+      console.error = (...args) => { origError(...args); this.debug?.log('✗ ' + args.map(String).join(' ')); };
+      window.addEventListener('error', (e) => this.debug?.log(`✗ ${e.message ?? 'error'} @ ${e.filename ?? '?'}:${e.lineno ?? '?'}`));
+      window.addEventListener('unhandledrejection', (e) => this.debug?.log(`✗ unhandled rejection: ${e.reason}`));
+    }
+    this.debug.log(`Game init complete; state=${this.state}`);
     this.portController.setCrewUI?.(this.crewUI); // keep crew overlay in sync with port actions
     // Tavern "Manage Crew" button → open the standalone overlay
     this.portUI.onManageCrew = () => this.crewUI?.show();
@@ -180,9 +198,62 @@ export class Game {
 
     this.update(dt);
     this.render();
+    this._pushDebugFrame(dt);
     this.input.endFrame();
 
     requestAnimationFrame(() => this._loop());
+  }
+
+  /** Push live state into the debug overlay each frame. (Sailing_Improvements.md: debug) */
+  _pushDebugFrame(dt) {
+    if (!this.debug?.isVisible?.()) return;
+    const fps = dt > 0 ? Math.round(1 / dt) : 0;
+    const lines = [];
+    lines.push(`fps     : ${fps}`);
+    lines.push(`state   : ${this.state}`);
+    lines.push(`KeyW    : ${this.input.isKeyDown('KeyW')}    KeyS:${this.input.isKeyDown('KeyS')}  KeyA:${this.input.isKeyDown('KeyA')}  KeyD:${this.input.isKeyDown('KeyD')}`);
+    lines.push(`mouse   : NDC(${this.input.mouse.x.toFixed(2)}, ${this.input.mouse.y.toFixed(2)})  leftDown=${this.input.mouse.leftDown}`);
+    lines.push(`selRoute: ${this._selectedRoute ? `[${this._selectedRoute.a?.id}↔${this._selectedRoute.b?.id}]` : 'null'}`);
+    lines.push(`hoverRt : ${this._hoveredRoute ? `[${this._hoveredRoute.a?.id}↔${this._hoveredRoute.b?.id}]` : 'null'}`);
+    this.debug.setSection('Game', lines);
+
+    const ow = [];
+    const island = this.overworldScene?.getCurrentIsland?.();
+    ow.push(`current : ${island ? `${island.name} (id ${island.id}) at (${island.position.x.toFixed(1)}, ${island.position.y.toFixed(1)})` : 'null'}`);
+    ow.push(`traveling: ${this.overworldScene?.isTraveling?.()}`);
+    ow.push(`travelRoute: ${this.overworldScene?.travelRoute ? `[${this.overworldScene.travelRoute.a?.id}↔${this.overworldScene.travelRoute.b?.id}]` : 'null'}`);
+    const wind = this.overworldScene?.getMap?.()?.wind;
+    ow.push(`wind    : ${wind ? `${(wind.angleRad * 180 / Math.PI).toFixed(0)}°` : 'none'}`);
+    this.debug.setSection('Overworld', ow);
+
+    const ship = this.overworldScene?.getSailingShip?.() ?? this.combatScene?.getPlayer?.();
+    if (ship) {
+      const bd = ship.getEffectiveMaxSpeedBreakdown?.();
+      const s = [];
+      s.push(`pos     : (${ship.x.toFixed(2)}, ${ship.y.toFixed(2)})`);
+      s.push(`rotation: ${(ship.rotation * 180 / Math.PI).toFixed(1)}°`);
+      s.push(`speed   : ${ship.speed.toFixed(4)}  /  effMax ${(ship.effectiveMaxSpeed ?? 0).toFixed(4)}`);
+      s.push(`maxSpeed: ${ship.maxSpeed.toFixed(4)}   thrust: ${ship.thrust.toFixed(4)}   friction: ${ship.friction.toFixed(4)}`);
+      if (bd) s.push(`breakdown: sail×${bd.sailMult.toFixed(2)} crew×${bd.crewMult.toFixed(2)} bilge×${bd.bilgeMult.toFixed(2)} station×${bd.stationMult.toFixed(2)}`);
+      s.push(`windMult: ${ship._windMult != null ? ship._windMult.toFixed(3) : 'n/a'}`);
+      s.push(`cargoLoad: ${ship._cargoLoadInfo ? `${(ship._cargoLoadInfo.ratio * 100).toFixed(0)}% (×${ship._cargoLoadInfo.maxSpeedMult.toFixed(2)} speed)` : 'none'}`);
+      s.push(`hull/sail/crew: ${Math.round(ship.hull)}/${ship.hullMax}  ${Math.round(ship.sails)}/${ship.sailMax}  ${Math.round(ship.crew)}/${ship.crewMax}`);
+      s.push(`bilge/leaks: ${Math.round(ship.bilgeWater ?? 0)}/${ship.bilgeWaterMax ?? 0}  leaks ${(ship.leaks ?? 0).toFixed(2)}`);
+      this.debug.setSection('Ship', s);
+    } else {
+      this.debug.setSection('Ship', '(no active ship)');
+    }
+
+    if (this.state === GAME_STATES.SAILING) {
+      const e = [];
+      e.push(`encTimer : ${this._encounterTimer != null ? this._encounterTimer.toFixed(2) + 's' : 'null'}`);
+      e.push(`warning  : ${this._encounterWarningTimer != null ? this._encounterWarningTimer.toFixed(2) + 's' : 'null'}`);
+      e.push(`fleeAccum: ${(this._encounterFleeAccum ?? 0).toFixed(2)}s`);
+      const v = this.overworldScene?.getVoyageInfo?.();
+      if (v) e.push(`voyage   : ${v.distanceRemaining.toFixed(1)}/${v.distanceTotal.toFixed(1)} (${(v.progress * 100).toFixed(0)}%)  eta ${v.etaSec != null ? v.etaSec.toFixed(1) + 's' : '—'}`);
+      this.debug.setSection('Sailing', e);
+    }
+    this.debug.flush();
   }
 
   update(dt) {
@@ -223,6 +294,7 @@ export class Game {
 
     if (input.isLeftMouseJustPressed() && !this._isClickOnUI()) {
       const route = overworldScene.getRouteNearPosition(graphX, graphY, 1);
+      this.debug?.log(`canvas click at graph (${graphX.toFixed(1)}, ${graphY.toFixed(1)}) → route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
       if (route) {
         this._selectedRoute = route;
         this._overworldDragStart = null;
@@ -258,11 +330,14 @@ export class Game {
   _updateSailing(dt) {
     const { overworldScene, input } = this;
 
+    // Sailing_Improvements.md §1.3: Chart Screen pauses sailing. Previously the
+    // ship kept moving while the chart was open but encounters could not fire,
+    // which was an inconsistent middle ground. Now: everything pauses (motion,
+    // station effects, morale decay, encounters) — the chart is "planning mode".
     if (this.bigMapUI.isVisible()) {
       if (input.isKeyJustPressed('KeyM') || input.isKeyJustPressed('Escape')) {
         this.bigMapUI.hide();
       }
-      overworldScene.update(dt, input);
       return;
     }
 
@@ -283,26 +358,109 @@ export class Game {
       sailingShip.setStationEffects(getStationEffects(this._crewRoster ?? [], this._playerShipClass ?? 'sloop'));
     }
 
-    // Improvements.md §6.3: Poisson-process encounter timer — framerate-independent.
-    // Maintain a countdown sampled from Exp(λ); when it crosses 0, trigger and resample.
+    // Sailing_Improvements.md §2.3: early-dock prompt when approaching destination
+    if (overworldScene.isTraveling() && overworldScene.isApproachingDestination?.() && input.isKeyJustPressed('KeyF')) {
+      const arrived = overworldScene.earlyDock?.();
+      if (arrived) {
+        this._playerShipState = arrived;
+        this._resetEncounterTimer();
+        const arrivedIsland = overworldScene.getCurrentIsland();
+        if (arrivedIsland?.name) this.mapUI.showToast(`Docked at ${arrivedIsland.name}.`, 'success');
+        this.state = GAME_STATES.OVERWORLD;
+        return;
+      }
+    }
+
+    // Improvements.md §6.3 + Sailing_Improvements.md §2.4: Poisson-process
+    // encounter timer with a pre-combat warning window. When the timer crosses
+    // zero we arm a warning; full thrust (W) during the window can flee.
     if (overworldScene.isTraveling()) {
-      const lambda = COMBAT?.encounterChancePerSecond ?? 0.006; // events per second
-      if (this._encounterTimer == null || !isFinite(this._encounterTimer)) {
-        this._encounterTimer = this._sampleEncounterDelay(lambda);
-      }
-      this._encounterTimer -= dt;
-      if (this._encounterTimer <= 0) {
-        this._encounterTimer = this._sampleEncounterDelay(lambda);
-        this._sailingPositionBeforeCombat = { ...overworldScene.getShipPosition() };
-        this.state = GAME_STATES.COMBAT;
-        this.combatScene.init(overworldScene.getSailingShip());
-      }
+      this._tickEncounter(dt, input);
     } else {
-      this._encounterTimer = null; // reset on arrival; new voyage resamples
+      this._resetEncounterTimer();
       const arrivedIsland = overworldScene.getCurrentIsland();
       if (arrivedIsland?.name) this.mapUI.showToast(`Arrived at ${arrivedIsland.name}!`);
       this.state = GAME_STATES.OVERWORLD;
     }
+  }
+
+  /** Sailing_Improvements.md §2.4: encounter state machine — countdown → warning → combat or flee. */
+  _tickEncounter(dt, input) {
+    // Sailing_Improvements.md §4.3: patrolled routes double the base rate.
+    const baseLambda = COMBAT?.encounterChancePerSecond ?? 0.006;
+    const lambda = baseLambda * this._currentEncounterRateMult();
+    const cfg = COMBAT?.encounterWarning ?? {};
+    const warnDuration = cfg.durationSec ?? 3;
+    const fleeFraction = cfg.fleeThrottleFraction ?? 0.7;
+    const fleeChance = cfg.fleeSuccessChance ?? 0.55;
+
+    // Warning window active: tick down + accumulate throttle, then resolve.
+    if (this._encounterWarningTimer != null) {
+      this._encounterWarningTimer -= dt;
+      if (input.isKeyDown?.('KeyW')) this._encounterFleeAccum = (this._encounterFleeAccum ?? 0) + dt;
+      if (this._encounterWarningTimer <= 0) {
+        const fled = (this._encounterFleeAccum ?? 0) >= warnDuration * fleeFraction
+          && Math.random() < fleeChance;
+        this._encounterWarningTimer = null;
+        this._encounterFleeAccum = 0;
+        if (fled) {
+          this.mapUI.showToast('You outran them!', 'success');
+          this._encounterTimer = this._sampleEncounterDelay(lambda);
+        } else {
+          this._sailingPositionBeforeCombat = { ...this.overworldScene.getShipPosition() };
+          this.state = GAME_STATES.COMBAT;
+          this.combatScene.init(this.overworldScene.getSailingShip());
+        }
+      }
+      return;
+    }
+
+    // Normal countdown.
+    if (this._encounterTimer == null || !isFinite(this._encounterTimer)) {
+      this._encounterTimer = this._sampleEncounterDelay(lambda);
+    }
+    this._encounterTimer -= dt;
+    if (this._encounterTimer <= 0) {
+      // Arm the warning. Toast tells the player how to flee.
+      this._encounterTimer = this._sampleEncounterDelay(lambda);
+      this._encounterWarningTimer = warnDuration;
+      this._encounterFleeAccum = 0;
+      this.mapUI.showToast(
+        `⚠ Sail on the horizon! Hold W to flee (${warnDuration.toFixed(0)}s).`,
+        'error',
+      );
+    }
+  }
+
+  /** Clear any pending encounter countdown so the next voyage resamples. (Sailing_Improvements.md §1.4 / §2.4) */
+  _resetEncounterTimer() {
+    this._encounterTimer = null;
+    this._encounterWarningTimer = null;
+    this._encounterFleeAccum = 0;
+  }
+
+  /**
+   * Cancel an in-progress voyage and return to the OVERWORLD at the origin
+   * island. Persists the current sailing-ship state (so leaks/hull damage carry
+   * over) and clears the encounter timer. (Sailing_Improvements.md §2.8)
+   */
+  _cancelVoyage() {
+    if (this.state !== GAME_STATES.SAILING || !this.overworldScene.isTraveling()) return;
+    // Snapshot ship state before tearing down the sailing ship.
+    const sailingShip = this.overworldScene.getSailingShip?.();
+    if (sailingShip) {
+      this._playerShipState = {
+        hull: sailingShip.hull, hullMax: sailingShip.hullMax,
+        sails: sailingShip.sails, sailMax: sailingShip.sailMax,
+        crew: sailingShip.crew, crewMax: sailingShip.crewMax,
+        bilgeWater: sailingShip.bilgeWater, bilgeWaterMax: sailingShip.bilgeWaterMax,
+        leaks: sailingShip.leaks,
+      };
+    }
+    this.overworldScene.cancelTravel();
+    this._resetEncounterTimer();
+    this.mapUI.showToast('Turned back to the last island.', 'success');
+    this.state = GAME_STATES.OVERWORLD;
   }
 
   /** Sample an Exp(λ) waiting time for the next encounter. (Improvements.md §6.3) */
@@ -311,6 +469,22 @@ export class Game {
     // Inverse-CDF sampling: -ln(U) / λ where U ∈ (0,1].
     const u = Math.max(1e-9, Math.random());
     return -Math.log(u) / lambda;
+  }
+
+  /**
+   * Sailing_Improvements.md §4.3: route-modifier-driven multiplier on the
+   * encounter rate (e.g. patrolled routes have 2× rate). Stacks multiplicatively.
+   */
+  _currentEncounterRateMult() {
+    const edge = this.overworldScene?.travelRoute;
+    if (!edge) return 1;
+    const mods = getRouteModifiers(edge) ?? [];
+    let mult = 1;
+    for (const m of mods) {
+      const eff = ROUTE_MODIFIER_EFFECTS?.[m];
+      if (eff?.encounterRateMult) mult *= eff.encounterRateMult;
+    }
+    return mult;
   }
 
   _updateCombat(dt) {
@@ -337,6 +511,7 @@ export class Game {
     }
     if (result === 'defeat' && input.isKeyJustPressed('Escape')) {
       this.overworldScene.cancelTravel();
+      this._resetEncounterTimer();
       this.state = GAME_STATES.OVERWORLD;
     }
 
@@ -488,22 +663,39 @@ export class Game {
   }
 
   _startSailing(route) {
+    this.debug?.log(`_startSailing called: route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
     const currentIsland = this.overworldScene.getCurrentIsland();
-    if (!route || !currentIsland) return false;
+    if (!route || !currentIsland) {
+      this.debug?.log(`  ✗ FAIL: route=${!!route} currentIsland=${!!currentIsland}`);
+      return false;
+    }
     const { a, b } = route;
     const target = a === currentIsland ? b : a;
-    if (!target) return false;
+    if (!target) {
+      this.debug?.log('  ✗ FAIL: route does not connect to currentIsland');
+      return false;
+    }
     const suppliesCost = ECONOMY?.suppliesCost ?? 0;
     const gold = this._playerGold ?? 0;
     if (suppliesCost > 0 && gold < suppliesCost) {
+      this.debug?.log(`  ✗ FAIL: need ${suppliesCost} gold for supplies, have ${gold}`);
       this.mapUI.showToast(`Need ${suppliesCost} gold for supplies!`, 'error');
       return false;
     }
-    const ok = this.overworldScene.startTravel(target, this._crewRoster ?? [], this._playerShipClass ?? 'sloop', this._playerShipState ?? null, this._playerUpgrades ?? {});
+    const ok = this.overworldScene.startTravel(
+      target,
+      this._crewRoster ?? [],
+      this._playerShipClass ?? 'sloop',
+      this._playerShipState ?? null,
+      this._playerUpgrades ?? {},
+      this._playerCargo ?? {}, // Sailing_Improvements.md §4.4
+    );
+    this.debug?.log(`  startTravel → ${ok ? 'OK' : 'FAIL (no edge?)'}`);
     if (ok) {
       if (suppliesCost > 0) this._playerGold = Math.max(0, gold - suppliesCost);
       this._selectedRoute = null;
       this.state = GAME_STATES.SAILING;
+      this.debug?.log(`  → state=SAILING; ship=${!!this.overworldScene.getSailingShip()}`);
     }
     return ok;
   }
@@ -581,7 +773,12 @@ export class Game {
       mapUI.update(currentIsland, true, travelRoute, overworldScene.getRouteInfo(travelRoute), null);
       document.getElementById('hud')?.style.setProperty('display', 'flex');
       document.getElementById('overworld-map-controls')?.classList.remove('visible');
-      hud.updateSailing(sailingShip);
+      // Sailing_Improvements.md §2.1 + §2.5: pass voyage info + crew roster for HUD panels
+      hud.updateSailing(
+        sailingShip,
+        overworldScene.getVoyageInfo?.() ?? null,
+        { roster: this._crewRoster ?? [], shipClassId: this._playerShipClass ?? 'sloop' },
+      );
       const minimapWrapper = document.getElementById('minimap-wrapper');
       minimapWrapper?.style.setProperty('display', 'block');
       minimapWrapper?.setAttribute('data-context', 'sailing');

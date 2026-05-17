@@ -20,11 +20,12 @@ function computeDistancesFromHome(homeNode) {
 }
 
 export function serialize(map) {
-  const { nodes, edges, homeNode, seed } = map;
+  const { nodes, edges, homeNode, seed, wind } = map;
   return JSON.stringify({
     version: 1,
     seed: seed ?? null,
     homeNodeId: homeNode?.id ?? 0,
+    wind: wind ?? null, // Sailing_Improvements.md §4.1
     nodes: nodes.map(n => ({
       id: n.id,
       x: n.position.x,
@@ -93,5 +94,10 @@ export function deserialize(json) {
     })
     .filter(Boolean);
 
-  return { nodes, edges, homeNode, seed: data.seed };
+  // Sailing_Improvements.md §4.1: wind direction. Fallback for older saves: random.
+  const wind = (data.wind && typeof data.wind.angleRad === 'number')
+    ? { angleRad: data.wind.angleRad }
+    : { angleRad: Math.random() * Math.PI * 2 };
+
+  return { nodes, edges, homeNode, seed: data.seed, wind };
 }

@@ -124,6 +124,76 @@ export const COMBAT = {
   lootGoldDefault: 50,
   lootSalvageDefault: 25,
   encounterChancePerSecond: 0.006,
+  /** Sailing_Improvements.md §2.4: warning window before combat starts. */
+  encounterWarning: {
+    /** Seconds between "sail on the horizon!" toast and combat scene init. */
+    durationSec: 3,
+    /** If the player holds W (full thrust) for this fraction of durationSec, they flee. */
+    fleeThrottleFraction: 0.7,
+    /** Probability flee succeeds (rolled at the end of the window). */
+    fleeSuccessChance: 0.55,
+  },
+};
+
+/** Sailing_Improvements.md §2.3: arrival zone — last stretch of the corridor. */
+export const ARRIVAL = {
+  /** Fraction of total route length at which "approaching" hint appears (0.85 = last 15%). */
+  approachFraction: 0.85,
+  /** Fraction at which auto-arrival kicks in (1 = end of corridor). */
+  autoArriveFraction: 1.0,
+};
+
+/**
+ * Sailing_Improvements.md §4.4: cargo overload — penalises speed/turn when the
+ * ship is heavily laden. Linear falloff between `softCap` and 1.0 (capacity).
+ *
+ * loadRatio  | maxSpeedMult | turnRateMult
+ *   ≤ 0.8    |    1.00      |    1.00         (no penalty)
+ *     1.00   |    1 - maxPenalty  |   1 - maxTurnPenalty
+ *   > 1.00   |    same as 1.00 (cargo system caps at capacity)
+ */
+export const CARGO_LOAD = {
+  softCap: 0.8,         // load ratio at which penalties begin
+  maxPenalty: 0.25,     // up to 25% top-speed loss at full hold
+  maxTurnPenalty: 0.20, // up to 20% turn-rate loss at full hold
+};
+
+/**
+ * Sailing_Improvements.md §4.1: global wind direction + sailing-with-wind bonus.
+ * The wind vector is randomised at map generation (degrees clockwise from N).
+ * Effects:
+ *   - downwind (heading aligned with wind): +bonusMult to maxSpeed
+ *   - upwind (heading opposed to wind): −penaltyMult
+ *   - beam (perpendicular): no change
+ * Bonus/penalty interpolates with `cos(deltaAngle)`, smoothed by `weight`.
+ */
+export const WIND = {
+  enabled: true,
+  bonusMult: 0.25,     // up to +25% top speed when sailing with the wind
+  penaltyMult: 0.20,   // up to -20% when sailing into the wind
+  /** How sharply the effect peaks (0..1). Higher = more concentrated near directly down/upwind. */
+  shape: 1.0,
+};
+
+/**
+ * Sailing_Improvements.md §4.3: route-modifier gameplay effects.
+ * Each modifier optionally multiplies sailing physics and tweaks rates/widths.
+ * Multipliers stack multiplicatively when a route has multiple modifiers.
+ */
+export const ROUTE_MODIFIER_EFFECTS = {
+  stormy: {
+    thrustMult: 0.75,           // harder to accelerate
+    maxSpeedMult: 0.85,         // top speed capped
+    frictionPower: 0.997,       // a bit more drag than baseline (lower friction = more drag per tick)
+    hullDamagePerSecond: 0.5,   // ongoing wear from rough seas
+  },
+  patrolled: {
+    encounterRateMult: 2.0,     // doubles Poisson encounter rate
+  },
+  shoals: {
+    corridorWidthMult: 0.65,    // narrower lane
+    bilgeWaterPerSecond: 0.4,   // slow water intake from scraping shoals
+  },
 };
 
 // ─── Combat Rocks (procedural or fixed) ─────────────────────────────────────
@@ -144,14 +214,32 @@ export const SHIP = {
   highSpeedTurnPenalty: 0.5,
 };
 
-// ─── Sailing (route travel) — fallback ───────────────────────────────────────
+// ─── Sailing (route travel) ──────────────────────────────────────────────────
+// (Sailing_Improvements.md §1.1 / §1.2)
+//
+// IMPORTANT: per-frame coefficients (thrust, friction, turnRate, maxSpeed) are
+// TUNED AT 60 fps. SailingSystem._applyControls / _integrateMotion multiply by
+// `dt * SAILING.referenceFps` so the same numbers feel identical at any frame
+// rate. Friction is exponentiated by the frame ratio so its meaning is
+// preserved (0.998 / frame @ 60fps → ~88.6% retained per second).
+//
+// The fields below are FALLBACKS only — every real ship class supplies its own
+// `sailingMaxSpeed`/`sailingThrust`/etc., so changing `SAILING.maxSpeed` here
+// does NOT speed up the sloop/brigantine/galleon (their per-class overrides
+// shadow these values). To globally retune speed across all classes, use the
+// `speedMultiplier` knob below — it is applied AFTER the per-class lookup so it
+// actually affects every ship.
 export const SAILING = {
-  maxSpeed: 10.0,
+  maxSpeed: 10.0,         // fallback only; class `sailingMaxSpeed` shadows this
   thrust: 0.025,
   friction: 0.998,
   turnRate: 0.015,
   brakeMult: 0.75,
   highSpeedTurnPenalty: 0.4,
+  /** Global tuning knob applied after per-class lookup. 1 = base, 2 = doubled, etc. */
+  speedMultiplier: 1.0,
+  /** Reference fps the per-frame numbers above were tuned at. dt scaling preserves feel across fps. */
+  referenceFps: 60,
 };
 
 // ─── Ship Classes — different sizes with stats and station slots ───────────

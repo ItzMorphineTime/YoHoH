@@ -17,6 +17,7 @@ export class MapUI {
     this.onLoadMap = null;
     this.onSaveGame = null;
     this.onEnterPort = null;
+    this.onCancelVoyage = null; // Sailing_Improvements.md §2.8
     this._hintDismissed = false;
     this._lastTravelRoute = null;
   }
@@ -33,6 +34,7 @@ export class MapUI {
             <span id="map-current-island" class="map-ui-island-name">Home Port</span>
           </div>
           <button type="button" id="map-enter-port-btn" class="map-enter-port-btn" style="display:none">Enter Port</button>
+          <button type="button" id="map-cancel-voyage-btn" class="map-cancel-voyage-btn" style="display:none" title="Turn back to the last island">↺ Cancel Voyage</button>
           <span id="map-travel-status" class="map-ui-status">Click a route from your island to sail</span>
           <div id="map-onboarding-hint" class="map-onboarding-hint" style="display:none">
             <span>First time? Click a route from your island to sail.</span>
@@ -105,6 +107,9 @@ export class MapUI {
     this.elements.startSailingBtn?.addEventListener('click', () => this._onStartSailing());
     this.elements.enterPortBtn = document.getElementById('map-enter-port-btn');
     this.elements.enterPortBtn?.addEventListener('click', () => this.onEnterPort?.());
+    // Sailing_Improvements.md §2.8: cancel voyage mid-route
+    this.elements.cancelVoyageBtn = document.getElementById('map-cancel-voyage-btn');
+    this.elements.cancelVoyageBtn?.addEventListener('click', () => this.onCancelVoyage?.());
     this.elements.deselectRouteBtn?.addEventListener('click', () => this._onDeselectRoute());
     this.elements.routeSelection?.querySelector('.map-route-deselect')?.addEventListener('click', () => this._onDeselectRoute());
     document.addEventListener('keydown', (e) => this._onKeyDown(e));
@@ -211,8 +216,14 @@ export class MapUI {
   }
 
   _onStartSailing() {
+    // Sailing_Improvements.md: traceability — log to console if user can't get sailing to start
+    if (typeof window !== 'undefined' && window.__yohohDebugLog) {
+      window.__yohohDebugLog(`MapUI._onStartSailing: pendingRoute=${!!this._pendingRoute} cb=${!!this.onStartSailing}`);
+    }
     if (this._pendingRoute && this.onStartSailing) {
       this.onStartSailing(this._pendingRoute);
+    } else {
+      console.warn('[MapUI] Start Sailing clicked but', { hasPendingRoute: !!this._pendingRoute, hasCallback: !!this.onStartSailing });
     }
   }
 
@@ -232,6 +243,10 @@ export class MapUI {
     }
     if (this.elements.enterPortBtn) {
       this.elements.enterPortBtn.style.display = (!isTraveling && currentIsland) ? 'block' : 'none';
+    }
+    // Sailing_Improvements.md §2.8: show Cancel Voyage only while traveling
+    if (this.elements.cancelVoyageBtn) {
+      this.elements.cancelVoyageBtn.style.display = isTraveling ? 'block' : 'none';
     }
     if (this.elements.onboardingHint && !this._hintDismissed) {
       const show = !isTraveling;
