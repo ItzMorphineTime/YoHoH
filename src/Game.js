@@ -14,7 +14,7 @@ import { PortScene } from './scenes/PortScene.js';
 import { HUD } from './ui/HUD.js';
 import { Minimap } from './ui/Minimap.js';
 import { MapUI } from './ui/MapUI.js';
-import { BigMapUI } from './ui/BigMapUI.js';
+import { MapChartingUI } from './ui/MapChartingUI.js';
 import { PortUI } from './ui/PortUI.js';
 import { CrewUI } from './ui/CrewUI.js';                            // Port_Improvements.md §5
 import { DebugOverlay } from './ui/DebugOverlay.js';                // Sailing_Improvements.md: debug
@@ -33,7 +33,7 @@ export class Game {
     this.hud = new HUD(container);
     this.minimap = new Minimap(container);
     this.mapUI = new MapUI(container);
-    this.bigMapUI = new BigMapUI();
+    this.mapChartingUI = new MapChartingUI();
 
     this.combatScene = new CombatScene();
     this.overworldScene = new OverworldScene();
@@ -122,7 +122,7 @@ export class Game {
     this.hud.init();
     this.minimap.init();
     this.mapUI.init();
-    this.bigMapUI.init();
+    this.mapChartingUI.init();
     this.combatScene.init();
 
     if (loadState?.mapJson) {
@@ -343,16 +343,16 @@ export class Game {
   _updateOverworld(dt) {
     const { overworldScene, input } = this;
 
-    if (this.bigMapUI.isVisible()) {
+    if (this.mapChartingUI.isVisible()) {
       if (input.isKeyJustPressed('KeyM') || input.isKeyJustPressed('Escape')) {
-        this.bigMapUI.hide();
+        this.mapChartingUI.hide();
       }
       this._hoveredRoute = null;
       return;
     }
 
     if (input.isKeyJustPressed('KeyM')) {
-      this.bigMapUI.toggle();
+      this.mapChartingUI.toggle();
       return;
     }
 
@@ -406,15 +406,15 @@ export class Game {
     // ship kept moving while the chart was open but encounters could not fire,
     // which was an inconsistent middle ground. Now: everything pauses (motion,
     // station effects, morale decay, encounters) — the chart is "planning mode".
-    if (this.bigMapUI.isVisible()) {
+    if (this.mapChartingUI.isVisible()) {
       if (input.isKeyJustPressed('KeyM') || input.isKeyJustPressed('Escape')) {
-        this.bigMapUI.hide();
+        this.mapChartingUI.hide();
       }
       return;
     }
 
     if (input.isKeyJustPressed('KeyM')) {
-      this.bigMapUI.toggle();
+      this.mapChartingUI.toggle();
     }
 
     // Sailing_Improvements.md §4.5: autopilot keybinds + manual-override detection.
@@ -899,7 +899,7 @@ export class Game {
   }
 
   _onOverworldWheel(e) {
-    if (this.state !== GAME_STATES.OVERWORLD || this.bigMapUI.isVisible()) return;
+    if (this.state !== GAME_STATES.OVERWORLD || this.mapChartingUI.isVisible()) return;
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     this._overworldZoom = Math.max(0.5, Math.min(3, this._overworldZoom + delta));
@@ -1004,7 +1004,7 @@ export class Game {
 
   _isClickOnUI() {
     const el = this._hitTestAtMouse();
-    return el?.closest('#map-ui, #big-map-overlay, #port-overlay, #overworld-map-controls, #settings-btn, #settings-modal, .map-route-selection-panel') != null;
+    return el?.closest('#map-ui, #map-charting-overlay, #port-overlay, #overworld-map-controls, #settings-btn, #settings-modal, .map-route-selection-panel') != null;
   }
 
   _isMouseOverCanvas() {
@@ -1015,7 +1015,7 @@ export class Game {
   }
 
   render() {
-    const { renderer, combatScene, overworldScene, hud, minimap, mapUI, bigMapUI } = this;
+    const { renderer, combatScene, overworldScene, hud, minimap, mapUI, mapChartingUI } = this;
 
     if (this.state === GAME_STATES.OVERWORLD) {
       const map = overworldScene.getMap();
@@ -1032,9 +1032,9 @@ export class Game {
       document.getElementById('minimap-wrapper')?.style.setProperty('display', 'none');
       document.getElementById('minimap-wrapper')?.removeAttribute('data-context');
       const navControls = document.getElementById('overworld-map-controls');
-      if (bigMapUI.isVisible()) {
+      if (mapChartingUI.isVisible()) {
         const chartShipPos = { x: shipPos.x, y: shipPos.y };
-        bigMapUI.update(map, chartShipPos, currentIsland, null);
+        mapChartingUI.update(map, chartShipPos, currentIsland, null);
         navControls?.classList.remove('visible');
       } else {
         navControls?.classList.add('visible');
@@ -1070,12 +1070,12 @@ export class Game {
       // Sailing_Improvements.md #26: telegraph enemy on minimap during encounter warning
       const telegraph = { active: this._encounterWarningTimer != null && this._encounterWarningTimer > 0 };
       minimap.updateOverworld(map, shipPos, currentIsland, travelRoute, telegraph, corridorEvents);
-      if (bigMapUI.isVisible()) {
+      if (mapChartingUI.isVisible()) {
         const chartShipPos = sailingShip
           ? { x: sailingShip.x, y: sailingShip.y }
           : shipPos;
         // Charting_Improvements.md §1.4 / §1.5: corridor events + voyage strip on the chart
-        bigMapUI.update(map, chartShipPos, currentIsland, travelRoute, corridorEvents, voyageInfo, sailingShip);
+        mapChartingUI.update(map, chartShipPos, currentIsland, travelRoute, corridorEvents, voyageInfo, sailingShip);
       }
     } else if (this.state === GAME_STATES.PORT) {
       document.getElementById('hud')?.style.setProperty('display', 'none');

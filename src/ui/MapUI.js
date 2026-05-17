@@ -7,7 +7,7 @@ import { getRouteModifiers } from '../utils/routeModifiers.js';
 import { esc } from '../utils/escapeHtml.js'; // Improvements.md §5.3
 
 // Charting_Improvements.md §5.4: fog of war is scoped to the Chart Screen
-// (BigMapUI) only. The bottom MapUI panel is the action surface — players
+// (MapChartingUI) only. The bottom MapUI panel is the action surface — players
 // see full destination info here so they can decide whether to sail.
 
 const ONBOARDING_KEY = 'yohoh-onboarding-hint';

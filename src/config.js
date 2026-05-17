@@ -9,7 +9,7 @@
  * - OVERWORLD_RENDER: overworld map display (island/route sizes)
  * - SAILING_RENDER: sailing view (corridor, water, islands)
  * - COMBAT, RENDER: combat arena + shared mesh colors/sizes
- * - UI.mapColors: shared map palette (islands, routes) — used by BigMapUI, Minimap
+ * - UI.mapColors: shared map palette (islands, routes) — used by MapChartingUI, Minimap
  * - UI.chartScreen, UI.routeSelection: Chart Screen & route panel options
  */
 
@@ -621,7 +621,7 @@ export const SHIP_GEOMETRY = {
 };
 
 // ─── UI ────────────────────────────────────────────────────────────────────
-/** Shared map palette — single source for island/route colors (BigMapUI, Minimap) */
+/** Shared map palette — single source for island/route colors (MapChartingUI, Minimap) */
 const MAP_COLORS = {
   background: '#0a1628',
   border: '#2a4a6a',
@@ -651,7 +651,8 @@ export const UI = {
     paddingRatio: 1 / 12,
     paddingMin: 3,
   },
-  bigMap: {
+  /** Charting screen (M key) overall sizing. Renamed from `bigMap` 2026-05-17. */
+  mapCharting: {
     sizeMin: 600,
     sizeMax: 1200,
     viewportRatio: 0.95,
@@ -665,7 +666,8 @@ export const UI = {
     player: '#44cc44',
     playerDirection: '#88ff88',
   },
-  bigMapColors: {
+  /** Charting screen palette. Renamed from `bigMapColors` 2026-05-17. */
+  mapChartingColors: {
     ...MAP_COLORS,
   },
   minimapDotSizes: {
@@ -707,7 +709,8 @@ export const UI = {
     showPortType: true,
     connectedRoutesMax: 8,
   },
-  bigMapSizes: {
+  /** Charting screen layout dimensions. Renamed from `bigMapSizes` 2026-05-17. */
+  mapChartingSizes: {
     padding: 36,
     currentIslandRadiusMult: 1.3,
     shipRadius: 8,

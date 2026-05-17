@@ -226,8 +226,8 @@ export class CrewUI {
 
   /** Avoid opening crew over the chart screen / settings / port etc. */
   _anotherModalOpen() {
-    const bigMap = document.getElementById('big-map-overlay');
-    if (bigMap?.classList?.contains('visible')) return true;
+    const chartOverlay = document.getElementById('map-charting-overlay');
+    if (chartOverlay?.classList?.contains('visible')) return true;
     const settings = document.getElementById('settings-modal');
     if (settings?.classList?.contains('visible')) return true;
     // Port overlay handles its own UX; allow crew to open OVER port so the

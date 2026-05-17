@@ -94,7 +94,7 @@ So the class-specific override always wins. `SAILING.maxSpeed` is only a fallbac
 **Where:** [src/Game.js:261-267](src/Game.js)
 
 ```js
-if (this.bigMapUI.isVisible()) {
+if (this.mapChartingUI.isVisible()) {
   …
   overworldScene.update(dt, input);  // ← still updates the ship
   return;
@@ -103,10 +103,10 @@ if (this.bigMapUI.isVisible()) {
 
 While the player has the chart screen open mid-voyage, the ship continues moving (and the encounter timer continues ticking — though the early `return` means encounters can't actually fire while the map is open, since the encounter check is below this `return`). Two valid choices:
 
-- **Pause everything:** skip `overworldScene.update` when bigMap is visible.
+- **Pause everything:** skip `overworldScene.update` when the chart is visible.
 - **Keep everything live:** also let encounters fire, but show the chart over the action (more dramatic).
 
-**Status:** Done — chose **pause everything** (clean planning mode). Opening the chart screen during sailing now stops the ship, the encounter timer, station-effects refresh, and morale decay. The earlier `overworldScene.update(dt, input)` call inside the `bigMapUI.isVisible()` branch is removed.
+**Status:** Done — chose **pause everything** (clean planning mode). Opening the chart screen during sailing now stops the ship, the encounter timer, station-effects refresh, and morale decay. The earlier `overworldScene.update(dt, input)` call inside the `mapChartingUI.isVisible()` branch is removed.
 
 ### 1.4 🟠 Encounter trigger + arrival can collide in the same frame  ✅
 **Where:** [src/Game.js:288-305](src/Game.js)

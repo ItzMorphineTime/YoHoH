@@ -76,14 +76,14 @@
 
 **Where:** [src/Game.js](src/Game.js) `_hitTestAtMouse`, `_isClickOnUI`, `_isMouseOverCanvas`
 
-### 2.2 🟡 Per-frame canvas redraws on Minimap & BigMapUI  *(M)* ✅ (partial)
+### 2.2 🟡 Per-frame canvas redraws on Minimap & MapChartingUI  *(M)* ✅ (partial)
 - [x] Overworld minimap: dirty-check on map/shipPos/currentIsland/travelRoute/size.
-- [x] BigMapUI: dirty-check including pan/zoom and dpr; force redraw on show/toggle.
+- [x] MapChartingUI: dirty-check including pan/zoom and dpr; force redraw on show/toggle.
 - [ ] (Optional) Combat minimap dirty-flag for victory/defeat freeze frame.
 
 **Status:** Done for both canvases that benefit. Combat minimap left as-is — everything moves continuously during fights, so dirty-flagging is mostly noise. Could add a freeze-frame optimisation later for the result screen.
 
-**Where:** [src/ui/Minimap.js](src/ui/Minimap.js) `updateOverworld`, [src/ui/BigMapUI.js](src/ui/BigMapUI.js) `update`, `show`, `toggle`
+**Where:** [src/ui/Minimap.js](src/ui/Minimap.js) `updateOverworld`, [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js) `update`, `show`, `toggle`
 
 ### 2.3 🟢 `Input.endFrame()` allocates a new object every frame  *(S)* ✅
 - [x] Maintain a pre-allocated `prevKeys` map; clear + copy in place.
@@ -218,7 +218,7 @@
 | 2 | §1.1 Pool overworld route/island meshes | M | 🔴 | ✅ |
 | 3 | §1.2 Pool combat rocks | S | 🔴 | ✅ |
 | 4 | §3.2 Cache overworld map bounds | S | 🟡 | ✅ |
-| 5 | §2.2 Dirty-flag Minimap / BigMapUI redraws | M | 🟡 | ✅ (partial) |
+| 5 | §2.2 Dirty-flag Minimap / MapChartingUI redraws | M | 🟡 | ✅ (partial) |
 | 6 | §1.4 Unify `SailingSystem` paths | M | 🟡 | ✅ |
 | 7 | §4.1 / §4.2 Save schemaVersion + load-failure fallback | S | 🟡 | ✅ |
 | 8 | §2.3 / §2.4 / §2.5 Input cleanup | S | 🟢 | ✅ |

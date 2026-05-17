@@ -1,5 +1,11 @@
 /**
- * YoHoH — Chart Screen (M key): strategic map overlay with pan/zoom
+ * YoHoH — Map Charting Screen (M key): strategic chart overlay with pan/zoom.
+ *
+ * Renamed 2026-05-17 from `BigMapUI` to `MapChartingUI` for clarity: this view
+ * is the player's *captain's chart* (read-only, fog-of-war-aware) and not the
+ * action surface. The 3D overworld + bottom MapUI panel are where voyages are
+ * actually planned and started — see Charting_Improvements.md §10 for the
+ * design call.
  */
 
 import { OVERWORLD, UI } from '../config.js';
@@ -7,14 +13,14 @@ import { getRouteModifiers, getPrimaryModifier } from '../utils/routeModifiers.j
 import { esc } from '../utils/escapeHtml.js';
 import { isNodeVisible, isEdgeVisible, FOG_UNKNOWN_LABEL, FOG_UNKNOWN_DESC } from '../utils/fogOfWar.js';
 
-const { bigMap: UI_BIGMAP, chartScreen: CHART_SCREEN } = UI;
+const { mapCharting: UI_MAP_CHARTING, chartScreen: CHART_SCREEN } = UI;
 
-export class BigMapUI {
+export class MapChartingUI {
   constructor() {
     this.canvas = null;
     this.ctx = null;
     this.visible = false;
-    this.size = UI_BIGMAP.sizeMin;
+    this.size = UI_MAP_CHARTING.sizeMin;
     this._dpr = 1;
     this.panX = 0;
     this.panY = 0;
@@ -45,8 +51,8 @@ export class BigMapUI {
 
   _resize() {
     if (!this.canvas) return;
-    const v = Math.min(window.innerWidth, window.innerHeight) * UI_BIGMAP.viewportRatio;
-    const s = Math.min(UI_BIGMAP.sizeMax, Math.max(UI_BIGMAP.sizeMin, v | 0));
+    const v = Math.min(window.innerWidth, window.innerHeight) * UI_MAP_CHARTING.viewportRatio;
+    const s = Math.min(UI_MAP_CHARTING.sizeMax, Math.max(UI_MAP_CHARTING.sizeMin, v | 0));
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const bufferSize = (s * dpr) | 0;
     if (bufferSize !== this.canvas.width || s !== this.size) {
@@ -100,9 +106,9 @@ export class BigMapUI {
   };
 
   init() {
-    this.canvas = document.getElementById('big-map-canvas');
-    const overlay = document.getElementById('big-map-overlay');
-    const closeBtn = overlay?.querySelector('.big-map-close');
+    this.canvas = document.getElementById('map-charting-canvas');
+    const overlay = document.getElementById('map-charting-overlay');
+    const closeBtn = overlay?.querySelector('.map-charting-close');
     const centerBtn = overlay?.querySelector('.chart-center-btn');
     const fitBtn = overlay?.querySelector('.chart-fit-btn');
     const zoomInBtn = overlay?.querySelector('.chart-zoom-in');
@@ -140,7 +146,7 @@ export class BigMapUI {
     // the document body so it can layer above the chart overlay; pointer-events
     // off so it never intercepts pan/zoom.
     this._tooltip = document.createElement('div');
-    this._tooltip.className = 'big-map-tooltip';
+    this._tooltip.className = 'map-charting-tooltip';
     this._tooltip.setAttribute('aria-hidden', 'true');
     document.body.appendChild(this._tooltip);
     this.canvas.addEventListener('mousemove', (e) => this._onHoverMove(e));
@@ -178,7 +184,7 @@ export class BigMapUI {
     this.zoomLevel = 0.9;
 
     // Compute the scale that the NEXT draw will use (we just changed zoomLevel).
-    const s = UI.bigMapSizes ?? {};
+    const s = UI.mapChartingSizes ?? {};
     const padding = s.padding ?? 36;
     const legendHeight = s.legendHeight ?? 0;
     const mapW = this.size - padding * 2;
@@ -238,19 +244,19 @@ export class BigMapUI {
   show() {
     this.visible = true;
     this.invalidate(); // ensure first frame after open paints fresh
-    const overlay = document.getElementById('big-map-overlay');
+    const overlay = document.getElementById('map-charting-overlay');
     overlay?.classList.add('visible');
     requestAnimationFrame(() => overlay?.focus());
   }
 
   hide() {
     this.visible = false;
-    document.getElementById('big-map-overlay')?.classList.remove('visible');
+    document.getElementById('map-charting-overlay')?.classList.remove('visible');
   }
 
   toggle() {
     this.visible = !this.visible;
-    const overlay = document.getElementById('big-map-overlay');
+    const overlay = document.getElementById('map-charting-overlay');
     overlay?.classList.toggle('visible', this.visible);
     if (this.visible) {
       this.invalidate();
@@ -307,8 +313,8 @@ export class BigMapUI {
     d.animTick = animTick;
 
     const { islandRadius } = OVERWORLD;
-    const c = UI.bigMapColors;
-    const s = UI.bigMapSizes;
+    const c = UI.mapChartingColors;
+    const s = UI.mapChartingSizes;
     const chart = CHART_SCREEN ?? {};
     const padding = s.padding;
     const nodes = map.nodes;
@@ -778,10 +784,10 @@ export class BigMapUI {
         const dx = node.position.x - cur.position.x;
         const dy = node.position.y - cur.position.y;
         const d = Math.round(Math.sqrt(dx * dx + dy * dy));
-        rows.push(`<div class="big-map-tooltip-row"><span class="label">Distance</span><span>${d} u</span></div>`);
+        rows.push(`<div class="map-charting-tooltip-row"><span class="label">Distance</span><span>${d} u</span></div>`);
       }
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Status</span><span class="tag-undiscovered">Uncharted</span></div>`);
-      return `<div class="big-map-tooltip-name tag-undiscovered">${FOG_UNKNOWN_LABEL}</div>${rows.join('')}<div class="big-map-tooltip-desc">${esc(FOG_UNKNOWN_DESC)}</div>`;
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Status</span><span class="tag-undiscovered">Uncharted</span></div>`);
+      return `<div class="map-charting-tooltip-name tag-undiscovered">${FOG_UNKNOWN_LABEL}</div>${rows.join('')}<div class="map-charting-tooltip-desc">${esc(FOG_UNKNOWN_DESC)}</div>`;
     }
 
     const rows = [];
@@ -790,33 +796,33 @@ export class BigMapUI {
       const dx = node.position.x - cur.position.x;
       const dy = node.position.y - cur.position.y;
       const d = Math.round(Math.sqrt(dx * dx + dy * dy));
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Distance</span><span>${d} u</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Distance</span><span>${d} u</span></div>`);
     } else if (isCurrent) {
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Status</span><span class="tag-home">Docked here</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Status</span><span class="tag-home">Docked here</span></div>`);
     }
     if (node.portType && node.portType !== 'none') {
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Port</span><span>${esc(String(node.portType))}</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Port</span><span>${esc(String(node.portType))}</span></div>`);
     }
     if (node.treasureLevel != null) {
       const labels = ['None', 'Modest', 'Rich', 'Legendary'];
       const lbl = labels[node.treasureLevel] ?? `Tier ${node.treasureLevel}`;
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Treasure</span><span>${esc(lbl)}</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Treasure</span><span>${esc(lbl)}</span></div>`);
     }
     if (node.hazard && node.hazard !== 'none') {
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Hazard</span><span class="tag-danger">${esc(String(node.hazard))}</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Hazard</span><span class="tag-danger">${esc(String(node.hazard))}</span></div>`);
     }
     if (node.faction && node.faction !== 'neutral') {
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Faction</span><span>${esc(String(node.faction))}</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Faction</span><span>${esc(String(node.faction))}</span></div>`);
     }
     const tags = [];
     if (isHome) tags.push('<span class="tag-home">Home Port</span>');
     if (node.dangerous) tags.push('<span class="tag-danger">Dangerous</span>');
     if (node.appealing) tags.push('<span class="tag-safe">Safe</span>');
     if (tags.length) {
-      rows.push(`<div class="big-map-tooltip-row"><span class="label">Tags</span><span>${tags.join(' · ')}</span></div>`);
+      rows.push(`<div class="map-charting-tooltip-row"><span class="label">Tags</span><span>${tags.join(' · ')}</span></div>`);
     }
-    const desc = node.description ? `<div class="big-map-tooltip-desc">${esc(String(node.description))}</div>` : '';
+    const desc = node.description ? `<div class="map-charting-tooltip-desc">${esc(String(node.description))}</div>` : '';
     const name = esc(node.name || `Island ${node.id}`);
-    return `<div class="big-map-tooltip-name">${name}</div>${rows.join('')}${desc}`;
+    return `<div class="map-charting-tooltip-name">${name}</div>${rows.join('')}${desc}`;
   }
 }

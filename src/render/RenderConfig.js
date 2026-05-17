@@ -1,7 +1,7 @@
 /**
  * YoHoH — Centralized render config with fallbacks
  * Single source of truth for per-view rendering options.
- * Used by Renderer, BigMapUI, Minimap to avoid scattered literals.
+ * Used by Renderer, MapChartingUI, Minimap to avoid scattered literals.
  */
 
 import {

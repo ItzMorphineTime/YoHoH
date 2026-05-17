@@ -21,8 +21,8 @@ import { getOverworldRenderConfig } from './RenderConfig.js';
 import { getRouteModifiers, getPrimaryModifier } from '../utils/routeModifiers.js';
 
 // Charting_Improvements.md §5.4: fog of war is scoped to the Chart Screen
-// (BigMapUI) ONLY. The 3D overworld is the action surface — you set sail from
-// here — so it shows the full archipelago without fog. (Design call 2026-05-17.)
+// (MapChartingUI) ONLY. The 3D overworld is the action surface — you set sail
+// from here — so it shows the full archipelago without fog. (Design call 2026-05-17.)
 
 /** R.3a: Get scale for ship class in the overworld view. */
 function overworldShipScale(shipClassId) {

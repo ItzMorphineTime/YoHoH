@@ -271,7 +271,7 @@ YoHoH/
 │   ├── entities/           # Ship, Sloop, Brigantine, Galleon, Enemy, Projectile, ships factory
 │   ├── systems/            # SailingSystem, CombatSystem, EconomySystem, CrewSystem
 │   ├── scenes/             # OverworldScene, CombatScene, PortScene
-│   ├── ui/                 # HUD, MapUI, BigMapUI, Minimap, PortUI
+│   ├── ui/                 # HUD, MapUI, MapChartingUI, Minimap, PortUI
 │   └── utils/              # routeModifiers, upgrades, saveSystem (localStorage)
 ├── public/data/
 │   ├── goods.json          # 8 trade goods

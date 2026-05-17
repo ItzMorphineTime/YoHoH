@@ -4,9 +4,9 @@
 **Last updated:** 2026-05-17
 **Companion docs:** [Improvements.md](Improvements.md) (general code quality), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX), [Port_Improvements.md](Port_Improvements.md) (port + crew UX), [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 
-> Scope: anything that draws the island graph or surfaces map information to the player — `BigMapUI` (full-screen chart), `Minimap` (corner radar in sailing/combat), `MapUI` (bottom route-selection panel + toast), and the shared `UI.mapColors` / `UI.minimapColors` palette.
+> Scope: anything that draws the island graph or surfaces map information to the player — `MapChartingUI` (full-screen chart), `Minimap` (corner radar in sailing/combat), `MapUI` (bottom route-selection panel + toast), and the shared `UI.mapColors` / `UI.minimapColors` palette.
 
-> **Progress (2026-05-17 — first pass):** 12 of 30 active items landed end-to-end. §2.1 (DPR-aware minimap, the only 🔴), §1.2 (island tooltip), §1.3 (route-modifier legend), §1.4 (corridor events on chart), §1.5 (live voyage strip), §1.6 (Fit Map button), §1.7 (keyboard pan/zoom), §2.5 (ship heading line on chart), §5.1 (active route flow dashes — chart + minimap), §5.3 (pulsing "you are here"), §5.4 (**fog of war — Chart Screen only**, design-locked), §6.1 (ARIA on canvases + route list). New shared module: `src/utils/fogOfWar.js` (visibility rules consumed exclusively by `BigMapUI` — see §5.4 for the scoping rationale).
+> **Progress (2026-05-17 — first pass):** 12 of 30 active items landed end-to-end. §2.1 (DPR-aware minimap, the only 🔴), §1.2 (island tooltip), §1.3 (route-modifier legend), §1.4 (corridor events on chart), §1.5 (live voyage strip), §1.6 (Fit Map button), §1.7 (keyboard pan/zoom), §2.5 (ship heading line on chart), §5.1 (active route flow dashes — chart + minimap), §5.3 (pulsing "you are here"), §5.4 (**fog of war — Chart Screen only**, design-locked), §6.1 (ARIA on canvases + route list). New shared module: `src/utils/fogOfWar.js` (visibility rules consumed exclusively by `MapChartingUI` — see §5.4 for the scoping rationale).
 >
 > **Scoping update (2026-05-17):** Fog originally applied to all four map views; revised down to **Chart Screen only** after a design call. The 3D overworld, minimap, and bottom MapUI route panel always show full info because they're the action surfaces — players need them to decide where to sail. Data model (`Node.discovered`, `MapSerializer`, `OverworldScene` discovery on arrival) is unchanged and still drives the chart fog.
 >
@@ -30,7 +30,7 @@
 > **Design call (2026-05-17):** The Chart Screen will remain **strategic-only** for now. Voyage actions stay on the bottom MapUI panel. Interactive route-selection / set-heading from the chart is moved to **§10 (Future stretch goals)** below — explicitly not a priority. The chart's near-term mission is to be a great *information* surface (legends, tooltips, voyage strip, sub-events) rather than a control surface.
 
 ### 1.1 🟢 Chart Screen is read-only — you can't sail from it  *(stretch — see §10)*
-**Where:** [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js)
 
 The chart shows every island and every route, including the player's current island. But you cannot:
 - Hover a route to see its info
@@ -39,30 +39,30 @@ The chart shows every island and every route, including the player's current isl
 
 Today the only way to start a voyage is to close the chart, find the right thin line on the overworld view, click it, and use the small bottom panel.
 
-**Status:** Deferred. Locked as a future stretch goal — chart stays strategic-only. If/when this lands the suggested implementation is: route hover/click in `BigMapUI` mirrors `OverworldScene.getRouteNearPosition`; selecting a connected route opens an inline action panel with "Set Sail" / "Set Heading" / "Cancel" that drives `Game._startSailing(route)` / `_handleAutopilotKeys` directly; routes that don't touch the current island are visible but un-clickable (dimmed).
+**Status:** Deferred. Locked as a future stretch goal — chart stays strategic-only. If/when this lands the suggested implementation is: route hover/click in `MapChartingUI` mirrors `OverworldScene.getRouteNearPosition`; selecting a connected route opens an inline action panel with "Set Sail" / "Set Heading" / "Cancel" that drives `Game._startSailing(route)` / `_handleAutopilotKeys` directly; routes that don't touch the current island are visible but un-clickable (dimmed).
 
 ### 1.2 🟠 No island tooltip / hover info on the Chart Screen  ✅
-**Where:** [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js)
 
 The corner minimap has a hover tooltip; the full-screen chart did not.
 
-**Status:** Done. New `_tooltip` DOM element appended to `document.body` (lives above the chart overlay). `_lastTransform` captures the buffer-pixel projection used in the most recent draw; `_onHoverMove` inverts it (CSS-px → buffer-px → world-px) and runs a hit-test against `_lastNodes`. Tooltip body shows: island name, port type, treasure tier, hazard, faction, distance from current, plus `Home Port`/`Dangerous`/`Safe` tags and the island description. Fog-of-war hidden islands render the tooltip as "??? · Uncharted" with no details (§5.4). CSS lives in `index.html` under `.big-map-tooltip`.
+**Status:** Done. New `_tooltip` DOM element appended to `document.body` (lives above the chart overlay). `_lastTransform` captures the buffer-pixel projection used in the most recent draw; `_onHoverMove` inverts it (CSS-px → buffer-px → world-px) and runs a hit-test against `_lastNodes`. Tooltip body shows: island name, port type, treasure tier, hazard, faction, distance from current, plus `Home Port`/`Dangerous`/`Safe` tags and the island description. Fog-of-war hidden islands render the tooltip as "??? · Uncharted" with no details (§5.4). CSS lives in `index.html` under `.map-charting-tooltip`.
 
 ### 1.3 🟠 Chart Screen doesn't surface route modifiers in the legend  ✅
-**Where:** [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js)
 
-**Status:** Done. New second legend row above the island row renders short coloured line samples for `Active · Safe · Stormy · Patrolled · Shoals` using the same `UI.bigMapColors.route*` palette that the edges themselves consume. Layout uses 64px column stride so it fits within the existing chart bottom-area.
+**Status:** Done. New second legend row above the island row renders short coloured line samples for `Active · Safe · Stormy · Patrolled · Shoals` using the same `UI.mapChartingColors.route*` palette that the edges themselves consume. Layout uses 64px column stride so it fits within the existing chart bottom-area.
 
 ### 1.4 🟠 Chart Screen doesn't show corridor sub-events  ✅
-**Where:** [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js)
 
-**Status:** Done. `BigMapUI.update()` signature now accepts `corridorEvents` and renders untriggered events as small colour-coded circles (flotsam yellow / debris brown / whirlpool blue / friendly green) — same palette as the minimap so the icon vocab carries across views. Dirty-flag includes an `eventsSig` so trigger transitions force a redraw. Game's render() pipes the existing `corridorEvents` reference through. (Legend entries for events deliberately deferred — palette is small enough to learn from the minimap.)
+**Status:** Done. `MapChartingUI.update()` signature now accepts `corridorEvents` and renders untriggered events as small colour-coded circles (flotsam yellow / debris brown / whirlpool blue / friendly green) — same palette as the minimap so the icon vocab carries across views. Dirty-flag includes an `eventsSig` so trigger transitions force a redraw. Game's render() pipes the existing `corridorEvents` reference through. (Legend entries for events deliberately deferred — palette is small enough to learn from the minimap.)
 
 ### 1.5 🟠 Chart Screen doesn't display live voyage info  ✅
-**Status:** Done. New `.chart-voyage-strip` element sits above the canvas in the chart overlay (HTML in `index.html`, styles in the same file). `BigMapUI._updateVoyageStrip(voyageInfo, sailingShip)` runs every chart update and rewrites the cells (To / Dist / ETA / Bearing / Wind). Hidden when `voyageInfo` is null (overworld / docked). Bearing uses the same 8-point compass + `↻/↺/✓` delta indicator as the HUD voyage panel.
+**Status:** Done. New `.chart-voyage-strip` element sits above the canvas in the chart overlay (HTML in `index.html`, styles in the same file). `MapChartingUI._updateVoyageStrip(voyageInfo, sailingShip)` runs every chart update and rewrites the cells (To / Dist / ETA / Bearing / Wind). Hidden when `voyageInfo` is null (overworld / docked). Bearing uses the same 8-point compass + `↻/↺/✓` delta indicator as the HUD voyage panel.
 
 ### 1.6 🟡 No "fit map to screen" button — only Center-on-Ship  ✅
-**Where:** [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js)
 
 **Status:** Done. New `Fit Map` button in the chart toolbar (also bound to `F` via the keyboard handler). `_fitMap()` reads the visible-island bounding box, sets `zoomLevel = 0.9` (leaves a 5% margin), then computes pan offset that places the bbox centroid at canvas centre given the ship-anchored projection. Math is inline in the method — when §1.8 (world-space camera target refactor) lands this can collapse to two lines.
 
@@ -70,7 +70,7 @@ The corner minimap has a hover tooltip; the full-screen chart did not.
 **Status:** Done. `_handleKey` now handles `+`/`=` (zoom in), `-`/`_` (zoom out), `Arrow Left/Right/Up/Down` (pan ±40 px), `0`/`Home` (center-on-ship + zoom 1), `F` (fit map), plus the existing `Escape`/`m`/`M` to close. Skips keyboard handling when an `<input>`/`<textarea>` has focus. The help-text footer line under the canvas isn't actively wrong any more — it accurately describes what's bound.
 
 ### 1.8 🟡 Chart Screen pan model is confusing
-**Where:** [src/ui/BigMapUI.js:208-214](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js:208-214](src/ui/MapChartingUI.js)
 
 ```js
 const midX = Number(shipPosition?.x ?? 0);
@@ -104,8 +104,8 @@ The minimap shows the connected routes and the ship's current island. Players na
 
 **Status:** Deferred. Same family as §1.1 — bundled with "chart owns selection" stretch goal. Until §1.1 lands, the minimap stays a viewer (consistent with the chart) and the bottom MapUI panel remains the only action surface.
 
-### 2.4 🟡 Minimap and BigMap share ~250 lines of duplicated rendering code
-**Where:** [src/ui/Minimap.js:247-472](src/ui/Minimap.js), [src/ui/BigMapUI.js:155-391](src/ui/BigMapUI.js)
+### 2.4 🟡 Minimap and MapChartingUI share ~250 lines of duplicated rendering code
+**Where:** [src/ui/Minimap.js:247-472](src/ui/Minimap.js), [src/ui/MapChartingUI.js:155-391](src/ui/MapChartingUI.js)
 
 Both implementations independently:
 - Clear + border the canvas
@@ -128,15 +128,15 @@ drawLegend(ctx, opts);        // configurable entries
 makeTransform(opts);          // toScreen closure
 computeBounds(nodes);         // cached
 ```
-Both `BigMapUI` and `Minimap` become thin orchestrators that pick a transform, build options, and call these helpers in order.
+Both `MapChartingUI` and `Minimap` become thin orchestrators that pick a transform, build options, and call these helpers in order.
 
 ### 2.5 🟡 Ship dot on Chart Screen doesn't show heading  ✅
-**Where:** [src/ui/BigMapUI.js](src/ui/BigMapUI.js)
+**Where:** [src/ui/MapChartingUI.js](src/ui/MapChartingUI.js)
 
 **Status:** Done. Heading line is drawn from the ship centre along `(sin r, -cos r) × 18 × dpr` (same convention as minimap, Y-flipped for canvas). Only rendered while traveling — there's no meaningful heading when docked, so the static circle stays clean in port.
 
 ### 2.6 🟡 Compass + wind arrow code is duplicated in three places
-`Minimap.updateOverworld` lines 423-466 and `BigMapUI.update` lines 313-352 both draw a compass + wind. Same math, slightly different sizes. Bundled with §2.4 refactor.
+`Minimap.updateOverworld` lines 423-466 and `MapChartingUI.update` lines 313-352 both draw a compass + wind. Same math, slightly different sizes. Bundled with §2.4 refactor.
 
 ### 2.7 🟢 Wind arrow has no animation
 The arrow points the correct direction but doesn't move. A subtle dash-march along the arrow shaft (CSS-animatable on a 2D canvas via `setLineDash` + `lineDashOffset` time-driven) would communicate "this is a flowing thing, not a static label."
@@ -162,7 +162,7 @@ The connected-routes list is a flat `<div>` with no `<button>` / `<a>` semantics
 
 `update()` is called every frame. Each call sets `innerHTML` for `routeDetails` / `routeSelectionDetails` / `routeSelectionConnected` — three string-joined HTML blocks rebuilt and re-parsed by the browser. With ~6 connected routes this is ~30 DOM nodes recreated per frame.
 
-**Suggested fix:** compute a content-signature (route ID + supplies-affordability state) and skip the rebuild when the signature is unchanged. Same dirty-flag pattern that `BigMapUI` / `Minimap` already use.
+**Suggested fix:** compute a content-signature (route ID + supplies-affordability state) and skip the rebuild when the signature is unchanged. Same dirty-flag pattern that `MapChartingUI` / `Minimap` already use.
 
 ### 3.4 🟡 "Routes from here" doesn't filter or sort
 Just shows up to `connectedRoutesMax: 8` in insertion order. Players in a port hub with many connections can't quickly find "the shortest route" or "the safest route" or "routes I haven't sailed before."
@@ -177,7 +177,7 @@ Single boolean, called once. Fine. Note that this and `_loadCustomSize` (Minimap
 ## 4. Map renderer & shared utilities
 
 ### 4.1 🟡 Bounding box recomputed every frame
-**Where:** [src/ui/BigMapUI.js:187-193](src/ui/BigMapUI.js), [src/ui/Minimap.js:279-285](src/ui/Minimap.js)
+**Where:** [src/ui/MapChartingUI.js:187-193](src/ui/MapChartingUI.js), [src/ui/Minimap.js:279-285](src/ui/Minimap.js)
 
 ```js
 const xs = nodes.map(n => n.position.x);
@@ -191,7 +191,7 @@ Allocates two arrays, spreads them through `Math.min`/`Math.max`, every frame. W
 **Suggested fix:** compute `{ minX, maxX, minY, maxY, rangeX, rangeY }` once during `MapGenerator.generateMap()` and stash on `map.bounds`. Recompute only on `loadMap`/`generateMap`.
 
 ### 4.2 🟡 No "MapTransform" abstraction
-**Where:** [src/ui/BigMapUI.js:211-214](src/ui/BigMapUI.js), [src/ui/Minimap.js:296-299](src/ui/Minimap.js)
+**Where:** [src/ui/MapChartingUI.js:211-214](src/ui/MapChartingUI.js), [src/ui/Minimap.js:296-299](src/ui/Minimap.js)
 
 Both views build a `toScreen(x, y)` closure inline. The minimap also stores `_lastOverworldTransform` to do tooltip hit-tests. There's no canonical "given a viewport rect, scale, and anchor, project world → canvas + invert" object. Hit-testing has to mirror the transform manually each time.
 
@@ -206,7 +206,7 @@ new MapTransform({ canvas, anchor: {x, y}, scale, panPx: {x, y}, dpr })
 Both views construct, use, and discard one per frame. Hit-tests use `.toWorld`. Cleanup of `Minimap._lastOverworldTransform` becomes trivial.
 
 ### 4.3 🟡 Route color logic is duplicated three times
-- `BigMapUI.update` lines 234-240
+- `MapChartingUI.update` lines 234-240
 - `Minimap.updateOverworld` lines 315-321
 - `Renderer.updateOverworld` (the 3D scene) — separately in `RENDER.routeStormyColor` / `RENDER.routePatrolledColor` / `RENDER.routeShoalsColor`
 
@@ -217,9 +217,9 @@ getRouteColor(edge, palette, { active = false } = {})
 All three call sites delegate.
 
 ### 4.4 🟡 Palette duplicates exist for the same map
-**Where:** [src/config.js:601-614](src/config.js) (`MAP_COLORS`), `UI.minimapColors`, `UI.bigMapColors`, `RENDER.routeStormyColor` (etc.)
+**Where:** [src/config.js:601-614](src/config.js) (`MAP_COLORS`), `UI.minimapColors`, `UI.mapChartingColors`, `RENDER.routeStormyColor` (etc.)
 
-The shared `MAP_COLORS` is spread into both `minimapColors` and `bigMapColors`, then the 3D renderer carries its own copies of `routeStormyColor` etc. Three sources of truth for the same five route colors. Long term: collapse to one map-palette config consumed by every view.
+The shared `MAP_COLORS` is spread into both `minimapColors` and `mapChartingColors`, then the 3D renderer carries its own copies of `routeStormyColor` etc. Three sources of truth for the same five route colors. Long term: collapse to one map-palette config consumed by every view.
 
 ### 4.5 🟢 No "minimap context" for COMBAT
 The minimap correctly switches between combat and overworld rendering, but the combat render does NOT use the dirty-flag pattern (intentionally — things move every frame). Adding a half-resolution buffer or RAF throttle for combat minimap could shave a measurable amount of canvas work at high fps.
@@ -229,7 +229,7 @@ The minimap correctly switches between combat and overworld rendering, but the c
 ## 5. Visual polish & new features
 
 ### 5.1 🟢 Active route should show flow direction  ✅
-**Status:** Done. Both `BigMapUI` and `Minimap` overlay a moving dashed `ctx.shipStroke` line on the active route, with `lineDashOffset = -performance.now()/60`. The dash order is origin → destination (re-derived from `currentIsland`), so the dashes always march **toward** the goal regardless of which endpoint is `edge.a`. Chart uses 10/8 dashes scaled by `dpr`; minimap uses 6/4 fixed (smaller view).
+**Status:** Done. Both `MapChartingUI` and `Minimap` overlay a moving dashed `ctx.shipStroke` line on the active route, with `lineDashOffset = -performance.now()/60`. The dash order is origin → destination (re-derived from `currentIsland`), so the dashes always march **toward** the goal regardless of which endpoint is `edge.a`. Chart uses 10/8 dashes scaled by `dpr`; minimap uses 6/4 fixed (smaller view).
 
 ### 5.2 🟢 Multi-modifier routes show only the primary color
 **Where:** [src/utils/routeModifiers.js](src/utils/routeModifiers.js)
@@ -242,7 +242,7 @@ The minimap correctly switches between combat and overworld rendering, but the c
 ### 5.4 🟢 Fog of war / progressive discovery  ✅ *(scoped to Chart Screen only)*
 **Status:** Done. Design call locked **always on, Chart Screen only**.
 
-**Scope (2026-05-17):** Fog applies *exclusively* to the Chart Screen (`M` key, `BigMapUI`). The 3D overworld, corner minimap, and bottom MapUI route panel are the **action surfaces** — they always show full information because the player needs it to decide where to sail. The Chart is the "captain's chart" abstraction: a stylised, knowledge-tracking view that lags behind direct observation. This separation also means players never lose access to features (clickable routes, port info, modifier icons) because of fog.
+**Scope (2026-05-17):** Fog applies *exclusively* to the Chart Screen (`M` key, `MapChartingUI`). The 3D overworld, corner minimap, and bottom MapUI route panel are the **action surfaces** — they always show full information because the player needs it to decide where to sail. The Chart is the "captain's chart" abstraction: a stylised, knowledge-tracking view that lags behind direct observation. This separation also means players never lose access to features (clickable routes, port info, modifier icons) because of fog.
 
 **Data model** (lives outside any single view so all consumers see one source of truth):
 - `Node.discovered: boolean` added in `MapGenerator.js`. Home port is discovered at gen time; every other island starts false.
@@ -259,12 +259,12 @@ The minimap correctly switches between combat and overworld rendering, but the c
 
 | View | Fog? | Behaviour |
 |---|---|---|
-| `BigMapUI` (Chart Screen, M key) | ✅ Yes | Gray tint, dashed outline, `???` labels, fog tooltip; hit-test skips invisible nodes; bbox spans visible nodes only (initial Fit Map shows only the explored region). |
+| `MapChartingUI` (Chart Screen, M key) | ✅ Yes | Gray tint, dashed outline, `???` labels, fog tooltip; hit-test skips invisible nodes; bbox spans visible nodes only (initial Fit Map shows only the explored region). |
 | `OverworldRenderer` (3D scene) | ❌ No | Full archipelago always shown. Players need to see all routes and islands to plan voyages from the action surface. |
 | `Minimap` (corner radar) | ❌ No | Tactical / always-on overlay shows the full graph. |
 | `MapUI` route panel + connected-routes list | ❌ No | Full destination details (name, port, treasure, hazard, faction) so players can decide before pressing Set Sail. |
 
-The shared `src/utils/fogOfWar.js` helper module remains in place — `BigMapUI` is its sole consumer for now, but the module exists so future stretch goals (a "Captain's Log" UI, achievement system tracking discovery) can plug in without re-deriving the rules.
+The shared `src/utils/fogOfWar.js` helper module remains in place — `MapChartingUI` is its sole consumer for now, but the module exists so future stretch goals (a "Captain's Log" UI, achievement system tracking discovery) can plug in without re-deriving the rules.
 
 ### 5.5 🟢 Distance / grid overlay
 Optional faint grid every 50 world-units on the chart. Adds a "navigator feel" and makes distance estimation easier. Toggle in chart toolbar.
@@ -279,7 +279,7 @@ Given the current ship's hull/sails state, some long routes might be impractical
 "Save chart" button → renders to a higher-res buffer, downloads as PNG. Low effort, high "captain's log" charm.
 
 ### 5.9 🟢 Big-map close button needs `pointer-events: auto` confirmation
-**Where:** [index.html#big-map-overlay](index.html)
+**Where:** [index.html#map-charting-overlay](index.html)
 
 The chart overlay uses `pointer-events: auto`. Buttons inside inherit. Verified visually; no current bug, but worth a comment because Sailing_Improvements debug session showed that `pointer-events` confusion has bitten this codebase before.
 
@@ -305,14 +305,14 @@ When chart opens, the focus moves to the overlay. When chart closes, focus is lo
 
 ## 7. Performance & code hygiene
 
-### 7.1 🟡 Listener leaks on Minimap / BigMapUI
-**Where:** [src/ui/Minimap.js:80-81](src/ui/Minimap.js), [src/ui/BigMapUI.js:73-84](src/ui/BigMapUI.js)
+### 7.1 🟡 Listener leaks on Minimap / MapChartingUI
+**Where:** [src/ui/Minimap.js:80-81](src/ui/Minimap.js), [src/ui/MapChartingUI.js:73-84](src/ui/MapChartingUI.js)
 
 Neither class stores listeners for cleanup. If `Game` is ever re-instantiated (e.g. main-menu return), listeners pile up.
 
 **Suggested fix:** mirror `Input._bind` pattern (`{ target, event, handler }` array, `destroy()` removes all).
 
-### 7.2 🟡 BigMapUI.update returns early if dirty-flag matches — but `_resize` always runs
+### 7.2 🟡 MapChartingUI.update returns early if dirty-flag matches — but `_resize` always runs
 The `_resize()` call before the dirty check forces a DPR check + width/height write every frame even when nothing changed. Cheap but wasteful. Move `_resize()` to react to `window.resize` events only, not every frame.
 
 ### 7.3 🟡 Per-frame `String(performance.now())`-derived pulses
@@ -358,7 +358,7 @@ Top items are the highest-impact / lowest-risk wins. Effort: S (≤1h), M (≤3h
 | 24 | §2.7 — Animated wind arrow | S | 🟢 | ⏳ |
 | 25 | §4.1 — Cache map bounds on the map | S | 🟡 | ⏳ |
 | 26 | §4.4 — Single palette source for all map views | S | 🟡 | ⏳ |
-| 27 | §7.1 — Listener cleanup paths on Minimap / BigMapUI | S | 🟡 | ⏳ |
+| 27 | §7.1 — Listener cleanup paths on Minimap / MapChartingUI | S | 🟡 | ⏳ |
 | 28 | §7.2 — Move `_resize()` out of `update()` | S | 🟡 | ⏳ |
 | 29 | §7.4 — DPR change listener | S | 🟢 | ⏳ |
 | 30 | §6.2 — Color-blind-safe route icons | S | 🟡 | ⏳ |

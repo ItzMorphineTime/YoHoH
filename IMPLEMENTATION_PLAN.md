@@ -4,7 +4,7 @@
 **Last updated:** 2026-05-16
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -164,7 +164,7 @@ Demo/
 │   ├── ui/
 │   │   ├── HUD.js
 │   │   ├── MapUI.js            # Overworld route selection panel
-│   │   ├── BigMapUI.js          # Chart Screen (M key)
+│   │   ├── MapChartingUI.js          # Chart Screen (M key)
 │   │   ├── Minimap.js           # Combat/overworld minimap
 │   │   ├── PortUI.js            # Tavern, Shipwright, Market
 │   │   └── MenuUI.js            # (future) Main menu
@@ -446,10 +446,10 @@ Each island has pirate-themed fields for map generation and gameplay:
 | P.7 | Save/Load feedback | ✓ Toast on success/failure; clear file input after load |
 | P.8 | Route selection panel | ✓ "Docked at" current island; connected routes list (island names, distances); destination details (description, treasure, hazard, faction); config-driven via UI.routeSelection |
 
-#### 8.6.2 BigMapUI (Chart Screen — Strategic Map Overlay)
+#### 8.6.2 MapChartingUI (Chart Screen — Strategic Map Overlay)
 | # | Task | Details |
 |---|------|---------|
-| B.1 | Island labels | ✓ Render island names on BigMap; truncate for dense areas |
+| B.1 | Island labels | ✓ Render island names on the chart; truncate for dense areas |
 | B.2 | Legend | ✓ Home (green), Dangerous (red), Safe port (teal), Default |
 | B.3 | Pan/zoom | ✓ Pan (drag, document-level so works when mouse leaves canvas); zoom (scroll +/− buttons); Center on Ship |
 | B.4 | Destination marker | ✓ When sailing: highlight destination island with dashed ring |
@@ -464,14 +464,14 @@ Each island has pirate-themed fields for map generation and gameplay:
 | N.1 | North indicator | ✓ Small compass N; consistent with Chart Screen |
 | N.2 | Island labels (optional) | ✓ Tooltip on hover for island name during sailing |
 | N.3 | Sailing progress | ✓ Progress bar at bottom when sailing; shows distance remaining |
-| N.4 | Visual consistency | ✓ Align color scheme with BigMap; same island/route semantics |
+| N.4 | Visual consistency | ✓ Align color scheme with charting screen; same island/route semantics |
 
 #### 8.6.4 General Map UX
 | # | Task | Details |
 |---|------|---------|
 | X.1 | Onboarding hints | ✓ First-time: "Click a route from your island to sail"; dismissible; persisted via localStorage |
 | X.2 | Click feedback | ✓ Toast "Setting sail to X!" when route clicked; visual confirmation |
-| X.3 | Responsive layout | ✓ MapUI, minimap, BigMap adapt; CSS clamp(), viewport units |
+| X.3 | Responsive layout | ✓ MapUI, minimap, charting screen adapt; CSS clamp(), viewport units |
 | X.4 | Config-driven | ✓ mapUI, chartScreen, routeSelection config in `config.js`; colors/sizes in UI section |
 
 #### 8.6.5 Config Additions (Map UI)
@@ -536,7 +536,7 @@ SAILING_RENDER: {
 - [x] Sailing speed significantly reduced; distinct sailing feel
 - [x] Centralized config; magic numbers moved to `config.js`
 - [x] Combat zoom fixed — arena visible for sailing/maneuvering (§8.3a R.7)
-- [x] Chart Screen (BigMapUI): pan, zoom, M/Esc close, Center on Ship, alignment/scale (§8.6.2)
+- [x] Chart Screen (MapChartingUI): pan, zoom, M/Esc close, Center on Ship, alignment/scale (§8.6.2)
 - [x] Map UI UX/UI (§8.6): Ctrl+S/O shortcuts, Save/Load toast, status differentiation, sailing progress bar, click feedback
 - [x] Chart Screen config (UI.chartScreen): showIslandLabels, showLegend, showCompass, islandScale, routeWidth, etc.
 - [x] Route selection panel: "Docked at" current island, connected routes list, destination details; UI.routeSelection config
@@ -568,7 +568,7 @@ SAILING_RENDER: {
 | # | Task | Details |
 |---|------|---------|
 | R.1 | Extract scene-specific logic | ✓ Split Renderer into `_setupCombatView`, `_updateCombatEntities`, `_setupSailingView`, `_updateSailingEntities`, `_updateSailingCamera`, `_setupOverworldView`, `_updateOverworldEntities`, `_updateOverworldCamera` |
-| R.2 | Centralize config usage | ✓ `RenderConfig.js`: `getCombatRenderConfig()`, `getOverworldRenderConfig()`, `getSailingRenderConfig()`; `UI.mapColors` shared by BigMapUI, Minimap |
+| R.2 | Centralize config usage | ✓ `RenderConfig.js`: `getCombatRenderConfig()`, `getOverworldRenderConfig()`, `getSailingRenderConfig()`; `UI.mapColors` shared by MapChartingUI, Minimap |
 | R.3 | Improve separation of concerns | ✓ `_hideNonCombatViews`, `_hideNonSailingViews`, `_hideNonOverworldViews`; clear setup → update → camera flow per view |
 | R.4 | Config schema & validation | ✓ Config schema documented in `config.js` header; runtime validation optional |
 | R.5 | Scalable config layout | ✓ Config grouped by view; `RenderConfig.js` provides merged config per view with fallbacks |
@@ -932,7 +932,7 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - §1.2 — Combat rock pool (built once per combat instead of per frame)
 - §1.3 — Per-frame `PortUI.update()` calls removed (was running 2× per frame)
 - §1.4 — `SailingSystem.update` / `updateInCorridor` unified behind shared `_applyControls`/`_integrateMotion`
-- §2.2 — Dirty-flag canvas redraws (overworld Minimap + BigMapUI)
+- §2.2 — Dirty-flag canvas redraws (overworld Minimap + MapChartingUI)
 - §2.3 / §2.4 / §2.5 — `Input.endFrame` no-alloc swap, duplicate `isMouseJustPressed` removed, `Input.destroy()` for listener teardown
 - §3.2 — Overworld map-bounds cache keyed by map identity (no more per-frame `Math.min(...xs)`)
 - §4.1 / §4.2 — Save schema version constant, `loadWithStatus` with diagnostics, main menu surfaces corrupt-save / version-mismatch errors
@@ -972,7 +972,7 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - **§4.2 Corridor sub-events** — `CORRIDOR_EVENTS` config; `OverworldScene._spawnCorridorEvents` rolls 1–3 lateral events per voyage (flotsam, debris, whirlpool, friendly); proximity-triggered via `_checkCorridorEvents` → `consumeTriggeredEvents`; Game applies effects (gold, hull damage, speed drag, toast); Renderer pools pulsing CircleGeometry meshes; Minimap renders coloured dots.
 - **§4.5 Autopilot + heading-to-dock helper** — new `AUTOPILOT` config; `H` snaps ship rotation to current bearing (one-shot, with compass toast); `Shift+H` toggles sustained autopilot that throttles to 70% effective max and steers toward the bearing via a Proxy input wrapper; auto-disengages on encounter warning, manual WASD just-press, or voyage end. HUD mode line swaps to a highlight banner; debug overlay shows live target + heading delta + which synthesized keys are pressed.
 - **Polish split-offs:**
-  - **#23** Wind arrow drawn next to compass on Minimap + BigMapUI.
+  - **#23** Wind arrow drawn next to compass on Minimap + MapChartingUI.
   - **#24** HUD trend arrows on Hull (↑ green, pulses with carpenter), Bilge (↓ orange while pumping wins / ↑ red + pulse while flooding), Leaks (↓ green, pulses with carpenter). Powered by new `Ship.getHullRepairRate()` / `Ship.getBilgeNetRate()`. CSS lives in `index.html`.
   - **#25** 3D approach-zone ring (`Renderer.sailingApproachRingMesh`) pulses opacity + scale at destination when `voyageInfo.progress ≥ 0.85`.
   - **#26** Minimap telegraph — pulsing red enemy dot ahead of the ship along bearing during the encounter warning window.
@@ -1025,14 +1025,32 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - **§1.2** Chart-screen island tooltip — `_lastTransform` captures the projection; `_onHoverMove` inverts CSS→buffer→world; `_buildTooltipHTML` renders name + port + treasure + hazard + faction + distance + description (or "??? · Uncharted" under fog).
 - **§1.3** Second legend row on chart for route colours (Active / Safe / Stormy / Patrolled / Shoals).
 - **§1.4** Corridor events as dots on the chart (mirror minimap palette).
-- **§1.5** Live voyage strip across top of chart: To / Dist / ETA / Bearing / Wind, hidden when not sailing. HTML+CSS overlay above the canvas, refreshed every `BigMapUI.update`.
+- **§1.5** Live voyage strip across top of chart: To / Dist / ETA / Bearing / Wind, hidden when not sailing. HTML+CSS overlay above the canvas, refreshed every `MapChartingUI.update`.
 - **§1.6** New `Fit Map` button on chart toolbar (also `F` keybind). `_fitMap()` reads visible-island bbox, sets zoom 0.9 + pan offset so centroid lands at screen centre.
 - **§1.7** Keyboard pan/zoom on chart: `+`/`-` zoom, arrow keys pan, `0`/`Home` reset, `F` fit-map.
 - **§2.5** Ship heading line on chart (mirrors minimap), only while traveling.
 - **§5.1** Animated flow-direction dashes on the active route (chart + minimap) — origin→destination ordering, `lineDashOffset = -performance.now()/60`.
 - **§5.3** Pulsing "you are here" — chart's current-island dashed ring fades + expanding halo. Dirty-flag includes a 50 ms `animTick` so it keeps pulsing when docked.
-- **§5.4 Fog of war (always on — Chart Screen only)** — new `src/utils/fogOfWar.js` (`isNodeVisible` / `isEdgeVisible` / `FOG_UNKNOWN_LABEL`). `Node.discovered` persisted in `MapSerializer`; home discovered at gen, others flip on arrival. Toast 📜 *"Chart updated — X added."* on first arrival. **Scope (revised 2026-05-17):** fog applies to `BigMapUI` ONLY. The 3D overworld, corner minimap, and bottom MapUI route panel always show full info — they're the action surfaces where the player needs to decide what to sail toward. Chart is the "captain's chart" abstraction that lags behind direct observation.
+- **§5.4 Fog of war (always on — Chart Screen only)** — new `src/utils/fogOfWar.js` (`isNodeVisible` / `isEdgeVisible` / `FOG_UNKNOWN_LABEL`). `Node.discovered` persisted in `MapSerializer`; home discovered at gen, others flip on arrival. Toast 📜 *"Chart updated — X added."* on first arrival. **Scope (revised 2026-05-17):** fog applies to `MapChartingUI` ONLY. The 3D overworld, corner minimap, and bottom MapUI route panel always show full info — they're the action surfaces where the player needs to decide what to sail toward. Chart is the "captain's chart" abstraction that lags behind direct observation.
 - **§6.1** ARIA — `role="img"` + dynamic `aria-label` on both map canvases (chart counts discovered/total islands); connected-routes list uses `role="list"` + `role="listitem"` with per-route `aria-label`.
+
+**Battle_Improvements.md backlog (newly opened):**
+
+- 🔴 Battle §1.1 — Enemy movement is not dt-scaled AND is gated behind a 0.5 s AI-decision timer (enemies teleport in 0.5 s hops). Wire enemies through `SailingSystem` with a synthetic AI input wrapper.
+- 🔴 Battle §1.2 — Hit detection uses a hard-coded radius of 8 for every ship class (sloop / brigantine / galleon all collide at the same footprint).
+- 🔴 Battle §1.3 — `CombatScene.init` imperatively overrides player physics with raw `cls.*` fields, bypassing `getShipStatsFromConfig` (same shadowing-bug class as Sailing §1.2).
+- 🔴 Battle §1.4 — `R` restart runs on `isKeyDown` (held → loop) and silently spawns a fresh sloop after defeat with no save-state link. Gate behind dev cheat or fix to `isKeyJustPressed`.
+- 🔴 Battle §2.1 / §2.2 — Player has zero on-screen info on enemy class, HP, or win condition. Add enemy nameplates + a "Sink all enemies (2/2)" sub-line.
+- 🟠 Battle §1.5 — Replace `'victory'` / `'defeat'` string literals with the `COMBAT_RESULT` enum import.
+- 🟠 Battle §1.6 — Cannon-arc and ship-movement angle conventions disagree; rationalise.
+- 🟠 Battle §1.7 — Crew-damage code path is dead; either implement (grape shot / boarding) or remove.
+- 🟠 Battle §1.8 — Rocks have no collision; projectiles + ships pass through them.
+- 🟠 Battle §2.3 — No mid-combat flee. Pair with Sailing §2.4's pre-combat flee pattern.
+- 🟠 Battle §2.4 / §2.6 / §2.7 — Cannon arc opacity, projectile splash, muzzle flash, camera shake / HUD pulse on hit. Feedback layer the genre relies on.
+- 🟠 Battle §2.9 — Proper defeat overlay (Continue / Load / Main Menu).
+- 🟡 Battle §3.x — Code-structure: `Enemy` → `SailingSystem`, `EncounterSpec` factory, split `Renderer.updateCombat`.
+- 🟢 Battle §4.x — New mechanics: tiered enemy classes, boarding actions (wire up `boarding_nets` / `grappling_hooks` upgrades), ammo types, wind in combat, critical hits, surrender, capturable ships, combat morale loop.
+- See [Battle_Improvements.md](Battle_Improvements.md) for the full 33-item triage + 7 open design questions.
 
 **Charting_Improvements.md backlog (remaining):**
 - 🟡 Charting §3.3 — MapUI panel innerHTML rebuild content-signature
@@ -1233,7 +1251,7 @@ Each Pirate King ties to distinct story content. Vertical slice (Phase D) can fo
 - [x] `src/map/MapGenerator.js`, `SeededRNG.js`
 - [x] `src/scenes/OverworldScene.js`
 - [x] `src/ui/MapUI.js` (route selection panel: connected routes, destination details; UI.routeSelection config)
-- [x] `src/ui/BigMapUI.js` (Chart Screen: pan, zoom, M/Esc close; UI.chartScreen config)
+- [x] `src/ui/MapChartingUI.js` (Chart Screen: pan, zoom, M/Esc close; UI.chartScreen config)
 - [x] `src/ui/Minimap.js` (N.2 island tooltip on hover during sailing)
 - [x] `public/data/goods.json` (8 goods: staples, military, luxury)
 - [x] `public/data/lore.json`, `pirate-kings-lore.json` (world-building, Pirate Kings)
