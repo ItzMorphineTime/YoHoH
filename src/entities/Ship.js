@@ -263,6 +263,29 @@ export class Ship {
     this.bilgeWater = Math.min(this.bilgeWater, this.bilgeWaterMax ?? 100);
   }
 
+  /**
+   * Sailing_Improvements.md #24: hull repair rate per second (always ≥ 0).
+   * Always positive while undamaged because `repairTick` runs unconditionally;
+   * stationless ships still benefit from the base rate × unassigned penalty.
+   */
+  getHullRepairRate() {
+    const repairMult = this._stationEffects?.repairMult ?? 1;
+    return (REPAIR?.hullRepairPerSecond ?? 2) * repairMult;
+  }
+
+  /**
+   * Sailing_Improvements.md #24: signed bilge change rate per second.
+   *   > 0  → flooding (leak intake outpaces pumping)
+   *   < 0  → draining (pumping outpaces intake)
+   *   = 0  → equilibrium
+   */
+  getBilgeNetRate() {
+    const leakRate = BILGE?.leakWaterRate ?? 2;
+    const basePump = BILGE?.basePumpRate ?? 5;
+    const pumpMult = this._stationEffects?.bilgePumpMult ?? 1;
+    return (this.leaks ?? 0) * leakRate - basePump * pumpMult;
+  }
+
   /** Update cooldowns */
   updateCooldowns(dt) {
     if (this.portCooldown > 0) this.portCooldown -= dt;

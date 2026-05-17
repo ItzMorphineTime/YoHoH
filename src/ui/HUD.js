@@ -23,6 +23,7 @@ export class HUD {
   constructor(container) {
     this.container = container;
     this.elements = {};
+    this.onHelp = null; // Sailing_Improvements.md #28: opens the keybinds overlay
   }
 
   init() {
@@ -35,6 +36,7 @@ export class HUD {
           <span class="hud-label">Hull</span>
           <div class="hud-bar"><div id="hud-hull-bar" class="hud-bar-fill"></div></div>
           <span id="hud-hull" class="hud-value">100</span>
+          <span id="hud-hull-arrow" class="hud-trend" title=""></span>
         </div>
         <div class="hud-stat">
           <span class="hud-label">Sails</span>
@@ -50,10 +52,12 @@ export class HUD {
           <span class="hud-label">Bilge</span>
           <div class="hud-bar"><div id="hud-bilge-bar" class="hud-bar-fill"></div></div>
           <span id="hud-bilge" class="hud-value">0</span>
+          <span id="hud-bilge-arrow" class="hud-trend" title=""></span>
         </div>
         <div class="hud-stat hud-stat-leaks">
           <span class="hud-label">Leaks</span>
           <span id="hud-leaks" class="hud-value">0</span>
+          <span id="hud-leaks-arrow" class="hud-trend" title=""></span>
         </div>
       </div>
       <div class="hud-panel hud-heading">
@@ -70,6 +74,7 @@ export class HUD {
       </div>
       <div class="hud-panel hud-mode">
         <span id="hud-mode">Combat</span>
+        <button type="button" id="hud-help-btn" class="hud-help-btn" title="Show all keybindings (? key)">?</button>
       </div>
       <!-- Sailing_Improvements.md §2.1: voyage info panel — hidden in combat -->
       <div class="hud-panel hud-voyage" id="hud-voyage" style="display:none">
@@ -115,6 +120,10 @@ export class HUD {
     this.elements.bilge = document.getElementById('hud-bilge');
     this.elements.bilgeBar = document.getElementById('hud-bilge-bar');
     this.elements.leaks = document.getElementById('hud-leaks');
+    // Sailing_Improvements.md #24: trend arrows for hull / bilge / leaks
+    this.elements.hullArrow = document.getElementById('hud-hull-arrow');
+    this.elements.bilgeArrow = document.getElementById('hud-bilge-arrow');
+    this.elements.leaksArrow = document.getElementById('hud-leaks-arrow');
     this.elements.compassNeedle = document.getElementById('hud-compass-needle');
     this.elements.cannonStatus = document.getElementById('hud-cannon-status');
     this.elements.mode = document.getElementById('hud-mode');
@@ -131,6 +140,87 @@ export class HUD {
     // Sailing_Improvements.md §2.5: stations pill
     this.elements.stationsPanel = document.getElementById('hud-stations');
     this.elements.stationsChips = document.getElementById('hud-stations-chips');
+    // Sailing_Improvements.md #28: ? button → help overlay
+    document.getElementById('hud-help-btn')?.addEventListener('click', () => this.onHelp?.());
+  }
+
+  /**
+   * Sailing_Improvements.md #24: hull repair trend arrow.
+   * ↑ green when hull is repairing (always true while damaged). Pulses when the
+   * carpenter is boosting the base rate (repairMult > 1.05). Hidden when full.
+   */
+  _renderHullArrow(ship) {
+    const el = this.elements.hullArrow;
+    if (!el) return;
+    const damaged = (ship.hull ?? 0) < (ship.hullMax ?? 0);
+    if (!damaged) {
+      el.textContent = '';
+      el.className = 'hud-trend hud-trend-hidden';
+      el.title = '';
+      return;
+    }
+    const rate = ship.getHullRepairRate?.() ?? 0;
+    const boosted = (ship._stationEffects?.repairMult ?? 1) > 1.05;
+    el.textContent = '↑';
+    el.className = `hud-trend hud-trend-up${boosted ? ' hud-trend-fast' : ''}`;
+    el.title = boosted
+      ? `Hull repairing — ${rate.toFixed(1)}/s (carpenter assigned)`
+      : `Hull repairing — ${rate.toFixed(1)}/s (base rate; assign a carpenter to speed up)`;
+  }
+
+  /**
+   * Sailing_Improvements.md #24: bilge water trend arrow.
+   * ↓ when pumping wins (good); ↑ red when flooding (leaks > pump capacity).
+   * Hidden when bilge is empty.
+   */
+  _renderBilgeArrow(ship) {
+    const el = this.elements.bilgeArrow;
+    if (!el) return;
+    const water = ship.bilgeWater ?? 0;
+    const net = ship.getBilgeNetRate?.() ?? 0;
+    // Hide when bilge is empty AND no flooding (i.e. nothing happening).
+    if (water <= 0 && net <= 0) {
+      el.textContent = '';
+      el.className = 'hud-trend hud-trend-hidden';
+      el.title = '';
+      return;
+    }
+    if (net > 0.05) {
+      el.textContent = '↑';
+      el.className = 'hud-trend hud-trend-flood hud-trend-fast';
+      el.title = `Flooding — ${net.toFixed(1)}/s. Assign more crew to Bilge!`;
+    } else if (net < -0.05) {
+      el.textContent = '↓';
+      el.className = 'hud-trend hud-trend-down';
+      el.title = `Pumping — ${Math.abs(net).toFixed(1)}/s`;
+    } else {
+      el.textContent = '·';
+      el.className = 'hud-trend';
+      el.title = `Bilge stable (~${net.toFixed(2)}/s)`;
+    }
+  }
+
+  /**
+   * Sailing_Improvements.md #24: leaks trend arrow.
+   * ↓ when carpenter is actively patching (`leaks > 0`). Hidden at zero leaks.
+   */
+  _renderLeaksArrow(ship) {
+    const el = this.elements.leaksArrow;
+    if (!el) return;
+    const leaks = ship.leaks ?? 0;
+    if (leaks <= 0) {
+      el.textContent = '';
+      el.className = 'hud-trend hud-trend-hidden';
+      el.title = '';
+      return;
+    }
+    const mult = ship._stationEffects?.leakRepairMult ?? 1;
+    const boosted = mult > 1.05;
+    el.textContent = '↓';
+    el.className = `hud-trend hud-trend-up${boosted ? ' hud-trend-fast' : ''}`;
+    el.title = boosted
+      ? 'Carpenter patching leaks'
+      : 'Leaks healing slowly (assign a carpenter to speed up)';
   }
 
   /**
@@ -236,6 +326,13 @@ export class HUD {
     if (this.elements.bilgeBar) this.elements.bilgeBar.style.width = `${bilgePct}%`;
     if (this.elements.leaks) this.elements.leaks.textContent = (ship.leaks ?? 0).toFixed(1);
 
+    // Sailing_Improvements.md #24: trend arrows. Show the active mechanic so
+    // the player sees crew effects (carpenter repairing, bilge pumping) without
+    // having to stare at the numeric bar.
+    this._renderHullArrow(ship);
+    this._renderBilgeArrow(ship);
+    this._renderLeaksArrow(ship);
+
     // Heading compass — needle points up when rotation=0 (facing +Y)
     if (this.elements.compassNeedle) {
       const deg = ship.rotation * 180 / Math.PI;
@@ -273,7 +370,17 @@ export class HUD {
   updateSailing(ship, voyageInfo = null, extras = {}) {
     if (!ship) return;
     this.update(ship, null, null, null);
-    if (this.elements.mode) this.elements.mode.textContent = 'WASD ▸ Sail · K ▸ Crew · M ▸ Chart · Esc ▸ Cancel';
+    if (this.elements.mode) {
+      // Sailing_Improvements.md §4.5: swap the mode line when autopilot is on so
+      // the player knows it's hot AND how to disengage / override.
+      if (extras?.autopilot) {
+        this.elements.mode.textContent = '⚙ AUTOPILOT engaged · WASD overrides · Shift+H to disengage';
+        this.elements.mode.style.color = '#ffcc88';
+      } else {
+        this.elements.mode.textContent = 'WASD ▸ Sail · H ▸ Heading · ⇧H ▸ Autopilot · K ▸ Crew · M ▸ Chart · Esc ▸ Cancel';
+        this.elements.mode.style.color = '';
+      }
+    }
     if (this.elements.cannonStatus) this.elements.cannonStatus.textContent = '';
     this.updateVoyage(voyageInfo);
     if (extras?.roster) this.updateStations(extras.roster, extras.shipClassId);

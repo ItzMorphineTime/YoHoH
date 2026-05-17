@@ -324,6 +324,31 @@ export class BigMapUI {
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText('N', compX, compY - compSize / 4);
+
+      // Sailing_Improvements.md #23: wind arrow next to compass
+      if (map?.wind && typeof map.wind.angleRad === 'number') {
+        const windX = compX - compSize - 18;
+        const windY = compY;
+        const r = compSize / 2;
+        this.ctx.save();
+        this.ctx.translate(windX, windY);
+        this.ctx.rotate(map.wind.angleRad);
+        this.ctx.strokeStyle = '#8acaff';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, -r); this.ctx.lineTo(0, r);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, r);
+        this.ctx.lineTo(-r * 0.4, r * 0.55);
+        this.ctx.moveTo(0, r);
+        this.ctx.lineTo(r * 0.4, r * 0.55);
+        this.ctx.stroke();
+        this.ctx.restore();
+        this.ctx.fillStyle = '#8acaff';
+        this.ctx.font = `${Math.round(compSize * 0.3)}px sans-serif`;
+        this.ctx.fillText('WIND', windX, compY + compSize / 1.4);
+      }
     }
 
     const legY = h - s.textBottomOffset - 8;

@@ -6,7 +6,7 @@
 
 > Tracks sailing-specific issues: bugs (some long-latent), physics correctness, UX gaps, and structural improvements.
 
-> **Progress (2026-05-17):** First pass complete — §1.1, §1.2, §1.3, §1.4, §1.6, §2.1, §2.3, §2.4, §2.5, §2.6, §2.7, §2.8, §2.9, §4.1, §4.3, §4.4 landed. §1.5 (wake mesh rotation verification) and §2.10 (drop lateral corridor input) deferred — both need a visual playtest to decide direction. §3.1 (config consolidation) deferred — large refactor for low impact relative to the gameplay items just landed.
+> **Progress (2026-05-17):** First pass complete — §1.1, §1.2, §1.3, §1.4, §1.6, §1.7, §2.1, §2.3, §2.4, §2.5, §2.6, §2.7, §2.8, §2.9, §4.1, §4.2, §4.3, §4.4, §4.5 landed plus split-out items #23 (wind arrow), #25 (approach ring), #26 (minimap telegraph), #27 (cancel-voyage penalty), #28 (`?` help overlay). §1.5 (wake mesh rotation verification) and §2.10 (drop lateral corridor input) deferred — both need a visual playtest to decide direction. §3.1 (config consolidation) deferred — large refactor for low impact relative to the gameplay items just landed.
 >
 > **Diagnostic build (2026-05-17):** User reported "ship doesn't move on W" + "Set Sail click does nothing" after the first pass. Built a toggleable **debug overlay** (`` ` `` / backtick to toggle) with live state, rolling event log, and Copy / Download buttons. Instrumented `_startSailing`, `startTravel`, the canvas route-click hit-test, `_onStartSailing`, and `console.warn`/`error` so the overlay reveals exactly where the chain breaks. Also defensively reordered `startTravel` so a thrown error during `createShip`/`setStationEffects` can no longer leave the scene in a half-traveling state. See §6 below for the diagnostic playbook.
 >
@@ -191,9 +191,14 @@ Poisson timer fires and combat starts instantly. The player has no advance signa
 ### 2.5 🟠 The sailing HUD doesn't surface morale or station-effects feedback  ✅
 **Today:** During sailing, station effects (helmsman → turn rate, sailing → speed, carpenter → repair) are computed every tick and applied to the ship, but the player gets no feedback on what they're doing.
 
-**Status:** Done (initial pass). New "Stations" HUD panel shows compact chips for each station with `Helm 1/1`, `GunP 0/2`, etc. Chips colour-code filled/partial/empty. Tooltip on each chip shows full station name + fill count.
+**Status:** Done. New "Stations" HUD panel shows compact chips for each station with `Helm 1/1`, `GunP 0/2`, etc. Chips colour-code filled/partial/empty. Tooltip on each chip shows full station name + fill count.
 
-*Follow-up:* hull-bar repair tick and bilge-pump arrow are still pending (more nuanced UI feedback).
+**Trend arrows (#24):** the hull, bilge, and leaks rows now show inline ↑/↓ glyphs that reflect live mechanics:
+- Hull: `↑` green while damaged; pulses when a carpenter is boosting the base rate. Tooltip shows the actual repair rate per second.
+- Bilge: `↓` orange while pumping wins (good), `↑` red + pulse while flooding (leaks > pump capacity), `·` at equilibrium. Tooltip shows the net rate.
+- Leaks: `↓` green while leaks > 0; pulses with a carpenter assigned. Tooltip explains.
+
+Helpers: `Ship.getHullRepairRate()` and `Ship.getBilgeNetRate()` expose the signed rates so the HUD doesn't have to duplicate the formula. CSS for `.hud-trend` (and the `hud-trend-up`/`down`/`flood`/`fast`/`hidden` modifiers) lives in `index.html`.
 
 ### 2.6 🟡 Camera doesn't react to gameplay  ✅
 **Where:** `_updateSailingCamera` uses a static `cfg.camera.zoom`.
@@ -246,10 +251,23 @@ Currently does: chart screen toggle, sailing update, morale decay, station effec
 
 After the §3.3 refactor, `VoyageController.tick(dt, input)` would absorb morale decay, station effects, the encounter timer, and the arrival detection, leaving Game with just state-machine transitions.
 
-### 3.5 🟢 `lastTravelRoute` tracking in MapUI is the only "previous travel route" cache
-**Where:** [src/ui/MapUI.js:241-248](src/ui/MapUI.js)
+### 3.5 🟢 `lastTravelRoute` tracking in MapUI is the only "previous travel route" cache  ✅
+**Where:** ~~[src/ui/MapUI.js:241-248](src/ui/MapUI.js)~~ (removed)
 
-Used purely to fire the "Setting sail to X!" toast once per voyage. Could move to PortScene / OverworldScene as a proper voyage-state machine ("PLANNING → DEPARTED → IN_TRANSIT → APPROACHING → ARRIVED") that emits events; UI subscribes to events instead of diffing across frames.
+**Status:** Done. `MapUI._lastTravelRoute` deleted along with the cross-frame diff that produced the "Setting sail to X!" toast. Replaced with a small voyage-state event queue on `OverworldScene`:
+
+| Event | Emitted by | Toast (default dispatcher) |
+|---|---|---|
+| `departed` | `startTravel` (success path) | `Setting sail to ${dest}!` |
+| `approaching` | `update()` on rising edge of `progress ≥ ARRIVAL.approachFraction` | `Land ho — ${dest}!` |
+| `arrived` (auto) | `update()` when corridor clampedT ≥ 1 | `Arrived at ${dest}!` |
+| `arrived` (early dock) | `earlyDock()` (player pressed F) | `Docked at ${dest}!` |
+| `sunk` | `update()` when `sailingShip.dead` | silent (combat-defeat owns toast) |
+| `cancelled` | `cancelTravel()` | silent (`Game._cancelVoyage` shows richer penalty toast) |
+
+Events are drained once per frame at the top of `Game.update()` by `_drainVoyageEvents()` and dispatched through `_handleVoyageEvent(e)` — a single switch statement. The drain runs BEFORE the state-machine dispatch so toasts always land before any state transition gives them a chance to evict.
+
+The queue is a plain array (`OverworldScene._voyageEvents`) drained by `consumeVoyageEvents()`. Same pattern as the corridor-event queue (§4.2). Future subscribers (achievements, voyage logger, telemetry) can plug into the same dispatcher without touching the UI layer.
 
 ---
 
@@ -276,9 +294,26 @@ Used purely to fire the "Setting sail to X!" toast once per voyage. Could move t
 ### 4.4 🟢 Cargo / overload effect  ✅
 **Status:** Done. New `CARGO_LOAD` config: linear ramp from `softCap 0.8` to 1.0 imposing `maxPenalty 0.25` (top speed) and `maxTurnPenalty 0.20` (turn rate) at full hold. `getCargoLoadPenalty(loadRatio, cfg)` helper in `utils/upgrades.js`. `OverworldScene._applyCargoLoadPenalty(cargo, shipClassId, upgrades)` is called once at `startTravel()` and writes `_cargoLoadInfo` on the ship for future HUD use.
 
-### 4.5 🟢 Heading hint / autopilot
-- "Set heading to dock" auto-faces the ship to the destination (one press).
-- Optional autopilot toggle: ship sails itself at 70% of effective max while you focus on station management. Disabled mid-encounter.
+### 4.5 🟢 Heading hint / autopilot  ✅
+**Status:** Done.
+
+**Snap heading (`H`)** — one-shot. Reads the current bearing toward the destination from `OverworldScene.getVoyageInfo().bearingRad` and writes it directly to `ship.rotation`. Toast confirms with the 8-point compass label (e.g. *"Heading set NE (45°)"*). Works any time during a voyage, even mid-encounter (useful when fleeing toward the dock).
+
+**Autopilot (`Shift+H`)** — sustained toggle. `Game._buildAutopilotInput(realInput)` returns a `Proxy` around the real input that overrides only `isKeyDown('KeyW'|'KeyS'|'KeyA'|'KeyD')`:
+- `W` = `speed < targetSpeed`         (target = `effectiveMaxSpeed × windMult × AUTOPILOT.targetSpeedFraction`, default 0.7)
+- `S` = `speed > targetSpeed × brakeDeadzoneFraction`   (default 1.05 = 5% overshoot before braking)
+- `A` / `D` = signed delta to bearing exceeds `AUTOPILOT.headingDeadzoneRad` (default ~2.3°)
+
+The Proxy forwards every other property/method untouched, so any future input consumer still sees the real mouse / just-press / etc.
+
+**Auto-disengage on:**
+- Encounter warning arms (`AUTOPILOT.disengageOnEncounter`, default `true`) — handed back silently so the encounter toast has the floor
+- Manual WASD just-press (`_checkAutopilotOverride` reads the real `prevKeys` map; the synthesized keys never touch it, so the autopilot can't trip its own guard)
+- Voyage end (cleared inside `_resetEncounterTimer` so arrival, cancellation, and combat-defeat paths all converge)
+
+**HUD feedback:** when on, the sailing mode line swaps to `⚙ AUTOPILOT engaged · WASD overrides · Shift+H to disengage` in highlight orange. Debug overlay's Sailing section adds an `autopilot:` row showing target speed, heading delta, and which synthesized keys are currently pressed (e.g. `keys [WD]`).
+
+**Config:** new `AUTOPILOT` block in `config.js` (`enabled`, `targetSpeedFraction`, `headingDeadzoneRad`, `brakeDeadzoneFraction`, `disengageOnEncounter`).
 
 ---
 
@@ -307,12 +342,12 @@ Top items are the highest-impact / lowest-risk wins.
 | — | — | — | — | — |
 | 17 | §3.3 / §3.4 — Extract `VoyageController` once mechanics start to pile up | L | 🟡 | ⏳ |
 | 18 | §4.2 — Corridor sub-events (flotsam, debris) | L | 🟢 | ⏳ |
-| 19 | §4.5 — Autopilot / heading-to-dock helper | M | 🟢 | ⏳ |
+| 19 | §4.5 — Autopilot / heading-to-dock helper | M | 🟢 | ✅ |
 | 20 | §2.10 — Drop or repurpose lateral corridor movement | S | 🟢 | ⏳ (design call) |
 | 21 | §1.5 — Verify wake mesh rotation with non-symmetrical texture | S | 🟢 | ⏳ (visual playtest) |
 | 22 | §3.1 — Consolidate sailing config namespaces | M | 🟡 | ⏳ |
 | 23 | Wind arrow on minimap / chart screen | S | 🟢 | ⏳ (split from §4.1) |
-| 24 | Hull-repair / bilge-pump indicator arrows | S | 🟢 | ⏳ (split from §2.5) |
+| 24 | Hull-repair / bilge-pump indicator arrows | S | 🟢 | ✅ (split from §2.5) |
 | 25 | Corridor approach-zone visual (3D ring) | S | 🟢 | ⏳ (split from §2.3) |
 | 26 | Minimap enemy-telegraph before combat | S | 🟢 | ⏳ (split from §2.4) |
 | 27 | Cancel-voyage morale/supplies penalty | S | 🟢 | ⏳ (split from §2.8) |

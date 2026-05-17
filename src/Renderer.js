@@ -318,6 +318,30 @@ export class Renderer {
     this.sailingDestMesh.position.z = 0.5;
     this.sailingGroup.add(this.sailingDestMesh);
 
+    // Sailing_Improvements.md #25: pulsing approach-zone ring around the
+    // destination island. Shown when ship is in the last ~15% of the corridor
+    // ("F to dock" prompt). Hidden otherwise. Uses a separate RingGeometry so
+    // we can pulse opacity / scale per frame.
+    const approachInner = cfg.destMarker.radius * 1.5;
+    const approachOuter = cfg.destMarker.radius * 1.9;
+    const approachGeo = new THREE.RingGeometry(approachInner, approachOuter, 32);
+    const approachMat = new THREE.MeshBasicMaterial({
+      color: 0xaacc88,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+    });
+    this.sailingApproachRingMesh = new THREE.Mesh(approachGeo, approachMat);
+    this.sailingApproachRingMesh.position.z = 0.45;
+    this.sailingApproachRingMesh.visible = false;
+    this.sailingGroup.add(this.sailingApproachRingMesh);
+
+    // Sailing_Improvements.md §4.2: corridor sub-events — pooled small circles
+    // synced per frame in _updateSailingEntities. Pool grows lazily; never shrinks
+    // because the max events per voyage is small (default 3).
+    this._sailingEventMeshes = []; // each: { mesh, material }
+    this._sailingEventUnitGeo = new THREE.CircleGeometry(1, 16);
+
     const islandGeo = new THREE.CircleGeometry(cfg.islandRadius, 24);
     const islandOpacity = cfg.destMarker.opacity * 0.7;
     const originMat = new THREE.MeshBasicMaterial({
@@ -470,11 +494,60 @@ export class Renderer {
     this._syncRocks(rocks);
   }
 
-  updateSailing(sailingShip, shipPosition, travelRoute) {
+  updateSailing(sailingShip, shipPosition, travelRoute, voyageInfo = null, corridorEvents = null) {
     this._hideNonSailingViews();
     this._setupSailingView(shipPosition);
-    this._updateSailingEntities(sailingShip, shipPosition, travelRoute);
+    this._updateSailingEntities(sailingShip, shipPosition, travelRoute, voyageInfo);
+    this._updateCorridorEvents(corridorEvents);
     this._updateSailingCamera(shipPosition, sailingShip); // §2.6: pass ship for speed-aware zoom
+  }
+
+  /** Sailing_Improvements.md §4.2: render pooled circle markers for active events. */
+  _updateCorridorEvents(events) {
+    const cfg = getSailingRenderConfig();
+    const list = events ?? [];
+    // Grow pool as needed
+    while (this._sailingEventMeshes.length < list.length) {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(this._sailingEventUnitGeo, material);
+      mesh.position.z = 0.6;
+      mesh.visible = false;
+      this.sailingGroup.add(mesh);
+      this._sailingEventMeshes.push({ mesh, material });
+    }
+    const eventRadiusGraph = 1.5; // graph units → world units below
+    const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 600;
+    for (let i = 0; i < this._sailingEventMeshes.length; i++) {
+      const { mesh, material } = this._sailingEventMeshes[i];
+      const evt = list[i];
+      if (!evt || evt.triggered) {
+        mesh.visible = false;
+        continue;
+      }
+      const color = (evt._color != null) ? evt._color : this._eventColor(evt.type);
+      evt._color = color;
+      material.color.setHex(color);
+      const scalePulse = 1 + 0.15 * Math.sin(t + i);
+      const scaleWorld = eventRadiusGraph * cfg.worldScale * scalePulse;
+      mesh.scale.set(scaleWorld, scaleWorld, 1);
+      mesh.position.set(evt.x * cfg.worldScale, evt.y * cfg.worldScale, 0.6);
+      mesh.visible = true;
+    }
+  }
+
+  _eventColor(type) {
+    switch (type) {
+      case 'flotsam':   return 0xffcc44;
+      case 'debris':    return 0x8a6a4a;
+      case 'whirlpool': return 0x4a7c9a;
+      case 'friendly':  return 0xaacc88;
+      default:          return 0xcccccc;
+    }
   }
 
   _hideNonSailingViews() {
@@ -499,7 +572,7 @@ export class Renderer {
     this.sailingGroup.visible = true;
   }
 
-  _updateSailingEntities(sailingShip, shipPosition, travelRoute) {
+  _updateSailingEntities(sailingShip, shipPosition, travelRoute, voyageInfo = null) {
     const cfg = getSailingRenderConfig();
     const sx = shipPosition.x * cfg.worldScale;
     const sy = shipPosition.y * cfg.worldScale;
@@ -546,11 +619,30 @@ export class Renderer {
         this.sailingDestIslandMesh.position.set(bx, by, 0.1);
         this.sailingDestIslandMesh.visible = true;
       }
+
+      // Sailing_Improvements.md #25: pulsing approach ring around the destination
+      // island. Visible when voyage progress >= approachFraction (default 0.85).
+      if (this.sailingApproachRingMesh) {
+        const progress = voyageInfo?.progress ?? 0;
+        const showRing = progress >= 0.85;
+        this.sailingApproachRingMesh.visible = showRing;
+        if (showRing) {
+          this.sailingApproachRingMesh.position.set(bx, by, 0.45);
+          // Pulse opacity 0.4 ↔ 0.8 over ~1s using performance.now
+          const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 500;
+          const pulse = 0.6 + 0.2 * Math.sin(t);
+          this.sailingApproachRingMesh.material.opacity = pulse;
+          // Slight scale pulse too
+          const scale = 1 + 0.05 * Math.sin(t);
+          this.sailingApproachRingMesh.scale.set(scale, scale, 1);
+        }
+      }
     } else {
       this.sailingPathMesh.visible = false;
       this.sailingDestMesh.visible = false;
       if (this.sailingOriginIslandMesh) this.sailingOriginIslandMesh.visible = false;
       if (this.sailingDestIslandMesh) this.sailingDestIslandMesh.visible = false;
+      if (this.sailingApproachRingMesh) this.sailingApproachRingMesh.visible = false;
     }
 
     if (this.sailingShipMesh) this.sailingShipMesh.visible = !sailingShip;

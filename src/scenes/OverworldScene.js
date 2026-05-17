@@ -11,7 +11,7 @@ import { getCreateShipOptsFromUpgrades, getCargoLoadPenalty, getCargoCapacityWit
 import { generateMap } from '../map/MapGenerator.js';
 import { deserialize, serialize } from '../map/MapSerializer.js';
 import { getRouteModifiers } from '../utils/routeModifiers.js';
-import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER, ARRIVAL, ROUTE_MODIFIER_EFFECTS, CARGO_LOAD } from '../config.js';
+import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER, ARRIVAL, ROUTE_MODIFIER_EFFECTS, CARGO_LOAD, CORRIDOR_EVENTS } from '../config.js';
 import { getGoods } from '../systems/EconomySystem.js';
 
 export class OverworldScene {
@@ -21,6 +21,13 @@ export class OverworldScene {
     this.travelRoute = null;
     this.sailingShip = null;
     this.shipPosition = { x: 0, y: 0 };
+    // Sailing_Improvements.md §3.5: voyage state-event queue. Replaces the
+    // per-frame `lastTravelRoute` diff in MapUI. Consumers drain with
+    // consumeVoyageEvents() once per frame. Event shape:
+    //   { type: 'departed'|'approaching'|'arrived'|'sunk'|'cancelled',
+    //     origin?: { id, name }, destination?: { id, name }, early?: bool }
+    this._voyageEvents = [];
+    this._lastApproachingState = false;
   }
 
   init(mapData = null, currentIslandId = null) {
@@ -108,17 +115,65 @@ export class OverworldScene {
     this.shipPosition.x = this.sailingShip.x;
     this.shipPosition.y = this.sailingShip.y;
 
+    // Sailing_Improvements.md §4.2: trigger corridor events the ship passed.
+    // Queue them for Game to consume (toasts, gold, hull damage, etc).
+    const newlyTriggered = this._checkCorridorEvents();
+    if (newlyTriggered.length) {
+      this._eventQueue = (this._eventQueue ?? []).concat(newlyTriggered);
+    }
+
+    // Sailing_Improvements.md §3.5: emit `approaching` once per voyage when
+    // we cross the approach-fraction threshold (rising edge only).
+    const info = this.getVoyageInfo();
+    if (info) {
+      const approaching = info.progress >= (ARRIVAL?.approachFraction ?? 0.85);
+      if (approaching && !this._lastApproachingState) {
+        this._voyageEvents.push({
+          type: 'approaching',
+          destination: info.destination,
+        });
+      }
+      this._lastApproachingState = approaching;
+    }
+
     if (arrived || this.sailingShip.dead) {
       const arrivedShipState = this._extractShipState(this.sailingShip);
+      // Sailing_Improvements.md §3.5: emit terminal voyage event
+      this._voyageEvents.push({
+        type: this.sailingShip.dead ? 'sunk' : 'arrived',
+        destination: { id: dest.id, name: dest.name ?? `Island ${dest.id}` },
+      });
       this.currentIsland = dest;
       this.travelRoute = null;
       this.sailingShip = null;
+      this.corridorEvents = [];
       this._modifiedCorridorWidth = null;
       this._routeBasePhysics = null;
+      this._lastApproachingState = false;
       this._updateShipPosition();
       return arrivedShipState;
     }
     return null;
+  }
+
+  /**
+   * Sailing_Improvements.md §3.5: drain the voyage event queue. Replaces the
+   * cross-frame `lastTravelRoute` diff. Caller (Game) routes events to UI.
+   */
+  consumeVoyageEvents() {
+    const q = this._voyageEvents ?? [];
+    this._voyageEvents = [];
+    return q;
+  }
+
+  /**
+   * Sailing_Improvements.md §4.2: drain the corridor-event queue. Caller is
+   * responsible for showing toasts and applying effects.
+   */
+  consumeTriggeredEvents() {
+    const q = this._eventQueue ?? [];
+    this._eventQueue = [];
+    return q;
   }
 
   /**
@@ -205,9 +260,17 @@ export class OverworldScene {
     const { a, b } = this.travelRoute;
     const dest = a === this.currentIsland ? b : a;
     const arrivedShipState = this._extractShipState(this.sailingShip);
+    // Sailing_Improvements.md §3.5: emit terminal voyage event with `early` flag
+    // so the dispatcher can pick "Docked at X." vs. "Arrived at X!".
+    this._voyageEvents.push({
+      type: 'arrived',
+      destination: { id: dest.id, name: dest.name ?? `Island ${dest.id}` },
+      early: true,
+    });
     this.currentIsland = dest;
     this.travelRoute = null;
     this.sailingShip = null;
+    this._lastApproachingState = false;
     this._updateShipPosition();
     return arrivedShipState;
   }
@@ -329,10 +392,97 @@ export class OverworldScene {
     // stored as a pre-modifier baseline (route-modifier code respects it via
     // _routeBasePhysics).
     if (cargo) this._applyCargoLoadPenalty(cargo, shipClassId, upgrades);
+    // Sailing_Improvements.md §4.2: spawn corridor sub-events for this voyage
+    this._spawnCorridorEvents();
+    // Sailing_Improvements.md §3.5: emit `departed` so consumers (Game → MapUI
+    // toast) don't have to diff travelRoute frame-over-frame.
+    this._lastApproachingState = false;
+    this._voyageEvents.push({
+      type: 'departed',
+      origin: { id: this.currentIsland.id, name: this.currentIsland.name ?? `Island ${this.currentIsland.id}` },
+      destination: { id: targetIsland.id, name: targetIsland.name ?? `Island ${targetIsland.id}` },
+    });
     if (typeof window !== 'undefined' && window.__yohohDebugLog) {
-      window.__yohohDebugLog(`startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)}`);
+      window.__yohohDebugLog(`startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)} events=${this.corridorEvents?.length ?? 0}`);
     }
     return true;
+  }
+
+  /**
+   * Sailing_Improvements.md §4.2: roll 1-3 random corridor events for the
+   * current voyage. Each event sits at a random `t` (0..1) along the corridor
+   * with a random lateral offset within `lateralSpread × halfWidth`.
+   */
+  _spawnCorridorEvents() {
+    this.corridorEvents = [];
+    if (!this.travelRoute || !CORRIDOR_EVENTS) return;
+    const cfg = CORRIDOR_EVENTS;
+    const min = cfg.minPerVoyage ?? 1;
+    const max = cfg.maxPerVoyage ?? 3;
+    const count = min + Math.floor(Math.random() * (max - min + 1));
+    const types = Object.keys(cfg.types ?? {});
+    if (types.length === 0) return;
+    // Weighted pick helper
+    const totalWeight = types.reduce((acc, t) => acc + (cfg.types[t].weight ?? 1), 0);
+    const pickType = () => {
+      let r = Math.random() * totalWeight;
+      for (const t of types) {
+        r -= cfg.types[t].weight ?? 1;
+        if (r <= 0) return t;
+      }
+      return types[0];
+    };
+    const { a, b } = this.travelRoute;
+    const origin = a === this.currentIsland ? a : b;
+    const dest = a === this.currentIsland ? b : a;
+    const dx = dest.position.x - origin.position.x;
+    const dy = dest.position.y - origin.position.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) return;
+    const perpX = -dy / len, perpY = dx / len;
+    const corridorWidth = SAILING_RENDER?.corridorWidth ?? OVERWORLD_RENDER?.sailingCorridorWidth ?? OVERWORLD.sailingCorridorWidth ?? 16;
+    const halfWidth = (this._modifiedCorridorWidth ?? corridorWidth) / 2;
+    const spread = cfg.lateralSpread ?? 0.6;
+    for (let i = 0; i < count; i++) {
+      const t = 0.15 + Math.random() * 0.7; // keep events away from the very start / end
+      const lateral = (Math.random() * 2 - 1) * halfWidth * spread;
+      const x = origin.position.x + dx * t + perpX * lateral;
+      const y = origin.position.y + dy * t + perpY * lateral;
+      this.corridorEvents.push({
+        id: `evt_${i}_${Date.now().toString(36)}`,
+        type: pickType(),
+        x, y,
+        t,
+        triggered: false,
+      });
+    }
+  }
+
+  /** Get the live corridor events (for HUD/minimap/renderer). */
+  getCorridorEvents() {
+    return this.corridorEvents ?? [];
+  }
+
+  /**
+   * Sailing_Improvements.md §4.2: check whether the ship is close enough to
+   * any untriggered event. Returns an array of events triggered this tick
+   * (caller applies effects + shows toasts).
+   */
+  _checkCorridorEvents() {
+    if (!this.sailingShip || !this.corridorEvents || this.corridorEvents.length === 0) return [];
+    const triggered = [];
+    const radius = CORRIDOR_EVENTS?.triggerRadius ?? 3;
+    const r2 = radius * radius;
+    const sx = this.sailingShip.x, sy = this.sailingShip.y;
+    for (const e of this.corridorEvents) {
+      if (e.triggered) continue;
+      const dx = e.x - sx, dy = e.y - sy;
+      if (dx * dx + dy * dy <= r2) {
+        e.triggered = true;
+        triggered.push(e);
+      }
+    }
+    return triggered;
   }
 
   /** Sailing_Improvements.md §4.4: apply a one-shot cargo-load penalty to the sailing ship. */
@@ -441,8 +591,20 @@ export class OverworldScene {
 
   /** Cancel travel (e.g. on defeat) — stay at current island */
   cancelTravel() {
+    // Sailing_Improvements.md §3.5: emit `cancelled` for any subscriber that
+    // wants to react. Game's _cancelVoyage already shows a rich toast with
+    // penalties so the default dispatcher is silent on this event.
+    if (this.travelRoute) {
+      const { a, b } = this.travelRoute;
+      const dest = a === this.currentIsland ? b : a;
+      this._voyageEvents.push({
+        type: 'cancelled',
+        destination: { id: dest?.id, name: dest?.name ?? (dest ? `Island ${dest.id}` : 'unknown') },
+      });
+    }
     this.travelRoute = null;
     this.sailingShip = null;
+    this._lastApproachingState = false;
     this._updateShipPosition();
   }
 

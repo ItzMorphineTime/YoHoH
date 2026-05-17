@@ -19,7 +19,8 @@ export class MapUI {
     this.onEnterPort = null;
     this.onCancelVoyage = null; // Sailing_Improvements.md §2.8
     this._hintDismissed = false;
-    this._lastTravelRoute = null;
+    // Sailing_Improvements.md §3.5: `lastTravelRoute` diff removed — the
+    // "Setting sail to X!" toast is now fired by Game's voyage-event dispatcher.
   }
 
   init() {
@@ -253,14 +254,9 @@ export class MapUI {
       this.elements.onboardingHint.style.display = show ? 'flex' : 'none';
       if (isTraveling) this._dismissOnboarding();
     }
-    if (isTraveling && travelRoute && travelRoute !== this._lastTravelRoute) {
-      this._lastTravelRoute = travelRoute;
-      const dest = travelRoute.a === currentIsland ? travelRoute.b : travelRoute.a;
-      const destName = dest?.name || `Island ${dest?.id}`;
-      this._showToast(`Setting sail to ${destName}!`);
-    } else if (!isTraveling) {
-      this._lastTravelRoute = null;
-    }
+    // Sailing_Improvements.md §3.5: "Setting sail to X!" toast moved to Game's
+    // voyage-event dispatcher (driven by the `departed` event emitted from
+    // OverworldScene.startTravel). No frame-over-frame diff here anymore.
     if (this.elements.travelStatus) {
       this.elements.travelStatus.textContent = isTraveling
         ? 'WASD to sail — M for chart'

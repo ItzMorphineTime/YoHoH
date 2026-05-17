@@ -110,6 +110,28 @@
     }
     .hud-label { color: #7a8a9a; width: clamp(28px, 2.5vmin, 40px); }
     .hud-value { color: #e8e6e3; font-weight: 600; width: clamp(20px, 2vmin, 32px); text-align: right; }
+    /* Sailing_Improvements.md #24: trend arrows next to hull/bilge/leaks values */
+    .hud-trend {
+      display: inline-block;
+      width: clamp(10px, 1vmin, 14px);
+      text-align: center;
+      font-size: clamp(10px, 1.1vmin, 13px);
+      font-weight: 700;
+      line-height: 1;
+      color: #7a8a9a;
+      transition: color 0.15s ease, opacity 0.15s ease;
+    }
+    .hud-trend.hud-trend-up { color: #6bca9a; }   /* hull repairing / leaks healing */
+    .hud-trend.hud-trend-down { color: #cc8844; } /* bilge pumping (good); shown on bilge as ↓ */
+    .hud-trend.hud-trend-flood { color: #cc6666; } /* bilge filling = flooding */
+    .hud-trend.hud-trend-fast {
+      animation: hud-trend-pulse 0.8s ease-in-out infinite;
+    }
+    .hud-trend.hud-trend-hidden { opacity: 0; }
+    @keyframes hud-trend-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
     .hud-bar {
       flex: 1;
       height: clamp(4px, 0.4vmin, 6px);
@@ -167,7 +189,14 @@
       color: #aaccdd;
     }
     .hud-cannon-status { color: #7a9a8a; margin-left: auto; }
-    .hud-mode { color: #aacc88; }
+    .hud-mode { color: #aacc88; display:flex; align-items:center; gap:var(--ui-space); }
+    .hud-help-btn {
+      margin-left:auto;
+      width:22px; height:22px; padding:0;
+      background:rgba(20,36,56,0.95); border:1px solid #3a5a7a; border-radius:50%;
+      color:#aaccdd; cursor:pointer; font:bold 12px ui-monospace, Menlo, Consolas, monospace;
+    }
+    .hud-help-btn:hover { background:rgba(42,74,106,1); color:#fff; }
     /* Sailing_Improvements.md §2.1: voyage info panel */
     .hud-voyage {
       flex-direction: column;

@@ -244,26 +244,32 @@ export class Minimap {
   }
 
   /** Overworld/sailing minimap: islands, routes, ship position. Press M for big map. */
-  updateOverworld(map, shipPosition, currentIsland, travelRoute) {
+  updateOverworld(map, shipPosition, currentIsland, travelRoute, telegraph = null, corridorEvents = null) {
     if (!this.ctx || !this.canvas || !map) return;
     this._isOverworldView = true;
     this._resize();
 
     // Improvements.md §2.2: dirty-flag — skip redraw when nothing changed.
+    // Sailing_Improvements.md #26: also redraw while a telegraph is active so it can pulse.
+    // Sailing_Improvements.md §4.2: always redraw if corridorEvents differ (they trigger / appear).
     const sx = shipPosition?.x ?? 0;
     const sy = shipPosition?.y ?? 0;
     const d = this._owDirty;
+    const eventsSig = corridorEvents ? corridorEvents.length + ':' + corridorEvents.filter(e => !e.triggered).length : '';
     if (
+      !telegraph?.active &&
       d.map === map &&
       d.shipX === sx && d.shipY === sy &&
       d.currentIsland === currentIsland &&
       d.travelRoute === travelRoute &&
-      d.size === this.size
+      d.size === this.size &&
+      d.eventsSig === eventsSig
     ) {
       return;
     }
     d.map = map; d.shipX = sx; d.shipY = sy;
     d.currentIsland = currentIsland; d.travelRoute = travelRoute; d.size = this.size;
+    d.eventsSig = eventsSig;
 
     const { islandRadius } = OVERWORLD;
     const padding = Math.max(UI_MINIMAP.paddingMin, this.size * UI_MINIMAP.paddingRatio);
@@ -345,6 +351,54 @@ export class Minimap {
     this.ctx.arc(px, py, UI.minimapDotSizes.player, 0, Math.PI * 2);
     this.ctx.fill();
 
+    // Sailing_Improvements.md §4.2: corridor sub-events as small coloured dots
+    if (Array.isArray(corridorEvents)) {
+      for (const evt of corridorEvents) {
+        if (!evt || evt.triggered) continue;
+        const p = toScreen(evt.x, evt.y);
+        let col = '#cccccc';
+        if (evt.type === 'flotsam') col = '#ffcc44';
+        else if (evt.type === 'debris') col = '#8a6a4a';
+        else if (evt.type === 'whirlpool') col = '#8acaff';
+        else if (evt.type === 'friendly') col = '#aacc88';
+        this.ctx.fillStyle = col;
+        this.ctx.beginPath();
+        this.ctx.arc(p.px, p.py, 2.5, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+    }
+
+    // Sailing_Improvements.md #26: telegraph an incoming enemy on the minimap
+    // during the encounter warning window. The enemy dot pulses and sits
+    // ahead of the ship along the bearing.
+    if (telegraph?.active && travelRoute) {
+      const origin = travelRoute.a === currentIsland ? travelRoute.a : travelRoute.b;
+      const dest = travelRoute.a === currentIsland ? travelRoute.b : travelRoute.a;
+      const dx = dest.position.x - origin.position.x;
+      const dy = dest.position.y - origin.position.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      // Place enemy ~10% ahead of the ship's projection on the route
+      const ex = shipPosition.x + ux * len * 0.1;
+      const ey = shipPosition.y + uy * len * 0.1;
+      const enemy = toScreen(ex, ey);
+      const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 250;
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(t));
+      this.ctx.save();
+      this.ctx.globalAlpha = pulse;
+      this.ctx.fillStyle = c.enemy ?? '#cc4444';
+      this.ctx.beginPath();
+      this.ctx.arc(enemy.px, enemy.py, (UI.minimapDotSizes.enemy ?? 3) * 1.4, 0, Math.PI * 2);
+      this.ctx.fill();
+      // Crosshair ring
+      this.ctx.strokeStyle = '#ff8844';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.beginPath();
+      this.ctx.arc(enemy.px, enemy.py, (UI.minimapDotSizes.enemy ?? 3) * 2.5, 0, Math.PI * 2);
+      this.ctx.stroke();
+      this.ctx.restore();
+    }
+
     // Sailing progress bar (when traveling)
     if (travelRoute && currentIsland) {
       const origin = travelRoute.a === currentIsland ? travelRoute.a : travelRoute.b;
@@ -381,6 +435,35 @@ export class Minimap {
     this.ctx.textBaseline = 'middle';
     this.ctx.fillStyle = '#b8c4d0';
     this.ctx.fillText('N', compX, compY - compSize / 4);
+
+    // Sailing_Improvements.md #23: wind arrow — small downward-pointing arrow rotated
+    // to the map's wind direction. Drawn next to the compass.
+    if (map?.wind && typeof map.wind.angleRad === 'number') {
+      const windX = compX - compSize - 6;
+      const windY = compY;
+      const r = compSize / 2;
+      this.ctx.save();
+      this.ctx.translate(windX, windY);
+      this.ctx.rotate(map.wind.angleRad);
+      // arrow shaft + head pointing along +Y (then rotated)
+      this.ctx.strokeStyle = '#8acaff';
+      this.ctx.lineWidth = 1.5;
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, -r); this.ctx.lineTo(0, r);
+      this.ctx.stroke();
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, r);
+      this.ctx.lineTo(-r * 0.4, r * 0.5);
+      this.ctx.moveTo(0, r);
+      this.ctx.lineTo(r * 0.4, r * 0.5);
+      this.ctx.stroke();
+      this.ctx.restore();
+      // Label
+      this.ctx.fillStyle = '#8acaff';
+      this.ctx.font = `${Math.round(compSize * 0.34)}px sans-serif`;
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('W', windX, compY + compSize / 1.6);
+    }
 
     // Store for tooltip hit detection (N.2)
     this._lastOverworldTransform = { cx, cy, midX, midY, scale };

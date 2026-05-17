@@ -3,7 +3,7 @@
  * Phase A: Combat | Phase B: Overworld, Sailing, Save/Load
  */
 
-import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES, ROUTE_MODIFIER_EFFECTS } from './config.js';
+import { GAME_STATES, GAME, COMBAT, OVERWORLD, ECONOMY, SHIP_CLASSES, ROUTE_MODIFIER_EFFECTS, CANCEL_VOYAGE, CREW, CORRIDOR_EVENTS, AUTOPILOT } from './config.js';
 import { getRouteModifiers } from './utils/routeModifiers.js';
 import { loadGoods } from './systems/EconomySystem.js';
 import { Renderer } from './Renderer.js';
@@ -18,6 +18,7 @@ import { BigMapUI } from './ui/BigMapUI.js';
 import { PortUI } from './ui/PortUI.js';
 import { CrewUI } from './ui/CrewUI.js';                            // Port_Improvements.md §5
 import { DebugOverlay } from './ui/DebugOverlay.js';                // Sailing_Improvements.md: debug
+import { HelpOverlay } from './ui/HelpOverlay.js';                  // Sailing_Improvements.md #28: keybinds
 import { getStationEffects, updateMoraleDecay } from './systems/CrewSystem.js';
 import { saveToStorage, loadFromStorage, loadWithStatus, LOAD_STATUS } from './utils/saveSystem.js';
 import { PortController } from './controllers/PortController.js';   // Improvements.md §5.1
@@ -39,6 +40,7 @@ export class Game {
     this.portScene = new PortScene();
     this.portUI = new PortUI(container);
     this.debug = new DebugOverlay(); // backtick (`) toggles
+    this.help = new HelpOverlay();   // ? toggles
     // Port_Improvements.md §5: CrewUI shell + controller. Init wires DOM later.
     this.crewController = null; // built in init() so it can reference portController
     this.crewUI = null;          // ditto
@@ -58,6 +60,8 @@ export class Game {
     this._overworldPan = { x: 0, y: 0 };
     this._overworldZoom = 1;
     this._overworldDragStart = null;
+    // Sailing_Improvements.md §4.5: autopilot persistent toggle (reset per voyage).
+    this._autopilotOn = false;
   }
 
   /** D.9: Get current game state for save. */
@@ -160,6 +164,8 @@ export class Game {
     this.crewUI = new CrewUI({ host: this._buildCrewUIHost() });
     this.crewUI.init();
     this.debug.init();
+    this.help.init();
+    this.hud.onHelp = () => this.help?.toggle();
     // Expose a global hook so other modules (MapUI, etc) can log into the debug overlay
     // without having to import it directly. (Sailing_Improvements.md debug)
     if (typeof window !== 'undefined') {
@@ -251,12 +257,32 @@ export class Game {
       e.push(`fleeAccum: ${(this._encounterFleeAccum ?? 0).toFixed(2)}s`);
       const v = this.overworldScene?.getVoyageInfo?.();
       if (v) e.push(`voyage   : ${v.distanceRemaining.toFixed(1)}/${v.distanceTotal.toFixed(1)} (${(v.progress * 100).toFixed(0)}%)  eta ${v.etaSec != null ? v.etaSec.toFixed(1) + 's' : '—'}`);
+      // Sailing_Improvements.md §4.5
+      const apShip = this.overworldScene?.getSailingShip?.();
+      const apState = apShip?._autopilotState;
+      if (this._autopilotOn) {
+        const dir = [];
+        if (apState?.needThrust) dir.push('W');
+        if (apState?.needBrake)  dir.push('S');
+        if (apState?.needLeft)   dir.push('A');
+        if (apState?.needRight)  dir.push('D');
+        const deltaDeg = apState ? (apState.delta * 180 / Math.PI).toFixed(1) : '—';
+        e.push(`autopilot: ON  target ${apState?.targetSpeed?.toFixed(4) ?? '—'}  Δhdg ${deltaDeg}°  keys [${dir.join('') || '—'}]`);
+      } else {
+        e.push('autopilot: off');
+      }
       this.debug.setSection('Sailing', e);
     }
     this.debug.flush();
   }
 
   update(dt) {
+    // Sailing_Improvements.md §3.5: drain voyage state events first so any toast
+    // (departed / arrived / cancelled) lands before the state-machine logic.
+    // This replaces the per-frame `lastTravelRoute` diff that used to live in
+    // MapUI.update — UI now reads side-effects, not inferred deltas.
+    this._drainVoyageEvents();
+
     if (this.state === GAME_STATES.OVERWORLD) {
       this._updateOverworld(dt);
     } else if (this.state === GAME_STATES.SAILING) {
@@ -265,6 +291,46 @@ export class Game {
       this._updateCombat(dt);
     } else if (this.state === GAME_STATES.PORT) {
       this._updatePort(dt);
+    }
+  }
+
+  /** Sailing_Improvements.md §3.5: drain + dispatch voyage events. */
+  _drainVoyageEvents() {
+    const events = this.overworldScene?.consumeVoyageEvents?.() ?? [];
+    for (const e of events) this._handleVoyageEvent(e);
+  }
+
+  /**
+   * Sailing_Improvements.md §3.5: dispatch a single voyage event to UI.
+   * `cancelled` is intentionally silent — Game._cancelVoyage shows a richer
+   * toast that includes the gold/morale penalty, and `sunk` is owned by the
+   * combat-defeat flow. The event still fires so future subscribers (logger,
+   * achievement system) can react without going through the toast path.
+   */
+  _handleVoyageEvent(e) {
+    if (!e?.type) return;
+    switch (e.type) {
+      case 'departed':
+        this.mapUI?.showToast?.(`Setting sail to ${e.destination?.name ?? 'open sea'}!`);
+        this.debug?.log(`voyage event: departed → ${e.destination?.name}`);
+        break;
+      case 'approaching':
+        this.mapUI?.showToast?.(`Land ho — ${e.destination?.name ?? 'destination'}!`, 'success');
+        this.debug?.log(`voyage event: approaching ${e.destination?.name}`);
+        break;
+      case 'arrived':
+        this.mapUI?.showToast?.(
+          `${e.early ? 'Docked at' : 'Arrived at'} ${e.destination?.name ?? 'port'}!`,
+          'success',
+        );
+        this.debug?.log(`voyage event: arrived${e.early ? ' (early dock)' : ''} → ${e.destination?.name}`);
+        break;
+      case 'cancelled':
+        this.debug?.log(`voyage event: cancelled (toast handled by _cancelVoyage)`);
+        break;
+      case 'sunk':
+        this.debug?.log(`voyage event: sunk near ${e.destination?.name}`);
+        break;
     }
   }
 
@@ -345,10 +411,24 @@ export class Game {
       this.bigMapUI.toggle();
     }
 
+    // Sailing_Improvements.md §4.5: autopilot keybinds + manual-override detection.
+    // H = snap heading to dock (one-shot); Shift+H = toggle autopilot. WASD just-press
+    // disengages autopilot so the player can grab the wheel without ceremony.
+    this._handleAutopilotKeys(input);
+    this._checkAutopilotOverride(input);
+
+    // If autopilot is engaged we wrap the real input so SailingSystem reads
+    // synthesized WASD that steers toward the bearing at the cruise throttle.
+    const effectiveInput = this._autopilotOn ? this._buildAutopilotInput(input) : input;
+
     // Improvements.md §4.3: OverworldScene.update() returns the arrived ship state
     // on the single frame the voyage completes (replaces the consume-on-read side channel).
-    const arrivedState = overworldScene.update(dt, input);
+    const arrivedState = overworldScene.update(dt, effectiveInput);
     if (arrivedState) this._playerShipState = arrivedState;
+
+    // Sailing_Improvements.md §4.2: process any corridor sub-events the ship
+    // passed through this tick (flotsam loot, debris damage, whirlpool drag, etc).
+    this._handleCorridorEvents(overworldScene.consumeTriggeredEvents?.() ?? []);
 
     // C.6: morale decays during voyage; C.6c: faster decay when undercrewed
     const maxCrew = SHIP_CLASSES?.[this._playerShipClass ?? 'sloop']?.crewMax ?? 20;
@@ -358,14 +438,14 @@ export class Game {
       sailingShip.setStationEffects(getStationEffects(this._crewRoster ?? [], this._playerShipClass ?? 'sloop'));
     }
 
-    // Sailing_Improvements.md §2.3: early-dock prompt when approaching destination
+    // Sailing_Improvements.md §2.3: early-dock prompt when approaching destination.
+    // §3.5: arrival toast is fired by the `arrived` voyage event the next time
+    // _drainVoyageEvents() runs (next tick, top of update()).
     if (overworldScene.isTraveling() && overworldScene.isApproachingDestination?.() && input.isKeyJustPressed('KeyF')) {
       const arrived = overworldScene.earlyDock?.();
       if (arrived) {
         this._playerShipState = arrived;
         this._resetEncounterTimer();
-        const arrivedIsland = overworldScene.getCurrentIsland();
-        if (arrivedIsland?.name) this.mapUI.showToast(`Docked at ${arrivedIsland.name}.`, 'success');
         this.state = GAME_STATES.OVERWORLD;
         return;
       }
@@ -377,9 +457,9 @@ export class Game {
     if (overworldScene.isTraveling()) {
       this._tickEncounter(dt, input);
     } else {
+      // Sailing_Improvements.md §3.5: arrival toast is dispatched by the
+      // `arrived` voyage event next tick (drained at the top of update()).
       this._resetEncounterTimer();
-      const arrivedIsland = overworldScene.getCurrentIsland();
-      if (arrivedIsland?.name) this.mapUI.showToast(`Arrived at ${arrivedIsland.name}!`);
       this.state = GAME_STATES.OVERWORLD;
     }
   }
@@ -425,6 +505,13 @@ export class Game {
       this._encounterTimer = this._sampleEncounterDelay(lambda);
       this._encounterWarningTimer = warnDuration;
       this._encounterFleeAccum = 0;
+      // Sailing_Improvements.md §4.5: hand the wheel back so the player
+      // controls the flee throttle. Disengage silently — the encounter toast
+      // is enough noise for one beat.
+      if (this._autopilotOn && AUTOPILOT?.disengageOnEncounter !== false) {
+        this._autopilotOn = false;
+        this.debug?.log('autopilot → OFF (encounter warning)');
+      }
       this.mapUI.showToast(
         `⚠ Sail on the horizon! Hold W to flee (${warnDuration.toFixed(0)}s).`,
         'error',
@@ -437,12 +524,182 @@ export class Game {
     this._encounterTimer = null;
     this._encounterWarningTimer = null;
     this._encounterFleeAccum = 0;
+    // Sailing_Improvements.md §4.5: autopilot is voyage-scoped — clear it when
+    // the encounter / voyage state machine resets.
+    this._autopilotOn = false;
+  }
+
+  /**
+   * Sailing_Improvements.md §4.2: apply effects + toasts for any corridor
+   * sub-events the ship triggered this tick.
+   */
+  _handleCorridorEvents(events) {
+    if (!events || events.length === 0) return;
+    const cfg = CORRIDOR_EVENTS;
+    const ship = this.overworldScene?.getSailingShip?.();
+    for (const evt of events) {
+      switch (evt.type) {
+        case 'flotsam': {
+          const lo = cfg?.flotsamGold?.min ?? 5;
+          const hi = cfg?.flotsamGold?.max ?? 25;
+          const gold = lo + Math.floor(Math.random() * (hi - lo + 1));
+          this._playerGold = (this._playerGold ?? 0) + gold;
+          this.mapUI?.showToast?.(`Flotsam recovered: +${gold} gold!`, 'success');
+          break;
+        }
+        case 'debris': {
+          const hullDmg = cfg?.debrisHull ?? 4;
+          const leaks = cfg?.debrisLeaks ?? 0.5;
+          if (ship && !ship.dead) {
+            ship.takeDamage?.(hullDmg, 'hull');
+            ship.leaks = (ship.leaks ?? 0) + leaks;
+          }
+          this.mapUI?.showToast?.(`Hit floating debris! Hull -${hullDmg}`, 'error');
+          break;
+        }
+        case 'whirlpool': {
+          const drag = cfg?.whirlpoolSpeedDrag ?? 0.4;
+          if (ship) ship.speed = (ship.speed ?? 0) * drag;
+          this.mapUI?.showToast?.('Caught in a whirlpool!', 'error');
+          break;
+        }
+        case 'friendly': {
+          this.mapUI?.showToast?.('A friendly sail passes by. Fair winds!', 'success');
+          break;
+        }
+        default:
+          this.mapUI?.showToast?.(`Event: ${evt.type}`, 'success');
+      }
+    }
+  }
+
+  /**
+   * Sailing_Improvements.md §4.5: handle autopilot keybinds.
+   *   H        — snap ship rotation to the current bearing toward destination
+   *   Shift+H  — toggle persistent autopilot (auto-steer + auto-throttle)
+   *
+   * Both are no-ops outside of an active voyage. The toggle refuses to engage
+   * while an encounter warning is armed.
+   */
+  _handleAutopilotKeys(input) {
+    if (!AUTOPILOT?.enabled) return;
+    if (!input.isKeyJustPressed?.('KeyH')) return;
+    const shift = input.isKeyDown?.('ShiftLeft') || input.isKeyDown?.('ShiftRight');
+    const traveling = this.overworldScene?.isTraveling?.();
+    if (!traveling) {
+      this.mapUI?.showToast?.('No voyage in progress.', 'error');
+      return;
+    }
+    if (shift) {
+      // Sustained autopilot — refuse to engage during the encounter warning.
+      if (this._encounterWarningTimer != null) {
+        this.mapUI?.showToast?.('Cannot engage autopilot — sail on the horizon!', 'error');
+        return;
+      }
+      this._autopilotOn = !this._autopilotOn;
+      this.mapUI?.showToast?.(
+        this._autopilotOn ? '⚙ Autopilot engaged — Shift+H to disengage' : 'Autopilot disengaged.',
+        'success',
+      );
+      this.debug?.log(`autopilot → ${this._autopilotOn ? 'ON' : 'OFF'}`);
+      return;
+    }
+    // One-shot heading snap.
+    const info = this.overworldScene.getVoyageInfo?.();
+    const ship = this.overworldScene.getSailingShip?.();
+    if (!info || !ship) return;
+    ship.rotation = info.bearingRad;
+    const compass = this._compass8(info.bearingRad);
+    this.mapUI?.showToast?.(`Heading set ${compass} (${Math.round((info.bearingRad * 180 / Math.PI + 360) % 360)}°).`, 'success');
+    this.debug?.log(`heading snap → ${compass}`);
+  }
+
+  /**
+   * Sailing_Improvements.md §4.5: any manual WASD just-press disengages autopilot.
+   * The input.isKeyJustPressed check reads the REAL prevKeys map (which the
+   * autopilot wrapper never mutates), so the autopilot's synthesized presses
+   * cannot trip this guard.
+   */
+  _checkAutopilotOverride(input) {
+    if (!this._autopilotOn) return;
+    if (input.isKeyJustPressed?.('KeyW')
+        || input.isKeyJustPressed?.('KeyA')
+        || input.isKeyJustPressed?.('KeyS')
+        || input.isKeyJustPressed?.('KeyD')) {
+      this._autopilotOn = false;
+      this.mapUI?.showToast?.('Autopilot disengaged (manual override).', 'success');
+      this.debug?.log('autopilot → OFF (manual override)');
+    }
+  }
+
+  /**
+   * Sailing_Improvements.md §4.5: build a thin wrapper around the real input
+   * that overrides W/A/S/D with values derived from voyage geometry so the
+   * existing SailingSystem._applyControls can steer the ship without any
+   * special-case branching downstream. All other input methods pass through
+   * to the real input via Proxy so any future caller still gets the right
+   * behaviour (mouse, just-press, etc).
+   */
+  _buildAutopilotInput(realInput) {
+    const ship = this.overworldScene?.getSailingShip?.();
+    const info = this.overworldScene?.getVoyageInfo?.();
+    if (!ship || !info) return realInput; // safety: nothing to autopilot
+
+    const cfg = AUTOPILOT ?? {};
+    const targetFrac = cfg.targetSpeedFraction ?? 0.7;
+    const headingDeadzone = cfg.headingDeadzoneRad ?? 0.04;
+    const brakeOver = cfg.brakeDeadzoneFraction ?? 1.05;
+
+    const windMult = ship._windMult ?? 1;
+    const effMax = (ship.effectiveMaxSpeed ?? ship.maxSpeed ?? 0) * windMult;
+    const targetSpeed = effMax * targetFrac;
+
+    // Throttle: thrust while below target; brake hard if we drift well over.
+    const needThrust = ship.speed < targetSpeed;
+    const needBrake = ship.speed > targetSpeed * brakeOver;
+
+    // Heading: pick port/starboard based on signed delta to bearing.
+    const delta = info.headingDeltaRad ?? 0;
+    const needLeft = delta < -headingDeadzone;
+    const needRight = delta > headingDeadzone;
+
+    // Stash for HUD / debug overlay.
+    ship._autopilotState = { needThrust, needBrake, needLeft, needRight, targetSpeed, delta };
+
+    return new Proxy(realInput, {
+      get(target, prop) {
+        if (prop === 'isKeyDown') {
+          return (code) => {
+            switch (code) {
+              case 'KeyW': return needThrust;
+              case 'KeyS': return needBrake;
+              case 'KeyA': return needLeft;
+              case 'KeyD': return needRight;
+              default:     return target.isKeyDown(code);
+            }
+          };
+        }
+        const v = Reflect.get(target, prop, target);
+        return typeof v === 'function' ? v.bind(target) : v;
+      },
+    });
+  }
+
+  /** 8-point compass label for a bearing in radians (sailing convention). */
+  _compass8(angleRad) {
+    const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const deg = ((angleRad ?? 0) * 180 / Math.PI + 360) % 360;
+    return labels[Math.round(deg / 45) % 8];
   }
 
   /**
    * Cancel an in-progress voyage and return to the OVERWORLD at the origin
    * island. Persists the current sailing-ship state (so leaks/hull damage carry
    * over) and clears the encounter timer. (Sailing_Improvements.md §2.8)
+   *
+   * Sailing_Improvements.md #27: applies a small penalty so cancelling isn't free:
+   *   - subtract `CANCEL_VOYAGE.goldCost` gold (wasted supplies)
+   *   - reduce each crew's morale by `moraleLossPerCrew`
    */
   _cancelVoyage() {
     if (this.state !== GAME_STATES.SAILING || !this.overworldScene.isTraveling()) return;
@@ -457,9 +714,23 @@ export class Game {
         leaks: sailingShip.leaks,
       };
     }
+    // Apply penalties
+    const goldCost = Math.min(CANCEL_VOYAGE?.goldCost ?? 0, this._playerGold ?? 0);
+    this._playerGold = (this._playerGold ?? 0) - goldCost;
+    const moraleLoss = CANCEL_VOYAGE?.moraleLossPerCrew ?? 0;
+    const moraleMin = CREW?.moraleMin ?? 0.2;
+    if (moraleLoss > 0) {
+      for (const c of this._crewRoster ?? []) {
+        c.morale = Math.max(moraleMin, (c.morale ?? 1) - moraleLoss);
+      }
+    }
+
     this.overworldScene.cancelTravel();
     this._resetEncounterTimer();
-    this.mapUI.showToast('Turned back to the last island.', 'success');
+    const parts = ['Turned back to the last island'];
+    if (goldCost > 0) parts.push(`-${goldCost} gold`);
+    if (moraleLoss > 0 && (this._crewRoster?.length ?? 0) > 0) parts.push(`crew morale -${Math.round(moraleLoss * 100)}%`);
+    this.mapUI.showToast(parts.join(' · ') + '.', 'success');
     this.state = GAME_STATES.OVERWORLD;
   }
 
@@ -768,21 +1039,31 @@ export class Game {
       const sailingShip = overworldScene.getSailingShip();
       const currentIsland = overworldScene.getCurrentIsland();
       const travelRoute = overworldScene.travelRoute;
-      renderer.updateSailing(sailingShip, shipPos, travelRoute);
+      // Sailing_Improvements.md #25: voyage info also used by renderer for the approach ring
+      const voyageInfo = overworldScene.getVoyageInfo?.() ?? null;
+      // Sailing_Improvements.md §4.2: corridor events render as pulsing circles
+      const corridorEvents = overworldScene.getCorridorEvents?.() ?? null;
+      renderer.updateSailing(sailingShip, shipPos, travelRoute, voyageInfo, corridorEvents);
       mapUI.show();
       mapUI.update(currentIsland, true, travelRoute, overworldScene.getRouteInfo(travelRoute), null);
       document.getElementById('hud')?.style.setProperty('display', 'flex');
       document.getElementById('overworld-map-controls')?.classList.remove('visible');
-      // Sailing_Improvements.md §2.1 + §2.5: pass voyage info + crew roster for HUD panels
+      // Sailing_Improvements.md §2.1 + §2.5 + §4.5: voyage info + crew + autopilot status
       hud.updateSailing(
         sailingShip,
-        overworldScene.getVoyageInfo?.() ?? null,
-        { roster: this._crewRoster ?? [], shipClassId: this._playerShipClass ?? 'sloop' },
+        voyageInfo,
+        {
+          roster: this._crewRoster ?? [],
+          shipClassId: this._playerShipClass ?? 'sloop',
+          autopilot: this._autopilotOn === true,
+        },
       );
       const minimapWrapper = document.getElementById('minimap-wrapper');
       minimapWrapper?.style.setProperty('display', 'block');
       minimapWrapper?.setAttribute('data-context', 'sailing');
-      minimap.updateOverworld(map, shipPos, currentIsland, travelRoute);
+      // Sailing_Improvements.md #26: telegraph enemy on minimap during encounter warning
+      const telegraph = { active: this._encounterWarningTimer != null && this._encounterWarningTimer > 0 };
+      minimap.updateOverworld(map, shipPos, currentIsland, travelRoute, telegraph, corridorEvents);
       if (bigMapUI.isVisible()) {
         const chartShipPos = sailingShip
           ? { x: sailingShip.x, y: sailingShip.y }

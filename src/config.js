@@ -143,6 +143,44 @@ export const ARRIVAL = {
   autoArriveFraction: 1.0,
 };
 
+/** Sailing_Improvements.md #27: penalties applied when the player cancels a voyage mid-route. */
+export const CANCEL_VOYAGE = {
+  /** Gold paid to "turn back" (supplies wasted). Subtracted from playerGold. */
+  goldCost: 5,
+  /** Morale lost per crew member (subtracted from each crew's `morale`). */
+  moraleLossPerCrew: 0.1,
+};
+
+/**
+ * Sailing_Improvements.md §4.2: corridor sub-events — drifting flotsam,
+ * debris, whirlpools, friendly NPCs scattered through the voyage corridor.
+ * The player intercepts them by passing near (within `triggerRadius`).
+ */
+export const CORRIDOR_EVENTS = {
+  /** Min / max number of events spawned per voyage. */
+  minPerVoyage: 1,
+  maxPerVoyage: 3,
+  /** Lateral spread as a fraction of corridor half-width (1 = full width). */
+  lateralSpread: 0.6,
+  /** Player trigger radius in graph units. */
+  triggerRadius: 3,
+  /** Types and their probability weights. */
+  types: {
+    flotsam:   { weight: 4, color: 0xffcc44 },  // gold loot
+    debris:    { weight: 2, color: 0x6a4a4a },  // hull / leak risk
+    whirlpool: { weight: 1, color: 0x4a7c9a },  // brief speed drag
+    friendly:  { weight: 2, color: 0xaacc88 },  // friendly sail, rumor
+  },
+  /** Loot range for flotsam (gold). */
+  flotsamGold: { min: 5, max: 25 },
+  /** Hull damage when hitting debris. */
+  debrisHull: 4,
+  /** Leak count added when hitting debris. */
+  debrisLeaks: 0.5,
+  /** Whirlpool effect: speed multiplied by this fraction once on trigger. */
+  whirlpoolSpeedDrag: 0.4,
+};
+
 /**
  * Sailing_Improvements.md §4.4: cargo overload — penalises speed/turn when the
  * ship is heavily laden. Linear falloff between `softCap` and 1.0 (capacity).
@@ -173,6 +211,34 @@ export const WIND = {
   penaltyMult: 0.20,   // up to -20% when sailing into the wind
   /** How sharply the effect peaks (0..1). Higher = more concentrated near directly down/upwind. */
   shape: 1.0,
+};
+
+/**
+ * Sailing_Improvements.md §4.5: autopilot / heading-to-dock helper.
+ *
+ * Two keybinds:
+ *   H        — snap ship rotation to the current bearing toward the destination
+ *              (one-shot; works any time during a voyage).
+ *   Shift+H  — toggle sustained autopilot. While engaged, the ship steers itself
+ *              toward the bearing and throttles to `targetSpeedFraction` of
+ *              effective max so the player can manage crew / read events.
+ *
+ * Autopilot auto-disengages on:
+ *   - encounter-warning arming (player must fight or flee manually)
+ *   - any WASD just-press (manual override)
+ *   - voyage end (centralised in _resetEncounterTimer)
+ */
+export const AUTOPILOT = {
+  /** Master kill-switch — set false to disable both the toggle and the snap. */
+  enabled: true,
+  /** Cruise throttle as a fraction of effectiveMaxSpeed (× windMult). */
+  targetSpeedFraction: 0.7,
+  /** Heading is considered "on bearing" within ± this many radians (~2.3°). */
+  headingDeadzoneRad: 0.04,
+  /** Brake when speed exceeds target by this fraction (default 5% over target). */
+  brakeDeadzoneFraction: 1.05,
+  /** Whether autopilot auto-disengages when an encounter warning arms. */
+  disengageOnEncounter: true,
 };
 
 /**
@@ -427,8 +493,12 @@ export const ECONOMY = {
 
 // ─── Sailing System (shared physics) ───────────────────────────────────────
 export const SAILING_SYSTEM = {
-  /** Speed below which a drifting ship snaps to 0 (only when no W/S is held). */
-  speedDeadzone: 0.02,
+  /**
+   * Speed below which a drifting ship snaps to 0 (only when no W/S is held).
+   * Lowered from 0.02 → 0.005 so the snap is less visible at the tail end of a
+   * coast. (Sailing_Improvements.md §1.7)
+   */
+  speedDeadzone: 0.005,
   /** Floor for the high-speed turn penalty multiplier. */
   minTurnPenalty: 0.3,
   /** Numerical epsilon for corridor length checks. */
