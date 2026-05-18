@@ -624,8 +624,21 @@
       font-size: var(--ui-font-base);
       font-weight: 600;
       cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
     .map-start-sailing-btn:hover { background: #5a8c69; }
+    /* Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18):
+       the button is NEVER `disabled` (disabled buttons swallow clicks before
+       the handler runs, leaving no log/toast). Instead, when the player can't
+       afford supplies it gets `.cant-afford` — clickable, visually obvious,
+       and `_onStartSailing` shows a toast explaining why. */
+    .map-start-sailing-btn.cant-afford {
+      background: #6a4a4a;
+      border-color: #8b5050;
+      color: #f0c0c0;
+    }
+    .map-start-sailing-btn.cant-afford:hover { background: #7a5454; }
+    .map-start-sailing-btn.cant-afford::before { content: "⚠ "; }
     .map-deselect-btn {
       padding: var(--ui-space) var(--ui-space-lg);
       background: #2a3a4a;

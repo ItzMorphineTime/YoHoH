@@ -25,6 +25,10 @@
 > **Feel tuning pass (2026-05-17):** After fixing movement, acceleration was visibly too fast (ship snapped to top speed in <0.1s) and pressing S could push the ship into reverse. Two more fixes:
 > 1. **`SAILING.accelMultiplier` (default 0.05)** — new global knob, scales thrust independently from `speedMultiplier`. At 0.05, sloops now take ~1.5s to reach top speed instead of snapping. Lower for heavier feel; higher for snappier. Applied in `Ship.getShipStatsFromConfig` as `thrust = rawThrust * speedMult * accelMult`. Combat thrust unaffected (only `useSailing` paths read `accelMultiplier`).
 > 2. **No reverse** — `SailingSystem._applyControls` now clamps the S-key path at **0** instead of `-effectiveMax * reverseMult`. Ships in YoHoH never reverse; S is a brake-only key. Removed the now-unused `SAILING_SYSTEM.reverseSpeedMult` config field.
+>
+> **Start Sailing silent-fail (2026-05-18):** User reported "the logic can break and you're not able to Start Sailing, no information in the logs." Investigation traced the full click chain (`MapUI._onStartSailing` → `Game._startSailing` → `OverworldScene.startTravel`) and found **six silent-fail paths** producing zero player-visible feedback. Root cause: line 308 of `MapUI.js` set `startSailingBtn.disabled = !canAffordSupplies` — when gold < `ECONOMY.suppliesCost` (default 3), the HTML `disabled` attribute makes the browser **drop click events before any handler fires**. No `console.warn`, no `__yohohDebugLog`, no toast. Just a slightly-faded button. The other five paths (no `_pendingRoute`, no current island, route doesn't connect, no edge, createShip throws) all returned `false` silently with only a debug-overlay log.
+>
+> **Fix shipped:** see §6 — "Start Sailing silent-fail" section below for the full diagnostic + 5-change list.
 
 ---
 
@@ -411,5 +415,63 @@ The **EVENTS** log at the bottom catches:
 | Click logged with route, but no `MapUI._onStartSailing` entry after pressing Start Sailing | DOM click handler not bound (`init()` didn't run), or another overlay intercepting the click |
 | `MapUI._onStartSailing: pendingRoute=false` | Selection panel state was cleared between selecting and clicking. Check that selectedRoute persisted |
 | `_startSailing called: route=[a↔b]` followed by `✗ FAIL: ...` | Specific failure reason logged (no current island / no edge / not enough gold for supplies / etc) |
-| `startTravel BLOCKED: already traveling on [...]` | Old voyage didn't clean up; the defensive reorder in `startTravel` should make this self-heal on next attempt |
-| No log at all on button click | The button's click handler isn't reaching `_onStartSailing`. Check pointer-events / z-index on overlay siblings |
+| `startTravel BLOCKED: already traveling on [...]` | Old voyage didn't clean up; the self-heal in `startTravel` now clears stale `travelRoute` if `sailingShip` is null |
+| No log at all on button click | The button's click handler isn't reaching `_onStartSailing`. Used to be the `disabled` attribute (gold < supplies) silently swallowing clicks — see §7 below — now fixed. If still happening, check pointer-events / z-index on overlay siblings |
+
+---
+
+## 7. Bug investigation — "Start Sailing silently fails" (2026-05-18)
+
+> **User report:** *"When in the Map and selecting a route to sail, the logic can break and you're not able to Start Sailing, there doesn't seem to be any information in the logs or any clues when playing the game as to why you're no longer able to sail anywhere."*
+
+### Root cause
+
+`MapUI.update` (line 308) had:
+
+```js
+this.elements.startSailingBtn.disabled = !canAffordSupplies;
+```
+
+When the player's gold drops below `ECONOMY.suppliesCost` (default **3 gold**), the HTML `disabled` attribute is set on the button. Per the HTML spec, **disabled buttons do not fire `click` events at all** — the DOM event handler in `MapUI.init` never runs, so `_onStartSailing` is never called, and every downstream log / toast / warn is bypassed. The player sees a slightly-faded button and absolutely nothing happens.
+
+This was the loudest silent-fail path but not the only one. Investigation found **six** total:
+
+| # | Path | Symptom | Logging that existed |
+|---|------|---------|---|
+| 1 | `MapUI.update` `disabled` attribute | Click drops; no handler fires | none — browser swallows the event |
+| 2 | `MapUI._onStartSailing` with no `_pendingRoute` | Handler runs but no action | `console.warn` only |
+| 3 | `Game._startSailing`: `!route` / `!currentIsland` | Returns `false` | `debug.log` only (overlay must be open) |
+| 4 | `Game._startSailing`: `target = a === currentIsland ? b : a` when neither matches | Returns `false` with a target from a stale map | `debug.log` only |
+| 5 | `OverworldScene.startTravel`: 3 BLOCKED paths (already-traveling, no current, no edge) | Returns `false` | `debug.log` only |
+| 6 | `OverworldScene.startTravel`: `createShip` / `setStationEffects` throws | Returns `false` | `console.error` only — never reaches the toast surface |
+
+### Reproduction recipe (before the fix)
+
+1. Start a new game with `GAME.startingGold = 100`.
+2. Sail back and forth between islands; each voyage costs `suppliesCost = 3` gold; some entries also charge `dockFee = 5`.
+3. After ~25 voyages the player's gold dips below 3.
+4. Click any route to select it. Selection panel appears normally.
+5. Click "Start Sailing". **Nothing happens.** No toast, no console log, no debug-overlay entry. Button looks essentially the same as when enabled (subtle browser-default fade).
+
+The user has no way to discover that the cause is "you need 3 gold". The tooltip says `Supplies: 3 gold` but only on hover, doesn't say "you can't afford this".
+
+### Fix (5 changes)
+
+1. **Remove the `disabled` attribute entirely** (`MapUI.update`). The button is now always clickable. A `.cant-afford` CSS class is toggled instead — visually obvious red tint with a `⚠` prefix, but the click still reaches the handler.
+
+2. **`MapUI._onStartSailing` toasts on every failure** — `"Select a route from your island first."` when `_pendingRoute` is missing, `"Internal error: sailing handler missing."` when the callback isn't wired (defensive — shouldn't happen).
+
+3. **`OverworldScene.startTravel` returns a structured `{ ok, reason, detail? }`** instead of a bare `false`. Reason codes: `'already-traveling'`, `'no-current-island'`, `'no-edge'`, `'create-ship-failed'`. Backward compat: `result.ok` is truthy/falsy so existing `if (ok)` callers keep working.
+
+4. **`Game._startSailing` toasts on every failure** with a tailored message per reason — *"Voyage already in progress (X↔Y). Cancel it first."*, *"No route to that island. Pick another."*, *"Need 3 gold for supplies — you have 1."*, *"Couldn't ready your ship: <error>."*. Also catches the "route doesn't touch current island" case (stale `_selectedRoute` from a previous map) and auto-clears the selection.
+
+5. **`startTravel` self-heals stale state**: if `travelRoute` is set but `sailingShip` is null (the half-state the existing defensive-reorder comment warns about), the call clears `travelRoute` and proceeds normally instead of refusing forever. Plus `Game.onLoadMap` now clears `_selectedRoute` / `_hoveredRoute` so stale node references can't survive a map load.
+
+### Files touched
+
+- `src/ui/MapUI.js` — drop `disabled`, add `cant-afford` class, toast in `_onStartSailing`
+- `src/scenes/OverworldScene.js` — structured `{ ok, reason, detail }`, self-heal stale state
+- `src/Game.js` — failure-reason dispatcher (`_showStartTravelFailureToast`), clear selection on map-load
+- `index.html` — `.cant-afford` CSS (red tint + ⚠ icon)
+
+After the fix, **every Start Sailing failure produces a player-visible toast** plus the existing debug-overlay log line. The "logs show nothing" failure mode is gone.

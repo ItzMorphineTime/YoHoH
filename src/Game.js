@@ -132,7 +132,17 @@ export class Game {
     }
 
     this.mapUI.onSaveMap = () => this.overworldScene.serializeMap();
-    this.mapUI.onLoadMap = (json) => this.overworldScene.loadMap(json);
+    this.mapUI.onLoadMap = (json) => {
+      // Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18):
+      // clear stale route references so the player doesn't end up holding a
+      // selection that points to nodes from the previous map.
+      const ok = this.overworldScene.loadMap(json);
+      if (ok) {
+        this._selectedRoute = null;
+        this._hoveredRoute = null;
+      }
+      return ok;
+    };
     this.mapUI.onSaveGame = () => this.saveGame();
     this.mapUI.onStartSailing = (route) => this._startSailing(route);
     this.mapUI.onDeselectRoute = () => { this._selectedRoute = null; };
@@ -1020,27 +1030,54 @@ export class Game {
     // No per-frame work here — the port is otherwise static. (Improvements.md §1.3)
   }
 
+  /**
+   * Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18):
+   * Every failure path now surfaces a specific toast so the player can
+   * see *why* sailing didn't start. Previously these returned `false`
+   * silently and only emitted to the debug overlay (which most players
+   * don't have open).
+   */
   _startSailing(route) {
     this.debug?.log(`_startSailing called: route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
+    if (!route) {
+      this.debug?.log('  ✗ FAIL: no route passed in');
+      this.mapUI?.showToast?.('Select a route from your island first.', 'error');
+      return false;
+    }
     const currentIsland = this.overworldScene.getCurrentIsland();
-    if (!route || !currentIsland) {
-      this.debug?.log(`  ✗ FAIL: route=${!!route} currentIsland=${!!currentIsland}`);
+    if (!currentIsland) {
+      this.debug?.log('  ✗ FAIL: no current island');
+      this.mapUI?.showToast?.('No island to set sail from.', 'error');
       return false;
     }
     const { a, b } = route;
+    if (a !== currentIsland && b !== currentIsland) {
+      // The selected route doesn't touch our current island. Most likely
+      // cause: stale `_selectedRoute` reference from a previous map (load /
+      // new game) — clear it so the player can try again.
+      this.debug?.log(`  ✗ FAIL: route [${a?.id}↔${b?.id}] doesn't touch currentIsland=${currentIsland.id}`);
+      this.mapUI?.showToast?.('That route doesn\'t start from your island. Pick another.', 'error');
+      this._selectedRoute = null;
+      return false;
+    }
     const target = a === currentIsland ? b : a;
     if (!target) {
-      this.debug?.log('  ✗ FAIL: route does not connect to currentIsland');
+      this.debug?.log('  ✗ FAIL: route has no opposite endpoint');
+      this.mapUI?.showToast?.('Route is malformed — no destination.', 'error');
+      this._selectedRoute = null;
       return false;
     }
     const suppliesCost = ECONOMY?.suppliesCost ?? 0;
     const gold = this._playerGold ?? 0;
     if (suppliesCost > 0 && gold < suppliesCost) {
       this.debug?.log(`  ✗ FAIL: need ${suppliesCost} gold for supplies, have ${gold}`);
-      this.mapUI.showToast(`Need ${suppliesCost} gold for supplies!`, 'error');
+      this.mapUI?.showToast?.(
+        `Need ${suppliesCost} gold for supplies — you have ${gold}.`,
+        'error',
+      );
       return false;
     }
-    const ok = this.overworldScene.startTravel(
+    const result = this.overworldScene.startTravel(
       target,
       this._crewRoster ?? [],
       this._playerShipClass ?? 'sloop',
@@ -1048,14 +1085,42 @@ export class Game {
       this._playerUpgrades ?? {},
       this._playerCargo ?? {}, // Sailing_Improvements.md §4.4
     );
-    this.debug?.log(`  startTravel → ${ok ? 'OK' : 'FAIL (no edge?)'}`);
+    // Structured result with `ok` + `reason` (still truthy on success).
+    const ok = result && result.ok;
+    this.debug?.log(`  startTravel → ${ok ? 'OK' : `FAIL (${result?.reason ?? 'unknown'})`}`);
     if (ok) {
       if (suppliesCost > 0) this._playerGold = Math.max(0, gold - suppliesCost);
       this._selectedRoute = null;
       this.state = GAME_STATES.SAILING;
       this.debug?.log(`  → state=SAILING; ship=${!!this.overworldScene.getSailingShip()}`);
+      return true;
     }
-    return ok;
+    // Tailored toast per failure reason from OverworldScene.
+    this._showStartTravelFailureToast(result);
+    return false;
+  }
+
+  /** Map OverworldScene.startTravel failure reasons → player-facing toast. */
+  _showStartTravelFailureToast(result) {
+    const reason = result?.reason ?? 'unknown';
+    const detail = result?.detail;
+    switch (reason) {
+      case 'already-traveling':
+        this.mapUI?.showToast?.(`Voyage already in progress${detail ? ` (${detail})` : ''}. Cancel it first.`, 'error');
+        break;
+      case 'no-current-island':
+        this.mapUI?.showToast?.('Lost track of your current island. Try reloading.', 'error');
+        break;
+      case 'no-edge':
+        this.mapUI?.showToast?.(`No route ${detail ? `(${detail})` : 'to that island'}. Pick another.`, 'error');
+        this._selectedRoute = null;
+        break;
+      case 'create-ship-failed':
+        this.mapUI?.showToast?.(`Couldn't ready your ship: ${detail ?? 'unknown error'}.`, 'error');
+        break;
+      default:
+        this.mapUI?.showToast?.(`Couldn't set sail (${reason}). Check the debug overlay.`, 'error');
+    }
   }
 
   /**

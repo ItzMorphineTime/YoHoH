@@ -348,20 +348,54 @@ export class OverworldScene {
     };
   }
 
-  /** Start travel along route from current island to target. Uses SailingSystem for player control. */
+  /**
+   * Start travel along route from current island to target. Uses SailingSystem
+   * for player control.
+   *
+   * Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18): now
+   * returns a structured `{ ok, reason, detail? }` so Game can surface a
+   * specific toast for each failure instead of swallowing them in debug logs.
+   *
+   * Reason codes:
+   *   'already-traveling'   travelRoute is set (and sailingShip is too — real voyage in progress)
+   *   'no-current-island'   currentIsland is null (shouldn't happen post-init)
+   *   'no-edge'             no edge exists between currentIsland and targetIsland (stale route?)
+   *   'create-ship-failed'  createShip / setStationEffects threw
+   *
+   * Backward compat: still truthy on success, falsy on failure, so existing
+   * `if (ok)` callers keep working.
+   */
   startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null, upgrades = {}, cargo = null) {
+    const dbg = (msg) => {
+      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog(msg);
+    };
+    // Self-heal: if travelRoute is set but sailingShip is null we're in a
+    // half-state (an exception during a previous startTravel, or a future
+    // bug). Recover quietly so the player doesn't get stuck forever.
+    if (this.travelRoute && !this.sailingShip) {
+      dbg('startTravel self-heal: travelRoute set but no sailingShip → clearing stale state');
+      this.travelRoute = null;
+      this._routeBasePhysics = null;
+      this._modifiedCorridorWidth = null;
+      this._lastApproachingState = false;
+    }
     if (this.travelRoute) {
-      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog(`startTravel BLOCKED: already traveling on [${this.travelRoute.a?.id}↔${this.travelRoute.b?.id}]`);
-      return false;
+      const stale = `[${this.travelRoute.a?.id}↔${this.travelRoute.b?.id}]`;
+      dbg(`startTravel BLOCKED: already traveling on ${stale}`);
+      return { ok: false, reason: 'already-traveling', detail: stale };
     }
     if (!this.currentIsland) {
-      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog('startTravel BLOCKED: no current island');
-      return false;
+      dbg('startTravel BLOCKED: no current island');
+      return { ok: false, reason: 'no-current-island' };
     }
     const edge = this._findEdge(this.currentIsland, targetIsland);
     if (!edge) {
-      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog(`startTravel BLOCKED: no edge between [${this.currentIsland.id}] and [${targetIsland?.id}]`);
-      return false;
+      dbg(`startTravel BLOCKED: no edge between [${this.currentIsland.id}] and [${targetIsland?.id}]`);
+      return {
+        ok: false,
+        reason: 'no-edge',
+        detail: `from=${this.currentIsland.name ?? this.currentIsland.id}, to=${targetIsland?.name ?? targetIsland?.id ?? '?'}`,
+      };
     }
     const dx = targetIsland.position.x - this.currentIsland.position.x;
     const dy = targetIsland.position.y - this.currentIsland.position.y;
@@ -390,7 +424,8 @@ export class OverworldScene {
       newShip.setStationEffects(getStationEffects(crewRoster, shipClassId));
     } catch (err) {
       console.error('[OverworldScene.startTravel] failed to create sailing ship:', err);
-      return false;
+      dbg(`startTravel BLOCKED: create-ship-failed (${err?.message ?? err})`);
+      return { ok: false, reason: 'create-ship-failed', detail: err?.message ?? String(err) };
     }
     this.sailingShip = newShip;
     this.travelRoute = edge;
@@ -410,10 +445,8 @@ export class OverworldScene {
       origin: { id: this.currentIsland.id, name: this.currentIsland.name ?? `Island ${this.currentIsland.id}` },
       destination: { id: targetIsland.id, name: targetIsland.name ?? `Island ${targetIsland.id}` },
     });
-    if (typeof window !== 'undefined' && window.__yohohDebugLog) {
-      window.__yohohDebugLog(`startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)} events=${this.corridorEvents?.length ?? 0}`);
-    }
-    return true;
+    dbg(`startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)} events=${this.corridorEvents?.length ?? 0}`);
+    return { ok: true };
   }
 
   /**

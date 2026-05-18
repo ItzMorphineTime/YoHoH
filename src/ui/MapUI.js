@@ -221,15 +221,27 @@ export class MapUI {
   }
 
   _onStartSailing() {
-    // Sailing_Improvements.md: traceability — log to console if user can't get sailing to start
+    // Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18):
+    // Every failure path now surfaces a toast so the player has real
+    // feedback. The debug log mirror stays for in-game diagnosis.
     if (typeof window !== 'undefined' && window.__yohohDebugLog) {
       window.__yohohDebugLog(`MapUI._onStartSailing: pendingRoute=${!!this._pendingRoute} cb=${!!this.onStartSailing}`);
     }
-    if (this._pendingRoute && this.onStartSailing) {
-      this.onStartSailing(this._pendingRoute);
-    } else {
-      console.warn('[MapUI] Start Sailing clicked but', { hasPendingRoute: !!this._pendingRoute, hasCallback: !!this.onStartSailing });
+    if (!this._pendingRoute) {
+      // This branch fires when the player clicked Start Sailing without first
+      // selecting a route, or when their selection was cleared by some other
+      // path (state transition, map reload).
+      this._showToast('Select a route from your island first.', 'error');
+      console.warn('[MapUI] Start Sailing clicked with no pending route.');
+      return;
     }
+    if (!this.onStartSailing) {
+      // Should be unreachable in practice — Game wires `onStartSailing` in init.
+      this._showToast('Internal error: sailing handler missing.', 'error');
+      console.error('[MapUI] Start Sailing clicked but `onStartSailing` is unset.');
+      return;
+    }
+    this.onStartSailing(this._pendingRoute);
   }
 
   _onDeselectRoute() {
@@ -305,8 +317,17 @@ export class MapUI {
         const suppliesCost = ECONOMY?.suppliesCost ?? 0;
         const canAffordSupplies = suppliesCost <= 0 || (gold != null && gold >= suppliesCost);
         if (this.elements.startSailingBtn) {
-          this.elements.startSailingBtn.disabled = !canAffordSupplies;
-          this.elements.startSailingBtn.title = suppliesCost > 0 ? `Supplies: ${suppliesCost} gold` : '';
+          // Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18):
+          // Do NOT set `disabled` — a disabled HTML button swallows clicks
+          // *before* any handler can run, so the player gets ZERO feedback
+          // ("logs show nothing"). Instead, leave the button clickable and
+          // let `_onStartSailing` show a toast when they can't afford.
+          // The `.cant-afford` class is the visual hint.
+          this.elements.startSailingBtn.disabled = false;
+          this.elements.startSailingBtn.classList.toggle('cant-afford', !canAffordSupplies);
+          this.elements.startSailingBtn.title = !canAffordSupplies
+            ? `Need ${suppliesCost} gold for supplies (you have ${gold ?? 0})`
+            : suppliesCost > 0 ? `Supplies cost: ${suppliesCost} gold` : '';
         }
         if (cfg.showConnectedRoutes !== false && this.elements.routeSelectionConnected && connectedRoutes.length > 0) {
           const maxRoutes = cfg.connectedRoutesMax ?? 8;

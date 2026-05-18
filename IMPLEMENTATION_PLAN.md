@@ -4,7 +4,7 @@
 **Last updated:** 2026-05-16
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [Logging_Improvements.md](Logging_Improvements.md) (logging + diagnostics roadmap), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -995,6 +995,14 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - §4.2 — Active tab persists via PortScene.setActiveTab.
 - §4.4 — Audit script flagged the INFAMY bug; one dead `ECONOMY` import in PortController removed; remaining flags were false positives.
 
+**Bug fix — "Start Sailing silently fails" (2026-05-18, see Sailing_Improvements.md §7):**
+User report: pressing Start Sailing did nothing, no log entries explained why. Investigation found **six** silent-fail paths. Root cause: `MapUI.update` set `startSailingBtn.disabled = !canAffordSupplies` — disabled HTML buttons drop click events *before* any handler fires, so logging / toasts never reach the player. Five other paths returned `false` with only a debug-overlay log line.
+- Drop the `disabled` attribute; toggle a `.cant-afford` CSS class (red tint + ⚠) and let the click handler fire and toast.
+- `OverworldScene.startTravel` now returns `{ ok, reason, detail }`. Reasons: `already-traveling`, `no-current-island`, `no-edge`, `create-ship-failed`. `Game._startSailing` dispatches a tailored toast per reason.
+- `startTravel` self-heals stale `travelRoute` when `sailingShip` is null (the half-state the existing defensive-reorder comment warned about).
+- `Game._startSailing` catches the "route doesn't touch current island" case (stale `_selectedRoute` from a previous map) and auto-clears the selection.
+- `Game.onLoadMap` clears `_selectedRoute` / `_hoveredRoute` so stale node references can't survive a map load.
+
 **Seventh pass — Battle/Combat (2026-05-18, see Battle_Improvements.md):**
 - **§1.1 + §3.1 + §1.9** Enemy physics rewired through `SailingSystem` — was both fps-dependent AND gated behind a 0.5 s AI-decision timer, so enemies teleported in 0.5 s hops. Now physics ticks every frame (dt-scaled, friction-as-exponent, bounds-clamped); AI decisions still re-roll on the slower cadence; cooldowns tick every frame. New `_aiInput` plain object wraps a cached `_aiIntent` and exposes `isKeyDown(code)`. Raider targeting improved: now flips into broadside posture at dist ≤ 50 (previously aimed bow-on and almost never landed shots).
 - **§1.2** Per-class `collisionRadius` on `SHIP_CLASSES` (sloop 7, brigantine 9, galleon 11, 8-unit fallback). `CombatSystem` hit-test reads per-ship + uses squared distance vs squared radius (drops the per-projectile `Math.sqrt`).
@@ -1010,6 +1018,44 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - **§2.11** Combat event queue on `CombatScene` (`combat_start` / `enemy_sunk` / `player_hit` / `victory` / `defeat`). Drained in `Game._updateCombat` via `_handleCombatEvent(e)`; toasts for ship-state events, `player_hit` routes to the §2.7 damage feedback dispatcher.
 
 ### ⏳ Remaining
+
+---
+
+#### 🚩 TOP PRIORITY — Logging & Diagnostics (Logging_Improvements.md)
+
+**Why this is at the top of the list:** every silent-fail bug we've shipped so far (ship-not-moving on hold-W, Start Sailing button doing nothing, Tavern/Shipwright/Market buttons doing nothing, main menu unclickable) shared the same shape — *the game refused to do what the player asked, with zero feedback through any channel*. Each one cost a multi-hour diagnostic session. Investing in a proper Logger + crash surface now stops that pattern dead and pays back the next time we (or a player) hits a weird edge case. See [Logging_Improvements.md](Logging_Improvements.md) for the full 21-item triage.
+
+**Phase L1 — Foundation** (first session)
+- 🔴 New `src/utils/Logger.js` with `log.trace/debug/info/warn/error(category, message, data?)`, multiple sinks (Console / Overlay / Memory / LocalStorage), level + category config.
+- 🔴 Migrate every existing `console.warn` / `console.error` / `window.__yohohDebugLog` / `debug?.log` call to the canonical Logger. Backward-compat shim so legacy call sites keep working.
+- 🟠 `GAME.logging` config block (per-sink level), `?debug` URL param boosts everything to `trace`.
+- 🟠 Category filter UI in `DebugOverlay` (checkboxes + isolate-one shortcut).
+
+**Phase L2 — Auto-event surface** (no more silent failures)
+- 🟠 `Game._transitionState(next, reason?)` helper — every state flip logged with its trigger.
+- 🟠 Voyage + combat event queues *also* push to Logger (data persists even when the player misses the toast).
+- 🔴 Audit every `return false` / `return null` in user-facing methods — each requires at least an `info` log entry.
+- 🟠 Audit every HTML `<button>` for the `disabled`-drops-click trap (same pattern as the Start Sailing fix); standardise on always-clickable + toast-on-can't-afford.
+
+**Phase L3 — Crash surface** (usable bug reports by default)
+- 🔴 Crash modal on uncaught error / unhandled rejection — recent log + state snapshot + Copy / Download buttons.
+- 🟠 `dumpGameState()` — JSON-serialisable snapshot (gold / ship / crew / current island / map ID / recent events). Button in DebugOverlay + auto-included in every crash payload.
+- 🟡 Bug-report-friendly diagnostic share format (env + build hash + recent state + last 100 input events).
+
+**Phase L4 — Polish + stretch** (long tail)
+- 🟡 Save / load tracing through Logger; promote `GAME.devCheats.logSaves` to `log.level('save')`.
+- 🟡 `loggedFetch(url, label)` wrapper for goods / lore / future map JSON loads.
+- 🟡 Per-frame perf metrics (fps history, frame-time spike warnings).
+- 🟡 `Result.ok / Result.fail(reason, detail)` helper — generalises the `startTravel` pattern from the silent-fail fix.
+- 🟡 Banned-patterns lint check — flag raw `console.warn / .error / .log` outside `Logger.js`.
+- 🟢 In-game console REPL (dev-cheat-gated) for hot-poking state.
+- 🟢 Deterministic input replay (requires threading the seeded RNG through every random call).
+- 🟢 Player-anonymous remote telemetry sink (opt-in).
+- 🟢 Time-travel state snapshots (ring of 10 checkpoints to bisect when a bug appeared).
+
+**Acceptance for "logging is done":** the next "Start Sailing silent-fail"-class bug is impossible to ship without producing a log entry that points at the root cause.
+
+---
 
 **Improvements.md backlog:**
 - 🟡 §3.1 finish — extract `SailingRenderer` and `CombatRenderer`; introduce a `CameraController`
