@@ -995,6 +995,20 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - §4.2 — Active tab persists via PortScene.setActiveTab.
 - §4.4 — Audit script flagged the INFAMY bug; one dead `ECONOMY` import in PortController removed; remaining flags were false positives.
 
+**Seventh pass — Battle/Combat (2026-05-18, see Battle_Improvements.md):**
+- **§1.1 + §3.1 + §1.9** Enemy physics rewired through `SailingSystem` — was both fps-dependent AND gated behind a 0.5 s AI-decision timer, so enemies teleported in 0.5 s hops. Now physics ticks every frame (dt-scaled, friction-as-exponent, bounds-clamped); AI decisions still re-roll on the slower cadence; cooldowns tick every frame. New `_aiInput` plain object wraps a cached `_aiIntent` and exposes `isKeyDown(code)`. Raider targeting improved: now flips into broadside posture at dist ≤ 50 (previously aimed bow-on and almost never landed shots).
+- **§1.2** Per-class `collisionRadius` on `SHIP_CLASSES` (sloop 7, brigantine 9, galleon 11, 8-unit fallback). `CombatSystem` hit-test reads per-ship + uses squared distance vs squared radius (drops the per-projectile `Math.sqrt`).
+- **§1.3** `CombatScene.init` no longer reaches into raw `cls.*` fields. New `Ship.applyClassPhysics({ useSailing })` re-derives physics via the centralised `getShipStatsFromConfig` and applies them to the same instance — preserves OverworldScene's `sailingShip` reference. Symmetric `useSailing: true` swap on the victory→sailing return path.
+- **§1.4** R-restart guarded behind `GAME.devCheats.combatRestart` (default `false`) AND switched to `isKeyJustPressed`. HUD victory/defeat lines updated to advertise `Esc` instead.
+- **§1.5** `COMBAT_RESULT` enum imported in Game.js; all three `_updateCombat` comparisons use the constants instead of `'victory'` / `'defeat'` strings.
+- **§1.8** Rocks are real obstacles. Projectiles test against rocks BEFORE ship hit-test (cover); rock-hit projectiles die + spawn splash FX. Ships push out via `CombatScene._pushShipsOutOfRocks()` — runs after `SailingSystem.update` per tick, clamps each ship to `(shipRadius + rock.r)` boundary, bleeds 60% of speed.
+- **§2.1 + §2.10** Pooled per-enemy HP bar mesh above each hostile (scene-level so it stays axis-aligned regardless of ship rotation). Foreground scales by `hull / hullMax`, colour grades green → yellow → red. Count chip carried by the §2.2 sub-line.
+- **§2.2** New `#hud-combat-objective` sub-line next to the mode line: `⚔ Sink all enemies (1/2)`. `HUD.update` takes an `extras.enemies` parameter; Game.js render passes the enemies array.
+- **§2.4** Cannon arc opacity reflects cooldown: `0.10 + baseOpacity × readyFrac` per side. Almost-ready (< 0.3 s remaining) flashes the warning hue `0xff8844`.
+- **§2.6** Combat FX pool — muzzle (0.18 s orange disc at broadside flank), splash (0.45 s blue ring on projectile timeout / rock hit), hit (0.30 s red spark on ship contact). `CombatSystem.effects[]` queue + `Renderer._updateCombatEffects(effects)` pooled `CircleGeometry` mesh, tinted/scaled per type.
+- **§2.7** Damage feedback triad on `player_hit` event: `Renderer.triggerShake(amp, dur)` with decay tick (amp sub-linear in damage, capped 4 world-units); `#combat-damage-vignette` CSS-driven radial-red flash; `#hud-hull-bar.combat-bar-hit` box-shadow pulse via `hud-bar-hit-flash` keyframe.
+- **§2.11** Combat event queue on `CombatScene` (`combat_start` / `enemy_sunk` / `player_hit` / `victory` / `defeat`). Drained in `Game._updateCombat` via `_handleCombatEvent(e)`; toasts for ship-state events, `player_hit` routes to the §2.7 damage feedback dispatcher.
+
 ### ⏳ Remaining
 
 **Improvements.md backlog:**
@@ -1034,23 +1048,24 @@ A living list of code-quality, performance, and correctness fixes lives in [Impr
 - **§5.4 Fog of war (always on — Chart Screen only)** — new `src/utils/fogOfWar.js` (`isNodeVisible` / `isEdgeVisible` / `FOG_UNKNOWN_LABEL`). `Node.discovered` persisted in `MapSerializer`; home discovered at gen, others flip on arrival. Toast 📜 *"Chart updated — X added."* on first arrival. **Scope (revised 2026-05-17):** fog applies to `MapChartingUI` ONLY. The 3D overworld, corner minimap, and bottom MapUI route panel always show full info — they're the action surfaces where the player needs to decide what to sail toward. Chart is the "captain's chart" abstraction that lags behind direct observation.
 - **§6.1** ARIA — `role="img"` + dynamic `aria-label` on both map canvases (chart counts discovered/total islands); connected-routes list uses `role="list"` + `role="listitem"` with per-route `aria-label`.
 
-**Battle_Improvements.md backlog (newly opened):**
+**Battle_Improvements.md backlog (remaining after Seventh pass):**
 
-- 🔴 Battle §1.1 — Enemy movement is not dt-scaled AND is gated behind a 0.5 s AI-decision timer (enemies teleport in 0.5 s hops). Wire enemies through `SailingSystem` with a synthetic AI input wrapper.
-- 🔴 Battle §1.2 — Hit detection uses a hard-coded radius of 8 for every ship class (sloop / brigantine / galleon all collide at the same footprint).
-- 🔴 Battle §1.3 — `CombatScene.init` imperatively overrides player physics with raw `cls.*` fields, bypassing `getShipStatsFromConfig` (same shadowing-bug class as Sailing §1.2).
-- 🔴 Battle §1.4 — `R` restart runs on `isKeyDown` (held → loop) and silently spawns a fresh sloop after defeat with no save-state link. Gate behind dev cheat or fix to `isKeyJustPressed`.
-- 🔴 Battle §2.1 / §2.2 — Player has zero on-screen info on enemy class, HP, or win condition. Add enemy nameplates + a "Sink all enemies (2/2)" sub-line.
-- 🟠 Battle §1.5 — Replace `'victory'` / `'defeat'` string literals with the `COMBAT_RESULT` enum import.
-- 🟠 Battle §1.6 — Cannon-arc and ship-movement angle conventions disagree; rationalise.
-- 🟠 Battle §1.7 — Crew-damage code path is dead; either implement (grape shot / boarding) or remove.
-- 🟠 Battle §1.8 — Rocks have no collision; projectiles + ships pass through them.
+- 🟠 Battle §1.6 — Cannon-arc and ship-movement angle conventions disagree; rationalise (refactor).
+- 🟠 Battle §1.7 — Crew-damage code path still dead; needs either implementation (grape shot / boarding) or removal of `Ship.takeDamage('crew')` and `crewMax`.
 - 🟠 Battle §2.3 — No mid-combat flee. Pair with Sailing §2.4's pre-combat flee pattern.
-- 🟠 Battle §2.4 / §2.6 / §2.7 — Cannon arc opacity, projectile splash, muzzle flash, camera shake / HUD pulse on hit. Feedback layer the genre relies on.
-- 🟠 Battle §2.9 — Proper defeat overlay (Continue / Load / Main Menu).
-- 🟡 Battle §3.x — Code-structure: `Enemy` → `SailingSystem`, `EncounterSpec` factory, split `Renderer.updateCombat`.
-- 🟢 Battle §4.x — New mechanics: tiered enemy classes, boarding actions (wire up `boarding_nets` / `grappling_hooks` upgrades), ammo types, wind in combat, critical hits, surrender, capturable ships, combat morale loop.
-- See [Battle_Improvements.md](Battle_Improvements.md) for the full 33-item triage + 7 open design questions.
+- 🟠 Battle §2.9 — Proper defeat overlay (Continue / Load / Main Menu) — current `Esc → cancelTravel` is functional but spartan.
+- 🟡 Battle §1.10 — Per-type enemy stats (Trader / Raider / future tiers) — currently every enemy has identical 0.8× COMBAT base hull/sails.
+- 🟡 Battle §3.3 — `CombatScene.init` arg-overloaded ("first init" vs "restart"); split into `startEncounter` + `restartEncounter` once §3.4 EncounterSpec lands.
+- 🟡 Battle §3.4 — `EncounterSpec` factory: encounter rolls 1–3 enemies based on route danger + player infamy. Drops the hardcoded raider+trader pair.
+- 🟡 Battle §3.5 — Combat reads route modifiers (stormy → fog + hull wear, patrolled → tougher AI, shoals → arena rocks).
+- 🟡 Battle §3.6 / §3.7 — Split `Renderer.updateCombat` into sub-helpers; rename CombatSystem/Scene boundary docs.
+- 🟢 Battle §4.x — New mechanics: tiered enemy classes, boarding actions (wire up `boarding_nets` / `grappling_hooks` upgrades), ammo types, wind in combat, critical hits + status effects, surrender, capturable ships, combat morale loop, "darkness falls" stalemate breaker.
+- 🟢 Battle §2.1 / §2.10 follow-ups — class-icon labels on enemy nameplates, per-enemy HUD list panel with distance + bearing arrow.
+- 🟢 Battle §2.5 — "Auto-fire when in arc" toggle for accessibility.
+- 🟢 Battle §2.8 — Visual enemy-class differentiation (scale + sail tint).
+- 🟢 Battle §2.12 — Combat camera reactions beyond hit-shake (zoom-out on multiple targets, kill-zoom punch).
+- 🟢 Battle §3.2 — Spatial bucket for hit-tests when projectile/ship counts grow.
+- See [Battle_Improvements.md](Battle_Improvements.md) for the full triage + 7 open design questions.
 
 **Charting_Improvements.md backlog (remaining):**
 - 🟡 Charting §3.3 — MapUI panel innerHTML rebuild content-signature

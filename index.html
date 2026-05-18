@@ -190,6 +190,33 @@
     }
     .hud-cannon-status { color: #7a9a8a; margin-left: auto; }
     .hud-mode { color: #aacc88; display:flex; align-items:center; gap:var(--ui-space); }
+    /* Battle_Improvements.md §2.7: damage feedback layer */
+    #combat-damage-vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(180, 30, 30, 0.55) 100%);
+      opacity: 0;
+      transition: opacity 0.4s ease-out;
+    }
+    #combat-damage-vignette.combat-damage-flash { opacity: 1; transition: opacity 0.08s ease-in; }
+    /* HUD hull bar pulses red on hit */
+    #hud-hull-bar.combat-bar-hit { animation: hud-bar-hit-flash 0.45s ease-out; }
+    @keyframes hud-bar-hit-flash {
+      0% { box-shadow: inset 0 0 0 2px #ff6644, 0 0 8px #ff6644; }
+      100% { box-shadow: inset 0 0 0 0 transparent, 0 0 0 transparent; }
+    }
+    /* Battle_Improvements.md §2.2 / §2.10: combat objective sub-line + enemy count */
+    .hud-combat-objective {
+      color: #ffcc88;
+      font-size: clamp(11px, 1.1vmin, 13px);
+      font-weight: 600;
+      padding: 1px 8px;
+      background: rgba(74, 36, 36, 0.55);
+      border: 1px solid #6a4a4a;
+      border-radius: 3px;
+    }
     .hud-help-btn {
       margin-left:auto;
       width:22px; height:22px; padding:0;
@@ -1390,6 +1417,9 @@
   </div>
   <div id="game-container">
     <div id="game-canvas-layer"></div>
+    <!-- Battle_Improvements.md §2.7: damage feedback vignette — pointer-events:none.
+         Triggered by `combat-damage-flash` class; CSS keyframe fades it in/out. -->
+    <div id="combat-damage-vignette" aria-hidden="true"></div>
     <div id="ui-layer">
       <button type="button" id="settings-btn" title="Settings">⚙</button>
       <div id="settings-modal" tabindex="-1">

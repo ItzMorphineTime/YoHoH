@@ -74,6 +74,8 @@ export class HUD {
       </div>
       <div class="hud-panel hud-mode">
         <span id="hud-mode">Combat</span>
+        <!-- Battle_Improvements.md §2.2 / §2.10: combat objective + enemy count -->
+        <span id="hud-combat-objective" class="hud-combat-objective" style="display:none"></span>
         <button type="button" id="hud-help-btn" class="hud-help-btn" title="Show all keybindings (? key)">?</button>
       </div>
       <!-- Sailing_Improvements.md §2.1: voyage info panel — hidden in combat -->
@@ -127,6 +129,8 @@ export class HUD {
     this.elements.compassNeedle = document.getElementById('hud-compass-needle');
     this.elements.cannonStatus = document.getElementById('hud-cannon-status');
     this.elements.mode = document.getElementById('hud-mode');
+    // Battle_Improvements.md §2.2 / §2.10: combat objective sub-line
+    this.elements.combatObjective = document.getElementById('hud-combat-objective');
     // Sailing_Improvements.md §2.1: voyage info panel
     this.elements.voyagePanel = document.getElementById('hud-voyage');
     this.elements.voyageDest = document.getElementById('hud-voyage-dest');
@@ -293,7 +297,15 @@ export class HUD {
     }
   }
 
-  update(ship, result, loot, aimingSide) {
+  /**
+   * Combat-mode HUD update.
+   * @param {Ship} ship
+   * @param {string} result  COMBAT_RESULT enum ('none' | 'victory' | 'defeat')
+   * @param {Object|null} loot
+   * @param {string|null} aimingSide
+   * @param {{ enemies?: Array }=} extras  Battle_Improvements.md §2.2 / §2.10
+   */
+  update(ship, result, loot, aimingSide, extras = {}) {
     if (!ship) return;
 
     const hullPct = Math.max(0, ship.hull / ship.hullMax) * 100;
@@ -349,13 +361,31 @@ export class HUD {
       }
     }
 
+    // Battle_Improvements.md §1.5: result strings come straight from CombatScene's
+    // exported COMBAT_RESULT enum ('victory' / 'defeat' / 'none').
     if (result === 'victory') {
-      if (this.elements.mode) this.elements.mode.textContent = `Victory! Gold: ${loot?.gold ?? 0} | Salvage: ${loot?.salvage ?? 0} — R to restart`;
+      if (this.elements.mode) this.elements.mode.textContent = `Victory! Gold: ${loot?.gold ?? 0} | Salvage: ${loot?.salvage ?? 0} — Esc to continue`;
     } else if (result === 'defeat') {
-      if (this.elements.mode) this.elements.mode.textContent = 'Defeat — Ship sunk! R to restart';
+      if (this.elements.mode) this.elements.mode.textContent = 'Defeat — Ship sunk! Esc to return to port';
     } else if (this.elements.mode) {
       this.elements.mode.textContent = 'Combat';
     }
+
+    // Battle_Improvements.md §2.2 / §2.10: objective sub-line.
+    //   "⚔ Sink all enemies (1/2)"  while combat is live
+    //   hidden on victory / defeat (mode line carries the message)
+    if (this.elements.combatObjective) {
+      const enemies = extras?.enemies;
+      if (result === 'none' && Array.isArray(enemies) && enemies.length > 0) {
+        const alive = enemies.filter(e => !e.dead).length;
+        const total = enemies.length;
+        this.elements.combatObjective.textContent = `⚔ Sink all enemies (${alive}/${total})`;
+        this.elements.combatObjective.style.display = '';
+      } else {
+        this.elements.combatObjective.style.display = 'none';
+      }
+    }
+
     // Sailing_Improvements.md §2.1 / §2.5: voyage + stations panels are sailing-only
     if (this.elements.voyagePanel) this.elements.voyagePanel.style.display = 'none';
     if (this.elements.stationsPanel) this.elements.stationsPanel.style.display = 'none';

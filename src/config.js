@@ -320,6 +320,8 @@ export const SHIP_CLASSES = {
   sloop: {
     name: 'Sloop',
     cannonCount: 1, // C.10c: broadsides per class
+    /** Battle_Improvements.md §1.2: hit-test radius — matches the visual hull size. */
+    collisionRadius: 7,
     hullMax: 80,
     sailMax: 80,
     crewMax: 60,
@@ -352,6 +354,8 @@ export const SHIP_CLASSES = {
   brigantine: {
     name: 'Brigantine',
     cannonCount: 2, // C.10c: broadsides per class
+    /** Battle_Improvements.md §1.2: brigantine sits ~1.2× a sloop. */
+    collisionRadius: 9,
     hullMax: 120,
     sailMax: 120,
     crewMax: 100,
@@ -384,6 +388,8 @@ export const SHIP_CLASSES = {
   galleon: {
     name: 'Galleon',
     cannonCount: 3, // C.10c: broadsides per class
+    /** Battle_Improvements.md §1.2: galleon is the broadest hit-box (~1.4× sloop). */
+    collisionRadius: 11,
     hullMax: 150,
     sailMax: 150,
     crewMax: 150,
@@ -531,6 +537,13 @@ export const GAME = {
   devCheats: {
     /** When true, log save/load events to the console. */
     logSaves: false,
+    /**
+     * Battle_Improvements.md §1.4: when true, pressing `R` after combat
+     * victory/defeat respawns a fresh sandbox encounter with no save-state
+     * link. Useful for combat tuning but disabled in production play because
+     * defeat already has the Esc → cancelTravel flow.
+     */
+    combatRestart: false,
   },
 };
 

@@ -93,6 +93,15 @@ export class Ship {
     this.portCooldown = 0;
     this.starboardCooldown = 0;
 
+    // Battle_Improvements.md §1.2: per-class collision radius. Previously every
+    // hit-test used a hard-coded 8 regardless of ship size — galleons under-hit,
+    // sloops over-hit. Now keyed off class config with an 8-unit fallback for
+    // ships that pre-date the field (e.g. Enemy / test instances).
+    this.collisionRadius = opts.collisionRadius
+      ?? classConfig?.collisionRadius
+      ?? SHIP_CLASSES?.[opts.shipClassId ?? opts.shipClass ?? this.constructor.shipClassId]?.collisionRadius
+      ?? 8;
+
     this.isPlayer = opts.isPlayer ?? false;
     this.dead = false;
   }
@@ -290,5 +299,31 @@ export class Ship {
   updateCooldowns(dt) {
     if (this.portCooldown > 0) this.portCooldown -= dt;
     if (this.starboardCooldown > 0) this.starboardCooldown -= dt;
+  }
+
+  /**
+   * Battle_Improvements.md §1.3: re-derive physics fields from the ship's
+   * class config with a fresh prefix choice. Used when the same ship instance
+   * crosses the sailing ↔ combat boundary — we keep the reference (so
+   * OverworldScene's `sailingShip` handle remains valid and damage taken in
+   * combat carries back to sailing) but the physics swap from sailing-prefix
+   * (low thrust, high friction) to combat-prefix (snappy thrust, decay-fast
+   * friction) or vice-versa.
+   *
+   * Persistent state (hull / sails / crew / leaks / bilge / cooldowns) is NOT
+   * touched — only the per-frame physics coefficients.
+   */
+  applyClassPhysics({ useSailing = false } = {}) {
+    const classConfig = this.constructor.getClassConfig?.() ?? null;
+    const stats = getShipStatsFromConfig(classConfig, {}, useSailing);
+    this.maxSpeed = stats.maxSpeed;
+    this.thrust = stats.thrust;
+    this.friction = stats.friction;
+    this.turnRate = stats.turnRate;
+    this.brakeMult = stats.brakeMult;
+    this.highSpeedTurnPenalty = stats.highSpeedTurnPenalty;
+    // Invalidate the effectiveMaxSpeed cache so next read recomputes.
+    this._effMaxSpeedCache = null;
+    this._effMaxSpeedBreakdown = null;
   }
 }

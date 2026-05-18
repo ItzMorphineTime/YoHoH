@@ -8,7 +8,7 @@ import { getRouteModifiers } from './utils/routeModifiers.js';
 import { loadGoods } from './systems/EconomySystem.js';
 import { Renderer } from './Renderer.js';
 import { Input } from './Input.js';
-import { CombatScene } from './scenes/CombatScene.js';
+import { CombatScene, COMBAT_RESULT } from './scenes/CombatScene.js';
 import { OverworldScene } from './scenes/OverworldScene.js';
 import { PortScene } from './scenes/PortScene.js';
 import { HUD } from './ui/HUD.js';
@@ -204,6 +204,8 @@ export class Game {
 
     this.update(dt);
     this.render();
+    // Battle_Improvements.md §2.7: decay camera shake after the frame is drawn.
+    this.renderer?.tickShake?.(dt);
     this._pushDebugFrame(dt);
     this.input.endFrame();
 
@@ -768,10 +770,16 @@ export class Game {
     const { combatScene, input } = this;
 
     const result = combatScene.getResult();
-    if ((result === 'victory' || result === 'defeat') && input.isKeyDown('KeyR')) {
+    // Battle_Improvements.md §1.4: dev-only restart, guarded by isKeyJustPressed
+    // so holding R doesn't loop fresh combats every frame. The production game
+    // routes defeat through the proper continue/load flow (see §2.9 in backlog).
+    if ((result === COMBAT_RESULT.VICTORY || result === COMBAT_RESULT.DEFEAT)
+        && input.isKeyJustPressed('KeyR')
+        && GAME?.devCheats?.combatRestart === true) {
       combatScene.init();
     }
-    if (result === 'victory' && input.isKeyJustPressed('Escape')) {
+    // Battle_Improvements.md §1.5: COMBAT_RESULT enum instead of string literals.
+    if (result === COMBAT_RESULT.VICTORY && input.isKeyJustPressed('Escape')) {
       const loot = combatScene.getLoot();
       this._playerGold = (this._playerGold ?? 0) + (loot?.gold ?? 0);
       if (this.overworldScene.isTraveling()) {
@@ -780,13 +788,18 @@ export class Game {
         if (ship && pos) {
           ship.x = pos.x;
           ship.y = pos.y;
+          // Battle_Improvements.md §1.3: swap physics back to sailing-prefix on
+          // return to SAILING. Symmetric counterpart to CombatScene.init's
+          // applyClassPhysics({ useSailing: false }).
+          ship.speed = 0;
+          ship.applyClassPhysics?.({ useSailing: true });
         }
         this.state = GAME_STATES.SAILING;
       } else {
         this.state = GAME_STATES.OVERWORLD;
       }
     }
-    if (result === 'defeat' && input.isKeyJustPressed('Escape')) {
+    if (result === COMBAT_RESULT.DEFEAT && input.isKeyJustPressed('Escape')) {
       this.overworldScene.cancelTravel();
       this._resetEncounterTimer();
       this.state = GAME_STATES.OVERWORLD;
@@ -794,6 +807,74 @@ export class Game {
 
     combatScene.handleAimInput(input);
     combatScene.update(dt, input);
+
+    // Battle_Improvements.md §2.11: drain combat events to toasts.
+    // Battle_Improvements.md §2.7: `player_hit` also triggers damage feedback.
+    const combatEvents = combatScene.consumeCombatEvents?.() ?? [];
+    for (const e of combatEvents) this._handleCombatEvent(e);
+  }
+
+  /**
+   * Battle_Improvements.md §2.7: damage feedback. Three concurrent cues —
+   *   • camera shake (amplitude scaled by damage)
+   *   • full-screen red vignette (one-shot CSS class)
+   *   • HUD hull bar red flash (one-shot CSS class)
+   * All time-bounded; reset by removing the class after its CSS duration.
+   */
+  _onPlayerHit(evt) {
+    const dmg = Math.max(0, evt?.damage ?? 0);
+    if (dmg <= 0) return;
+    // Camera shake — amplitude scales sub-linearly with damage so a single
+    // grazing shot doesn't rattle as much as a critical broadside.
+    const amp = Math.min(4, 0.5 + dmg * 0.08);
+    const dur = Math.min(0.4, 0.15 + dmg * 0.005);
+    this.renderer?.triggerShake?.(amp, dur);
+    // Vignette flash — fade-out is CSS-driven; we just toggle the class.
+    const vignette = document.getElementById('combat-damage-vignette');
+    if (vignette) {
+      vignette.classList.remove('combat-damage-flash');
+      // Re-trigger animation by forcing a reflow before re-adding the class.
+      void vignette.offsetWidth;
+      vignette.classList.add('combat-damage-flash');
+      clearTimeout(this._vignetteTimer);
+      this._vignetteTimer = setTimeout(() => vignette.classList.remove('combat-damage-flash'), 80);
+    }
+    // HUD hull bar flash
+    const hullBar = document.getElementById('hud-hull-bar');
+    if (hullBar) {
+      hullBar.classList.remove('combat-bar-hit');
+      void hullBar.offsetWidth;
+      hullBar.classList.add('combat-bar-hit');
+      clearTimeout(this._hullFlashTimer);
+      this._hullFlashTimer = setTimeout(() => hullBar.classList.remove('combat-bar-hit'), 450);
+    }
+  }
+
+  /** Battle_Improvements.md §2.11: dispatch a single combat event. */
+  _handleCombatEvent(e) {
+    if (!e?.type) return;
+    switch (e.type) {
+      case 'combat_start':
+        this.mapUI?.showToast?.(`⚔ Combat — ${e.enemyCount} ${e.enemyCount === 1 ? 'enemy' : 'enemies'}!`, 'error');
+        break;
+      case 'enemy_sunk':
+        this.mapUI?.showToast?.(`${e.name ?? 'Enemy'} sunk!`, 'success');
+        break;
+      case 'player_hit':
+        // Battle_Improvements.md §2.7: trigger damage feedback (camera shake +
+        // vignette + HUD pulse) — landed by the next item in this pass.
+        this._onPlayerHit?.(e);
+        break;
+      case 'victory':
+        this.mapUI?.showToast?.(
+          `Victory! +${e.loot?.gold ?? 0} gold, +${e.loot?.salvage ?? 0} salvage`,
+          'success',
+        );
+        break;
+      case 'defeat':
+        this.mapUI?.showToast?.('Defeat — your ship was sunk!', 'error');
+        break;
+    }
   }
 
   /**
@@ -1090,11 +1171,15 @@ export class Game {
       const rocks = combatScene.getRocks();
       const result = combatScene.getResult();
       const loot = combatScene.getLoot();
-      renderer.updateCombat(player, enemies, projectiles, rocks, combatScene.getAimingSide());
+      // Battle_Improvements.md §2.6: pool of short-lived FX (muzzle / splash / hit)
+      const combatEffects = combatScene.getEffects?.() ?? null;
+      renderer.updateCombat(player, enemies, projectiles, rocks, combatScene.getAimingSide(), combatEffects);
       if (player) {
         renderer.updateCamera(player.x, player.y);
       }
-      hud.update(player, result, loot, combatScene.getAimingSide());
+      // Battle_Improvements.md §2.2 / §2.10: pass enemies so HUD can render the
+      // "⚔ Sink all enemies (n/total)" objective sub-line + future per-enemy info.
+      hud.update(player, result, loot, combatScene.getAimingSide(), { enemies });
       minimap.update(player, enemies, rocks, combatScene.getBounds());
       mapUI.hide();
       document.getElementById('hud')?.style.setProperty('display', 'flex');

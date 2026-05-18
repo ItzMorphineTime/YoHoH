@@ -362,6 +362,113 @@ export class Renderer {
     this.sailingGroup.add(this.sailingDestIslandMesh);
   }
 
+  /**
+   * Battle_Improvements.md §2.6: pooled combat FX (muzzle flash, water splash,
+   * hit spark). Lazily grown; each pool entry is a small circle mesh re-tinted
+   * + re-scaled per FX type, animated by `fx.age / fx.lifetime`.
+   */
+  _ensureCombatFxPool(n) {
+    if (!this._combatFxMeshes) this._combatFxMeshes = [];
+    if (!this._combatFxUnitGeo) {
+      // 16-segment unit circle — cheap, looks smooth at small sizes
+      this._combatFxUnitGeo = new THREE.CircleGeometry(1, 16);
+    }
+    while (this._combatFxMeshes.length < n) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(this._combatFxUnitGeo, mat);
+      mesh.visible = false;
+      mesh.position.z = 3;
+      this.scene.add(mesh);
+      this._combatFxMeshes.push(mesh);
+    }
+  }
+
+  _updateCombatEffects(effects) {
+    const list = Array.isArray(effects) ? effects : [];
+    this._ensureCombatFxPool(list.length);
+    for (let i = 0; i < list.length; i++) {
+      const fx = list[i];
+      const mesh = this._combatFxMeshes[i];
+      mesh.visible = true;
+      const t = fx.lifetime > 0 ? fx.age / fx.lifetime : 1;
+      const fade = Math.max(0, 1 - t);
+      mesh.position.set(fx.x, fx.y, 3);
+      if (fx.type === 'muzzle') {
+        // Bright orange disc, briefly large, fades fast.
+        const r = 2.8 + t * 1.8;
+        mesh.scale.set(r, r, 1);
+        mesh.material.color.setHex(0xffcc66);
+        mesh.material.opacity = fade;
+      } else if (fx.type === 'hit') {
+        // Red spark — expands a bit, fades.
+        const r = 3 + t * 5;
+        mesh.scale.set(r, r, 1);
+        mesh.material.color.setHex(0xff6644);
+        mesh.material.opacity = fade * 0.95;
+      } else {
+        // splash — light blue ring, expands slowly, fades to nothing.
+        const r = 2 + t * 6;
+        mesh.scale.set(r, r, 1);
+        mesh.material.color.setHex(0x88ccff);
+        mesh.material.opacity = fade * 0.7;
+      }
+    }
+    // Hide unused pool slots
+    for (let i = list.length; i < this._combatFxMeshes.length; i++) {
+      this._combatFxMeshes[i].visible = false;
+    }
+  }
+
+  /**
+   * Battle_Improvements.md §2.1: pooled HP bar (background + foreground) drawn
+   * just above each enemy ship, always axis-aligned (separate Map so the ship's
+   * rotation doesn't carry into the bar). Returns `{ group, bg, fg }`.
+   */
+  _getOrCreateEnemyHpBar(id) {
+    if (!this._enemyHpBars) this._enemyHpBars = new Map();
+    if (this._enemyHpBars.has(id)) return this._enemyHpBars.get(id);
+    const group = new THREE.Group();
+    // Background — full bar width
+    const bgGeo = new THREE.PlaneGeometry(1, 1);
+    const bgMat = new THREE.MeshBasicMaterial({ color: 0x402020, transparent: true, opacity: 0.85 });
+    const bg = new THREE.Mesh(bgGeo, bgMat);
+    group.add(bg);
+    // Foreground — scales by hp%; left-anchored so it shrinks from the right
+    const fgGeo = new THREE.PlaneGeometry(1, 1);
+    const fgMat = new THREE.MeshBasicMaterial({ color: 0x6bca6b, transparent: true, opacity: 0.95 });
+    const fg = new THREE.Mesh(fgGeo, fgMat);
+    fg.position.z = 0.01; // sit just above bg
+    group.add(fg);
+    this.scene.add(group);
+    const entry = { group, bg, fg };
+    this._enemyHpBars.set(id, entry);
+    return entry;
+  }
+
+  /** Position + size the HP bar above an enemy. Hides on dead ships. */
+  _updateEnemyHpBar(enemy) {
+    const { group, bg, fg } = this._getOrCreateEnemyHpBar(enemy.id);
+    if (enemy.dead) {
+      group.visible = false;
+      return;
+    }
+    group.visible = true;
+    const width = 14;       // world units
+    const height = 1.5;
+    const yOffset = 9;      // above the ship (ships are ~6 units tall)
+    group.position.set(enemy.x, enemy.y + yOffset, 5);
+    bg.scale.set(width, height, 1);
+    bg.position.set(0, 0, 0);
+    const hpFrac = Math.max(0, Math.min(1, (enemy.hull ?? 0) / (enemy.hullMax ?? 1)));
+    fg.scale.set(width * hpFrac, height, 1);
+    // Anchor foreground to the LEFT edge of the bg (shrinks from right):
+    //   bg centered at 0 spans [-width/2, +width/2]
+    //   fg centered at -width/2 + (width*hpFrac)/2 spans [-width/2, -width/2 + width*hpFrac]
+    fg.position.set(-width / 2 + (width * hpFrac) / 2, 0, 0.01);
+    // Colour: green → yellow → red as HP drops
+    fg.material.color.setHex(hpFrac > 0.66 ? 0x6bca6b : hpFrac > 0.33 ? 0xddbb44 : 0xd86a6a);
+  }
+
   _getOrCreateEnemyMesh(id) {
     if (this.enemyMeshes.has(id)) return this.enemyMeshes.get(id);
     const group = new THREE.Group();
@@ -405,10 +512,12 @@ export class Renderer {
     return this.projectileMeshes[i];
   }
 
-  updateCombat(player, enemies, projectiles, rocks, aimingSide) {
+  updateCombat(player, enemies, projectiles, rocks, aimingSide, effects = null) {
     this._hideNonCombatViews();
     this._setupCombatView();
     this._updateCombatEntities(player, enemies, projectiles, rocks, aimingSide);
+    // Battle_Improvements.md §2.6: render short-lived FX (muzzle / splash / hit)
+    this._updateCombatEffects(effects);
   }
 
   _hideNonCombatViews() {
@@ -447,6 +556,21 @@ export class Renderer {
       this.portArcMesh.rotation.z = portCenter - Math.PI / 2;
       this.starboardArcMesh.rotation.z = starboardCenter - Math.PI / 2;
 
+      // Battle_Improvements.md §2.4: cannon arc opacity reflects reload state.
+      //   ready      → full opacity, normal hue
+      //   reloading  → dimmed (interp from 0.15 at cd=cooldown to baseOpacity at cd=0)
+      //   < 0.3s     → flash red tint to signal "almost ready"
+      const baseOpacity = RENDER.cannonArcOpacity ?? 0.25;
+      const portReadyFrac  = 1 - Math.min(1, (player.portCooldown    || 0) / (player.cannonCooldown || 1));
+      const starboardReadyFrac = 1 - Math.min(1, (player.starboardCooldown || 0) / (player.cannonCooldown || 1));
+      this.portArcMesh.material.opacity      = 0.10 + baseOpacity * portReadyFrac;
+      this.starboardArcMesh.material.opacity = 0.10 + baseOpacity * starboardReadyFrac;
+      // Tint logic — almost-ready (last 0.3s) flashes the "alert" hue, ready/loading use the base hue.
+      const portAlmost      = (player.portCooldown    || 0) > 0 && (player.portCooldown    || 0) < 0.3;
+      const starboardAlmost = (player.starboardCooldown || 0) > 0 && (player.starboardCooldown || 0) < 0.3;
+      this.portArcMesh.material.color.setHex(portAlmost ? 0xff8844 : RENDER.portArcColor);
+      this.starboardArcMesh.material.color.setHex(starboardAlmost ? 0xff8844 : RENDER.starboardArcColor);
+
       if (aimingSide) {
         this.aimArrowMesh.visible = true;
         const offset = 10;
@@ -468,15 +592,26 @@ export class Renderer {
 
     const activeIds = new Set();
     for (const e of enemies || []) {
-      if (e.dead) continue;
+      if (e.dead) {
+        // Battle_Improvements.md §2.1: hide HP bar on death (the ship mesh
+        // already hides via the activeIds set below).
+        this._updateEnemyHpBar(e);
+        continue;
+      }
       activeIds.add(e.id);
       const mesh = this._getOrCreateEnemyMesh(e.id);
       mesh.visible = true;
       mesh.position.set(e.x, e.y, 1);
       mesh.rotation.z = -e.rotation;
+      // Battle_Improvements.md §2.1: enemy HP bar above the ship
+      this._updateEnemyHpBar(e);
     }
     for (const [id, mesh] of this.enemyMeshes) {
-      if (!activeIds.has(id)) mesh.visible = false;
+      if (!activeIds.has(id)) {
+        mesh.visible = false;
+        const bar = this._enemyHpBars?.get(id);
+        if (bar) bar.group.visible = false;
+      }
     }
 
     for (let i = 0; i < (projectiles?.length ?? 0); i++) {
@@ -740,6 +875,10 @@ export class Renderer {
     if (this.rocksGroup) this.rocksGroup.visible = false;
     for (const [, m] of this.enemyMeshes) m.visible = false;
     for (const m of this.projectileMeshes) m.visible = false;
+    // Battle_Improvements.md §2.1: hide enemy HP bars when leaving combat
+    if (this._enemyHpBars) for (const [, b] of this._enemyHpBars) b.group.visible = false;
+    // Battle_Improvements.md §2.6: hide combat FX
+    if (this._combatFxMeshes) for (const m of this._combatFxMeshes) m.visible = false;
   }
 
   _setupOverworldView() {
@@ -757,10 +896,49 @@ export class Renderer {
   }
 
   updateCamera(x, y) {
-    this.camera.position.x = x;
-    this.camera.position.y = y;
+    // Battle_Improvements.md §2.7: apply an additive shake offset so combat
+    // hits register kinesthetically. Shake decays over time; magnitude shrinks
+    // proportionally to `_shakeTimeLeft / _shakeDuration`.
+    let shakeX = 0;
+    let shakeY = 0;
+    if (this._shakeTimeLeft > 0) {
+      const t = Math.max(0, this._shakeTimeLeft);
+      const decay = this._shakeDuration > 0 ? t / this._shakeDuration : 0;
+      const amp = (this._shakeAmplitude ?? 0) * decay;
+      shakeX = (Math.random() * 2 - 1) * amp;
+      shakeY = (Math.random() * 2 - 1) * amp;
+    }
+    this.camera.position.x = x + shakeX;
+    this.camera.position.y = y + shakeY;
     this.camera.position.z = 100;
-    this.camera.lookAt(x, y, 0);
+    this.camera.lookAt(x + shakeX, y + shakeY, 0);
+  }
+
+  /**
+   * Battle_Improvements.md §2.7: trigger a camera shake. Call once on a hit;
+   * decay is automatic via `tickShake(dt)`.
+   * @param {number} amplitude  world-units of max jitter (e.g. 1.5 for a
+   *                            cannon hit, 4 for a critical).
+   * @param {number} duration   seconds (e.g. 0.25).
+   */
+  triggerShake(amplitude = 1.5, duration = 0.25) {
+    // If already shaking, keep the bigger amplitude / longer remaining time so
+    // overlapping hits feel additive instead of overriding each other to 0.
+    this._shakeAmplitude = Math.max(this._shakeAmplitude ?? 0, amplitude);
+    this._shakeDuration = Math.max(this._shakeDuration ?? 0, duration);
+    this._shakeTimeLeft = Math.max(this._shakeTimeLeft ?? 0, duration);
+  }
+
+  /** Decay the shake timer. Call from the game loop every frame. */
+  tickShake(dt) {
+    if ((this._shakeTimeLeft ?? 0) > 0) {
+      this._shakeTimeLeft -= dt;
+      if (this._shakeTimeLeft <= 0) {
+        this._shakeTimeLeft = 0;
+        this._shakeAmplitude = 0;
+        this._shakeDuration = 0;
+      }
+    }
   }
 
   /** Convert NDC (-1..1) to world XY for orthographic camera (accounts for zoom) */

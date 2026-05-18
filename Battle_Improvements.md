@@ -6,6 +6,10 @@
 
 > Scope: `CombatScene`, `CombatSystem`, `Enemy`, `Projectile`, `Ship` cannon/damage methods, the combat branches of `Game._updateCombat` and `Renderer.updateCombat`, the combat-mode `HUD.update`, the `COMBAT` config block, and the combat-arena `Minimap` path.
 
+> **Progress (2026-05-18 — first pass):** 12 of 33 active items landed end-to-end. All 5 🔴 bugs fixed (§1.1 enemy physics rewired through SailingSystem with decoupled AI-decision tick, §1.2 per-class collision radius, §1.3 + §1.4 + §1.5 the CombatScene/init/restart/enum cleanups). All 6 🔴 UX gaps from the priority list addressed (§2.2 win-condition sub-line, §2.1/§2.10 enemy HP bars + count, §2.4 cannon arc opacity by cooldown, §2.6 muzzle/splash/hit FX, §2.7 damage feedback layer: camera shake + HUD pulse + vignette, §2.11 combat event log via toasts, §1.8 rocks become real collision for projectiles + ships). New shared helper: `Ship.applyClassPhysics({ useSailing })` to cleanly swap sailing↔combat physics on the same instance.
+>
+> Remaining active backlog: §1.6 (angle convention unification — refactor), §1.7 + §1.10 + §3.x (per-type enemy stats, EncounterSpec factory, route-modifier carry-through to combat, Renderer split), plus the larger 🟢 mechanics in §4 (boarding, ammo types, wind in combat, surrender, capturable ships, etc).
+
 ---
 
 ## Legend
@@ -21,7 +25,7 @@
 
 ## 1. Bugs & physics-correctness issues
 
-### 1.1 🔴 Enemy movement is not frame-rate independent
+### 1.1 🔴 Enemy movement is not frame-rate independent  ✅
 **Where:** [src/entities/Enemy.js:60-63](src/entities/Enemy.js)
 
 ```js
@@ -38,7 +42,9 @@ This is the **same bug** that Sailing_Improvements §1.1 fixed for the player sh
 
 **Suggested fix:** Reuse `SailingSystem` for enemies. AI emits a synthetic input object each tick (similar to the autopilot Proxy wrapper in §4.5); SailingSystem handles dt-scaled physics. Only re-roll the AI's turn / thrust intent every `aiInterval` seconds.
 
-### 1.2 🔴 Hit detection uses a hard-coded radius of 8 units
+**Status (2026-05-18):** Done. `Enemy.update()` now ticks `updateCooldowns(dt)` every frame, calls `SailingSystem.update(this, this._aiInput, dt, bounds)` every frame, and re-rolls AI decisions only every `aiInterval` seconds. The synthetic `_aiInput` is a plain object with `isKeyDown(code)` that maps to a cached `_aiIntent { thrust, brake, turnLeft, turnRight }`. Trader/Raider decision functions translate target-rotation into A/D intent via a `_setTurnIntent` helper with a 0.04 rad deadzone. Targeting also improved: Raiders now flip into broadside posture at dist ≤ 50 (previously aimed bow-on at the player and almost never landed shots).
+
+### 1.2 🔴 Hit detection uses a hard-coded radius of 8 units  ✅
 **Where:** [src/systems/CombatSystem.js:85](src/systems/CombatSystem.js)
 
 ```js
@@ -53,7 +59,9 @@ if (dist < 8) {
 
 **Suggested fix:** Add `collisionRadius` to ship class config (8 sloop, 10 brigantine, 12 galleon) and read from `ship.collisionRadius ?? 8` in the hit test.
 
-### 1.3 🔴 `CombatScene.init()` overrides player physics with raw class fields
+**Status (2026-05-18):** Done. `SHIP_CLASSES.{sloop,brigantine,galleon}.collisionRadius = {7, 9, 11}`. `Ship` constructor reads it (with class-config + 8-unit fallback). `CombatSystem` hit-test now uses squared distance vs squared per-ship radius (`dx*dx + dy*dy < radius * radius`) — also drops the per-projectile `Math.sqrt`, a tiny win that compounds with projectile count.
+
+### 1.3 🔴 `CombatScene.init()` overrides player physics with raw class fields  ✅
 **Where:** [src/scenes/CombatScene.js:36-42](src/scenes/CombatScene.js)
 
 ```js
@@ -70,7 +78,9 @@ Same shadowing-pattern footgun as Sailing_Improvements §1.2 / friction bug.
 
 **Suggested fix:** Drop the manual override block entirely. Have `CombatScene.init` recreate the player via `createShip(shipClassId, { ...stateOpts, useSailing: false })` so `getShipStatsFromConfig` runs once and produces a clean combat-config instance.
 
-### 1.4 🔴 Player ship persists across combat restarts and inherits stale state
+**Status (2026-05-18):** Done — refined approach. **Recreating** the player would break the OverworldScene's `sailingShip` handle (it holds a reference and combat damage must carry back). Instead a new `Ship.applyClassPhysics({ useSailing })` method re-derives the physics fields via the centralised `getShipStatsFromConfig` and applies them to the SAME instance (also invalidates `_effMaxSpeedCache`). `CombatScene.init` calls `applyClassPhysics({ useSailing: false })`; `Game._updateCombat`'s victory→sailing path calls the symmetric `applyClassPhysics({ useSailing: true })`. Reference semantics preserved, prefix-aware lookup restored.
+
+### 1.4 🔴 Player ship persists across combat restarts and inherits stale state  ✅
 **Where:** [src/scenes/CombatScene.js:30-50](src/scenes/CombatScene.js), [src/Game.js:771-772](src/Game.js)
 
 When the player presses `R` after victory/defeat:
@@ -88,12 +98,12 @@ if ((result === 'victory' || result === 'defeat') && input.isKeyDown('KeyR')) {
 
 **Suggested fix:** Either remove the R-restart in the production build (it's a dev convenience) or gate it behind a "Dev cheat" flag like `GAME.devCheats`. Use `isKeyJustPressed` either way to avoid rapid-fire restart.
 
-### 1.5 🟠 Game.js uses string literals for combat results instead of the enum
+**Status (2026-05-18):** Done. R-restart is now `input.isKeyJustPressed('KeyR')` and gated behind `GAME.devCheats.combatRestart === true` (defaults `false`). In production play the mode line tells the player to use `Esc` (continue / return to port) — the existing Esc handler runs the proper state transition. HUD victory/defeat strings updated to drop the misleading "R to restart" prompt.
+
+### 1.5 🟠 Game.js uses string literals for combat results instead of the enum  ✅
 **Where:** [src/Game.js:771-789](src/Game.js)
 
-`CombatScene` exports `COMBAT_RESULT = { NONE, VICTORY, DEFEAT }` but `_updateCombat` compares to `'victory'` / `'defeat'` strings directly. Works because the enum values happen to be those exact strings, but it's a footgun — rename them and the file silently breaks.
-
-**Suggested fix:** Import `COMBAT_RESULT` from `CombatScene` and compare to the constants.
+**Status (2026-05-18):** Done. `Game.js` imports `COMBAT_RESULT` and all three comparisons in `_updateCombat` use the enum constants. HUD still inspects raw strings (`'victory' / 'defeat' / 'none'`) since those are pulled from `getResult()` which returns the enum's value strings — adding a comment so the next reader doesn't try to "fix" it.
 
 ### 1.6 🟠 Cannon arc convention vs ship movement convention conflict
 **Where:** [src/entities/Ship.js:170-181](src/entities/Ship.js)
@@ -109,14 +119,16 @@ Ship movement convention is `forward = (sin r, cos r)` (rotation=0 → +Y), but 
 
 **Suggested fix:** Either implement a crew-damage path (boarding action, grape-shot ammo type — see §4.3 / §4.5 below) or drop the `'crew'` branch and the `crewMax` field. Document the choice.
 
-### 1.8 🟠 Rocks have no collision — projectiles pass through them
+### 1.8 🟠 Rocks have no collision — projectiles pass through them  ✅
 **Where:** [src/entities/Projectile.js:29-34](src/entities/Projectile.js), [src/scenes/CombatScene.js:60](src/scenes/CombatScene.js)
 
 `COMBAT_ROCKS` is a 4-rock array used purely as visual decoration. Neither projectiles nor ships collide with them, even though they're rendered at the same z. The rocks look like cover; they aren't. Tactically misleading.
 
 **Suggested fix:** Add rock collision to projectile updates and to the SailingSystem clamp. Ships gently bounce off; projectiles spawn a small splash and despawn. Rocks then become real cover.
 
-### 1.9 🟡 `aiInterval = 0.5s` decisions but `aiTimer` increments per call
+**Status (2026-05-18):** Done. **Projectiles**: tested against rocks BEFORE ship hit-test (so a ship behind a rock has real cover); rock-hit projectiles die and spawn a splash FX. **Ships**: new `CombatScene._pushShipsOutOfRocks()` runs after `SailingSystem.update` for player + every enemy — when a ship intersects a rock it's pushed outward to the `(shipRadius + rock.r)` boundary and loses 60% of its speed as a jolt. Edge-case centre-overlap pops the ship 1 unit and zeros its speed.
+
+### 1.9 🟡 `aiInterval = 0.5s` decisions but `aiTimer` increments per call  ✅
 **Where:** [src/entities/Enemy.js:44-46](src/entities/Enemy.js)
 
 ```js
@@ -129,6 +141,8 @@ After the early `return` no work happens, including the cooldown tick `updateCoo
 
 **Suggested fix:** Split the loop. Cooldowns + integration every tick; AI decisions only every `aiInterval` seconds (pair with §1.1's SailingSystem rewire).
 
+**Status (2026-05-18):** Done — bundled with §1.1. `Enemy.update()` always calls `updateCooldowns(dt)` and `SailingSystem.update(this, this._aiInput, dt, bounds)`; the `aiInterval` gate now only controls the AI-decision rerun (turn/thrust intent + maybe-fire). No more cooldown lag.
+
 ### 1.10 🟢 Enemy hardcodes hull/sails to `0.8 × COMBAT.hullMax`
 **Where:** [src/entities/Enemy.js:20-23](src/entities/Enemy.js)
 
@@ -140,42 +154,56 @@ Every enemy regardless of type has the same hull/sail health (80 / 80). Trader a
 
 ## 2. UX gaps
 
-### 2.1 🔴 Player has no idea what they're fighting
+### 2.1 🔴 Player has no idea what they're fighting  ✅ (partial — HP bars done; class icon deferred)
 **Today:** Combat starts, the camera centres on the player ship, and two red-hulled triangles appear. No on-screen indication of which ship is which class, what their HP is, who's closer, what their loot will be, or how to win.
 
 **Suggested fix:** Lightweight enemy nameplate above each hostile — class icon + a one-row hull bar ("Raider" + a 60-px bar). Updated every frame; pooled mesh count = enemy count. Optionally show the ship type ("Sloop / Brigantine / Galleon" once tiered enemies land per §1.10).
 
-### 2.2 🔴 No win-condition / objective hint
+**Status (2026-05-18):** HP bars done; class label deferred to the §1.10 pass (when tiered enemy classes land). `Renderer._getOrCreateEnemyHpBar(id)` pools a `{ group, bg, fg }` set per enemy id at scene level (not parented to the ship mesh so the bar stays axis-aligned regardless of ship rotation). `_updateEnemyHpBar(enemy)` positions the bar 9 world-units above the ship, scales the foreground width by `hull / hullMax`, and grades its colour green → yellow → red across thirds. Hidden when the enemy dies, on view-switch, and (via the pool's hidden default) for spawnless slots.
+
+### 2.2 🔴 No win-condition / objective hint  ✅
 The mode line just says `"Combat"`. New players don't know whether they need to sink everyone, board, or survive a timer. After-action toast on victory shows "Victory!" but during the fight there's zero guidance.
 
 **Suggested fix:** Sub-line under "Combat" reading "Sink all enemies (2/2 remaining)" — updates as ships go down. Free; same render path as the existing mode line.
+
+**Status (2026-05-18):** Done. New `#hud-combat-objective` chip sits next to the mode line; `HUD.update` takes an `extras.enemies` parameter and renders `"⚔ Sink all enemies (1/2)"`, hidden on victory / defeat (the mode line carries those messages). Styled with a subtle dark-red background so it reads as an active objective. Game.js render passes the enemies array in extras.
 
 ### 2.3 🟠 No mid-combat flee / retreat option
 Once combat starts the player is committed. Sailing has a pre-combat flee window (Sailing §2.4) and a cancel-voyage button (§2.8). Combat has neither. The player can't bail when the fight goes badly except by dying.
 
 **Suggested fix:** Add `Tab` (or `B` for "Break engagement") — disengage attempt. Requires being >X distance from all enemies AND moving away for N seconds. On success: combat ends, return to sailing with a "You broke off!" toast. On failure: combat continues, brief speed penalty (sails dragging). Mirrors the pre-combat flee pattern.
 
-### 2.4 🟠 No reload visualisation on the cannon arcs
+### 2.4 🟠 No reload visualisation on the cannon arcs  ✅
 **Where:** [src/Renderer.js:441-448](src/Renderer.js)
 
 Both port and starboard arc meshes are always visible, always the same color. The cooldown timer ticks down in HUD text — but the arc itself doesn't communicate readiness vs reloading. Quick play test: glance at the arc, see green → fire. Should be: dimmed/red while reloading, full color when ready.
 
 **Suggested fix:** Modulate `arcMesh.material.opacity` by `1 - portCooldown / cannonCooldown`. Tint to red when 0 < cooldown < 0.3 (almost ready). Tiny render-side change, big readability win.
 
+**Status (2026-05-18):** Done. `Renderer._updateCombatEntities` computes `portReadyFrac` / `starboardReadyFrac = 1 - cooldown / cannonCooldown` and sets each arc's `material.opacity = 0.10 + baseOpacity * readyFrac` (always slightly visible so the player keeps their bearings, but dim while reloading). When `0 < cooldown < 0.3 s`, the arc colour switches to a warning hue (`0xff8844`) — "almost ready" cue. Reverts to the base port/starboard colours at ready.
+
 ### 2.5 🟠 Aim-then-fire UX is OK but no "fire when in arc" assist
 The aim-then-fire pattern (Q to aim, Q again to fire) is fine for deliberate play. But new players spam-press Q expecting an immediate shot and get the aim arrow instead. Some players want auto-fire while a target is in the arc.
 
 **Suggested fix:** Add a `COMBAT.autoFire` config + a runtime toggle (`F` key during combat?) — when on, broadsides fire automatically whenever an enemy enters the arc AND the cannon is off cooldown. Default off so deliberate play wins.
 
-### 2.6 🟠 No projectile feedback — hits and misses feel identical
+### 2.6 🟠 No projectile feedback — hits and misses feel identical  ✅
 A cannonball flies in a straight line, vanishes (either timed-out or hit). No splash where it lands, no impact flash on the target, no muzzle flash where it left. Players can't tell which of their 3-cannon brigantine volleys actually hit.
 
 **Suggested fix:** Cheap visuals — a small expanding circle at the projectile's death position (cyan for water, orange for ship hit). A 0.2s muzzle flash plane at the ship's broadside. Both pool-able.
 
-### 2.7 🟠 No damage feedback on the player when hit
+**Status (2026-05-18):** Done. New `CombatSystem.effects[]` pool emits `muzzle` (0.18 s), `splash` (0.45 s, blue, water-impact), and `hit` (0.30 s, red, ship-impact) effects. `_spawnProjectile` emits a muzzle at the ship's broadside flank (6 units along arc-centre); the hit-detection loop emits a `hit` on ship collision and a `splash` on projectile lifetime-expiry or rock hit. Renderer side pools a `CircleGeometry` unit mesh and tints/scales it per effect type per frame (`fade = 1 - age/lifetime` drives opacity, type-specific radius easing). FX hidden on view-switch via `_hideNonCombatViews`.
+
+### 2.7 🟠 No damage feedback on the player when hit  ✅
 The hull bar ticks down; that's it. No screen shake, no edge flash, no audio cue. In genre this is the moment-to-moment feedback that lets you feel the fight.
 
 **Suggested fix:** Camera-shake on player hull damage scaled by damage amount; brief red vignette via a CSS overlay; HUD hull bar pulses red on impact.
+
+**Status (2026-05-18):** Done — three layers wired to a single `player_hit` event.
+- **Camera shake**: new `Renderer.triggerShake(amp, dur)` + `tickShake(dt)`. Amplitude sub-linear in damage (`0.5 + dmg * 0.08`, capped at 4 world-units); duration `0.15 + dmg * 0.005` (capped 0.4 s). Overlapping hits take the larger of {existing, new} so simultaneous broadside hits feel additive instead of resetting to 0. Decay tick runs from `_loop()` after `render()`.
+- **Vignette**: `#combat-damage-vignette` div pinned to viewport, pointer-events off, radial-gradient red ring; `.combat-damage-flash` class triggers an 80 ms reflow-forced flash → 400 ms ease-out fade.
+- **HUD hull bar flash**: `#hud-hull-bar.combat-bar-hit` triggers a 450 ms `box-shadow` pulse via the `hud-bar-hit-flash` keyframe.
+- Event source: `CombatScene` snapshots `prevPlayerHull` pre-tick, compares post-tick, and emits `{ type: 'player_hit', damage, hullFrac }` if hull dropped. `Game._onPlayerHit` dispatches all three feedback layers.
 
 ### 2.8 🟠 Enemy ships look identical
 **Where:** [src/Renderer.js](src/Renderer.js) — `_getOrCreateEnemyMesh` uses one mesh template
@@ -191,15 +219,19 @@ Defeat shows "Ship sunk! R to restart" in the mode line. R restarts the combat w
 
 **Suggested fix:** Proper defeat overlay with options: *Continue (lose ship + cargo, respawn at home)*, *Load Save (last autosave)*, *Main Menu*. R-restart becomes a dev-only cheat.
 
-### 2.10 🟡 Combat HUD shows no enemy count or fleet status
+### 2.10 🟡 Combat HUD shows no enemy count or fleet status  ✅ (count chip done; per-enemy panel deferred)
 "You vs N enemies" is fundamental info. Currently HUD shows your hull/sails/speed/bilge/leaks/cannons but nothing about the enemy. Even a count chip ("Enemies: 2") would help.
 
 **Suggested fix:** Add an enemy-list panel on the opposite side of the HUD: one row per enemy with class icon, HP bar, distance, optional bearing arrow. Same DOM-update pattern as the stations chip row.
 
-### 2.11 🟡 No combat log / event feed
+**Status (2026-05-18):** Count chip done (bundled with §2.2 — the same `⚔ Sink all enemies (n/total)` line carries the count). Per-enemy panel (class icon + distance + bearing arrow) deferred — needs the §1.10 tiered-class data and is sized for a later pass.
+
+### 2.11 🟡 No combat log / event feed  ✅
 "Raider sank!", "Critical hit on sails!", "Hull damage 25", "You hit your mark!" — none of these surface to the player. The toast system used by sailing events is a perfect fit.
 
 **Suggested fix:** Pipe damage-dealt, ship-sunk, and crew-loss events into `mapUI.showToast` (or a combat-scoped log panel). Reuse the Port_Improvements activity-log pattern — fixed-height scrolling list, configurable retention.
+
+**Status (2026-05-18):** Done. `CombatScene` grows a `_combatEvents` queue (same drain-on-read pattern as voyage events from Sailing_Improvements §3.5). Emits `combat_start`, `enemy_sunk`, `player_hit`, `victory`, `defeat`. `Game._updateCombat` drains and dispatches via `_handleCombatEvent(e)` — toasts for `combat_start` / `enemy_sunk` / `victory` / `defeat`, and `player_hit` routes to the §2.7 damage feedback layer. Future combat-log panel can plug into the same dispatcher without re-deriving events.
 
 ### 2.12 🟡 Camera doesn't react to combat
 **Where:** [src/Renderer.js:1095](src/Renderer.js)
@@ -219,12 +251,14 @@ Currently silent. Audio is out of scope per the GDD but stubbing the call sites 
 
 ## 3. Code-structure improvements
 
-### 3.1 🟡 `Enemy.update` re-implements physics inline instead of using `SailingSystem`
+### 3.1 🟡 `Enemy.update` re-implements physics inline instead of using `SailingSystem`  ✅
 **Where:** [src/entities/Enemy.js:59-73](src/entities/Enemy.js)
 
 Lines 60–70 mirror what `SailingSystem._integrateMotion` + `_applyControls` + bounds-clamp already do — but without `dt`, without `frameScale`, without the wind multiplier (irrelevant for combat but consistent for any future "wind in combat"), and without the deadzone-on-input guard.
 
 **Suggested fix:** Build a tiny `AIInput` wrapper exposing `isKeyDown(code)` based on the AI's intent, then `SailingSystem.update(enemy, aiInput, dt, bounds)`. All physics goes through one path. Bundles with §1.1.
+
+**Status (2026-05-18):** Done — landed with §1.1. `Enemy` constructor builds a `_aiInput = { isKeyDown(code) }` that closes over a mutable `_aiIntent`. `Enemy.update` always calls `SailingSystem.update(this, this._aiInput, dt, bounds)` and lets the system do dt-scaled physics, friction, turn-rate penalty, bounds clamp — same code path as the player.
 
 ### 3.2 🟡 `CombatSystem.update` is O(P × S) per frame
 **Where:** [src/systems/CombatSystem.js:76-92](src/systems/CombatSystem.js)
@@ -327,20 +361,21 @@ Top items are the highest-impact / lowest-risk wins. Effort: S (≤1h), M (≤3h
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
-| 1 | §1.1 — dt-scale enemy movement (separate AI-decision tick from physics tick) | M | 🔴 | ⏳ |
-| 2 | §1.2 — Per-class collision radius | S | 🔴 | ⏳ |
-| 3 | §1.4 — Gate `R`-restart behind dev-cheat / fix `isKeyJustPressed` | S | 🔴 | ⏳ |
-| 4 | §1.5 — Replace string literals with `COMBAT_RESULT` enum import | S | 🟠 | ⏳ |
-| 5 | §1.3 — Drop manual physics override in `CombatScene.init`; rebuild via `createShip` | S | 🔴 | ⏳ |
-| 6 | §2.1 / §2.10 — Enemy nameplates + HP bars on each hostile + enemy-count chip in HUD | M | 🔴 | ⏳ |
-| 7 | §2.2 — Win-condition sub-line in HUD ("Sink all enemies (2/2)") | S | 🔴 | ⏳ |
-| 8 | §2.4 — Cannon arc opacity reflects cooldown | S | 🟠 | ⏳ |
-| 9 | §2.6 — Projectile splash + muzzle flash visuals | M | 🟠 | ⏳ |
-| 10 | §2.7 — Damage feedback on player (camera shake + HUD pulse + vignette) | S | 🟠 | ⏳ |
-| 11 | §1.8 — Rocks become real collision (projectiles + ships) | M | 🟠 | ⏳ |
-| 12 | §2.11 — Combat event log (damage / sinks / hits) via existing toast system | S | 🟡 | ⏳ |
+| 1 | §1.1 — dt-scale enemy movement (separate AI-decision tick from physics tick) | M | 🔴 | ✅ |
+| 2 | §1.2 — Per-class collision radius | S | 🔴 | ✅ |
+| 3 | §1.4 — Gate `R`-restart behind dev-cheat / fix `isKeyJustPressed` | S | 🔴 | ✅ |
+| 4 | §1.5 — Replace string literals with `COMBAT_RESULT` enum import | S | 🟠 | ✅ |
+| 5 | §1.3 — Drop manual physics override in `CombatScene.init`; rebuild via `applyClassPhysics` | S | 🔴 | ✅ |
+| 6 | §2.1 / §2.10 — Enemy HP bars on each hostile + enemy-count chip in HUD (class label deferred) | M | 🔴 | ✅ (partial) |
+| 7 | §2.2 — Win-condition sub-line in HUD ("Sink all enemies (2/2)") | S | 🔴 | ✅ |
+| 8 | §2.4 — Cannon arc opacity reflects cooldown | S | 🟠 | ✅ |
+| 9 | §2.6 — Projectile splash + muzzle flash visuals | M | 🟠 | ✅ |
+| 10 | §2.7 — Damage feedback on player (camera shake + HUD pulse + vignette) | S | 🟠 | ✅ |
+| 11 | §1.8 — Rocks become real collision (projectiles + ships) | M | 🟠 | ✅ |
+| 12 | §2.11 — Combat event log (damage / sinks / hits) via existing toast system | S | 🟡 | ✅ |
 | 13 | §1.6 — Unify cannon arc + movement angle convention | M | 🟠 | ⏳ |
-| 14 | §3.1 — Enemy uses `SailingSystem` (bundles with #1) | M | 🟡 | ⏳ |
+| 14 | §3.1 — Enemy uses `SailingSystem` (bundled with #1) | M | 🟡 | ✅ |
+| — | §1.9 — Decouple enemy cooldown tick from AI-decision tick (bundled with #1) | S | 🟡 | ✅ |
 | — | — | — | — | — |
 | 15 | §1.7 / §1.10 — Per-type enemy stats + crew-damage path lit up | M | 🟢 | ⏳ |
 | 16 | §3.4 / §4.1 — `EncounterSpec` + tiered enemy classes scaled by route danger / infamy | L | 🟢 | ⏳ |
@@ -360,7 +395,7 @@ Top items are the highest-impact / lowest-risk wins. Effort: S (≤1h), M (≤3h
 | 30 | §4.9 — Combat duration cap ("darkness falls") | S | 🟢 | ⏳ |
 | 31 | §3.2 — Spatial bucket for hit-tests (only if combat scales) | M | 🟢 | ⏳ |
 | 32 | §3.6 — Split `Renderer.updateCombat` into sub-helpers | S | 🟡 | ⏳ |
-| 33 | §1.9 — Decouple enemy cooldown tick from AI-decision tick (bundles with #1) | S | 🟡 | ⏳ |
+| 33 | §1.9 — (moved above the line, landed with #1) | — | — | ✅ |
 
 ---
 
