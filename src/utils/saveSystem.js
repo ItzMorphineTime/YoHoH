@@ -10,6 +10,8 @@
  *   callers that want to differentiate cases (e.g. show a toast).
  */
 
+import { log } from './Logger.js';
+
 const SAVE_KEY = 'yohoh-save';
 /** Bump this on incompatible state-shape changes. */
 export const SCHEMA_VERSION = 1;
@@ -56,12 +58,12 @@ export function deserializeSave(json) {
   try {
     data = JSON.parse(json);
   } catch (err) {
-    console.warn('[saveSystem] Failed to parse save JSON:', err?.message ?? err);
+    log.warn('save', 'Failed to parse save JSON', err);
     return null;
   }
   const v = readSchemaVersion(data);
   if (v !== SCHEMA_VERSION) {
-    console.warn(`[saveSystem] Save schema version mismatch (got ${v}, expected ${SCHEMA_VERSION}); ignoring save.`);
+    log.warn('save', `Save schema version mismatch (got ${v}, expected ${SCHEMA_VERSION}); ignoring save.`);
     return null;
   }
   return data;
@@ -79,7 +81,7 @@ export function saveToStorage(state) {
     return true;
   } catch (err) {
     // Common causes: private-browsing, quota exceeded.
-    console.warn('[saveSystem] saveToStorage failed:', err?.message ?? err);
+    log.warn('save', 'saveToStorage failed', err);
     return false;
   }
 }
@@ -101,7 +103,7 @@ export function loadWithStatus() {
   try {
     json = localStorage.getItem(SAVE_KEY);
   } catch (err) {
-    console.warn('[saveSystem] localStorage unavailable:', err?.message ?? err);
+    log.warn('save', 'localStorage unavailable', err);
     return { status: LOAD_STATUS.STORAGE_UNAVAILABLE, state: null };
   }
   if (!json) return { status: LOAD_STATUS.NONE, state: null };
@@ -110,12 +112,12 @@ export function loadWithStatus() {
   try {
     data = JSON.parse(json);
   } catch (err) {
-    console.warn('[saveSystem] Failed to parse save JSON:', err?.message ?? err);
+    log.warn('save', 'Failed to parse save JSON', err);
     return { status: LOAD_STATUS.PARSE_ERROR, state: null };
   }
   const v = readSchemaVersion(data);
   if (v !== SCHEMA_VERSION) {
-    console.warn(`[saveSystem] Save schema version mismatch (got ${v}, expected ${SCHEMA_VERSION}).`);
+    log.warn('save', `Save schema version mismatch (got ${v}, expected ${SCHEMA_VERSION}).`);
     return { status: LOAD_STATUS.VERSION_MISMATCH, state: null };
   }
   return { status: LOAD_STATUS.OK, state: data };
@@ -136,6 +138,6 @@ export function deleteSave() {
   try {
     localStorage.removeItem(SAVE_KEY);
   } catch (err) {
-    console.warn('[saveSystem] deleteSave failed:', err?.message ?? err);
+    log.warn('save', 'deleteSave failed', err);
   }
 }

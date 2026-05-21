@@ -545,6 +545,40 @@ export const GAME = {
      */
     combatRestart: false,
   },
+
+  /**
+   * Logging_Improvements.md — runtime-toggleable Logger config.
+   * Honours §0.2: any of these can be overridden at runtime via
+   *   - `log.setPreset('verbose')`           (JS console / dev shortcut)
+   *   - `?log=trace` or `?log=sailing:debug,combat:trace` (URL params at boot)
+   *   - DebugOverlay UI controls + Shift+1..5 shortcuts (when visible)
+   *   - Settings modal "Verbose diagnostics" switch (player-facing)
+   * Levels persist to localStorage between reloads, so user settings stick.
+   */
+  logging: {
+    /**
+     * One of 'silent' | 'production' | 'developer' | 'verbose'. Sets default
+     * level for each sink in one shot; per-category overrides layer on top.
+     *   silent     — nothing emits anywhere
+     *   production — console:warn / overlay:debug / memory:info / localStorage:warn
+     *   developer  — console:warn / overlay:debug / memory:debug / localStorage:info
+     *   verbose    — console:info / overlay:trace / memory:trace / localStorage:info
+     */
+    preset: 'developer',
+    /** Memory sink ring-buffer size (events). Pre-allocated; no per-frame GC. */
+    memoryBufferSize: 2048,
+    /** LocalStorage sink — max persisted events; older ones are dropped on rollover. */
+    localStorageMaxEntries: 500,
+    /** LocalStorage write debounce. */
+    localStorageDebounceMs: 1500,
+    /**
+     * Optional dev convenience: if true, `?log=` URL params override
+     * `preset` even when the URL param is encountered AFTER persisted
+     * localStorage levels are restored. Defaults true so reproduce-this-bug
+     * links work as expected.
+     */
+    urlParamOverridesPersisted: true,
+  },
 };
 
 // ─── Rendering ─────────────────────────────────────────────────────────────

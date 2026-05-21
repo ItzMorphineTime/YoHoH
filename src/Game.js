@@ -23,6 +23,12 @@ import { getStationEffects, updateMoraleDecay } from './systems/CrewSystem.js';
 import { saveToStorage, loadFromStorage, loadWithStatus, LOAD_STATUS } from './utils/saveSystem.js';
 import { PortController } from './controllers/PortController.js';   // Improvements.md §5.1
 import { CrewController } from './controllers/CrewController.js';   // Port_Improvements.md §5
+import {
+  log,
+  ConsoleSink, OverlaySink, MemorySink, LocalStorageSink,
+  parseLogUrlParam, restoreLogLevels, persistLogLevels,
+} from './utils/Logger.js';
+import { ledger, TYPE as LEDGER_TYPE, SOURCE as LEDGER_SOURCE } from './utils/Ledger.js';
 
 export class Game {
   constructor(container) {
@@ -176,19 +182,13 @@ export class Game {
     this.debug.init();
     this.help.init();
     this.hud.onHelp = () => this.help?.toggle();
-    // Expose a global hook so other modules (MapUI, etc) can log into the debug overlay
-    // without having to import it directly. (Sailing_Improvements.md debug)
-    if (typeof window !== 'undefined') {
-      window.__yohohDebugLog = (msg) => this.debug?.log(msg);
-      // Pipe console.warn / console.error into the debug overlay too
-      const origWarn = console.warn.bind(console);
-      const origError = console.error.bind(console);
-      console.warn = (...args) => { origWarn(...args); this.debug?.log('⚠ ' + args.map(String).join(' ')); };
-      console.error = (...args) => { origError(...args); this.debug?.log('✗ ' + args.map(String).join(' ')); };
-      window.addEventListener('error', (e) => this.debug?.log(`✗ ${e.message ?? 'error'} @ ${e.filename ?? '?'}:${e.lineno ?? '?'}`));
-      window.addEventListener('unhandledrejection', (e) => this.debug?.log(`✗ unhandled rejection: ${e.reason}`));
-    }
-    this.debug.log(`Game init complete; state=${this.state}`);
+
+    // Logging_Improvements.md — wire the canonical Logger with four sinks.
+    // Order: register sinks → apply config preset → restore persisted levels →
+    // apply URL-param overrides → bridge legacy hooks.
+    this._initLogger();
+
+    log.info('game', `Game init complete; state=${this.state}`);
     this.portController.setCrewUI?.(this.crewUI); // keep crew overlay in sync with port actions
     // Tavern "Manage Crew" button → open the standalone overlay
     this.portUI.onManageCrew = () => this.crewUI?.show();
@@ -324,11 +324,11 @@ export class Game {
     switch (e.type) {
       case 'departed':
         this.mapUI?.showToast?.(`Setting sail to ${e.destination?.name ?? 'open sea'}!`);
-        this.debug?.log(`voyage event: departed → ${e.destination?.name}`);
+        log.info('voyage', `departed → ${e.destination?.name}`, e);
         break;
       case 'approaching':
         this.mapUI?.showToast?.(`Land ho — ${e.destination?.name ?? 'destination'}!`, 'success');
-        this.debug?.log(`voyage event: approaching ${e.destination?.name}`);
+        log.info('voyage', `approaching ${e.destination?.name}`, e);
         break;
       case 'arrived':
         this.mapUI?.showToast?.(
@@ -341,13 +341,13 @@ export class Game {
             this.mapUI?.showToast?.(`📜 Chart updated — ${e.destination?.name ?? 'a new island'} added.`, 'success');
           }, 1200);
         }
-        this.debug?.log(`voyage event: arrived${e.early ? ' (early dock)' : ''}${e.newlyDiscovered ? ' (discovered)' : ''} → ${e.destination?.name}`);
+        log.info('voyage', `arrived${e.early ? ' (early dock)' : ''}${e.newlyDiscovered ? ' (discovered)' : ''} → ${e.destination?.name}`, e);
         break;
       case 'cancelled':
-        this.debug?.log(`voyage event: cancelled (toast handled by _cancelVoyage)`);
+        log.info('voyage', 'cancelled (toast handled by _cancelVoyage)', e);
         break;
       case 'sunk':
-        this.debug?.log(`voyage event: sunk near ${e.destination?.name}`);
+        log.warn('voyage', `sunk near ${e.destination?.name}`, e);
         break;
     }
   }
@@ -378,7 +378,7 @@ export class Game {
 
     if (input.isLeftMouseJustPressed() && !this._isClickOnUI()) {
       const route = overworldScene.getRouteNearPosition(graphX, graphY, 1);
-      this.debug?.log(`canvas click at graph (${graphX.toFixed(1)}, ${graphY.toFixed(1)}) → route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
+      log.debug('input', () => `canvas click at graph (${graphX.toFixed(1)}, ${graphY.toFixed(1)}) → route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
       if (route) {
         this._selectedRoute = route;
         this._overworldDragStart = null;
@@ -507,6 +507,7 @@ export class Game {
         } else {
           this._sailingPositionBeforeCombat = { ...this.overworldScene.getShipPosition() };
           this.state = GAME_STATES.COMBAT;
+          log.info('state', 'SAILING → COMBAT (encounter)');
           this.combatScene.init(this.overworldScene.getSailingShip());
         }
       }
@@ -528,7 +529,7 @@ export class Game {
       // is enough noise for one beat.
       if (this._autopilotOn && AUTOPILOT?.disengageOnEncounter !== false) {
         this._autopilotOn = false;
-        this.debug?.log('autopilot → OFF (encounter warning)');
+        log.info('autopilot', 'OFF (encounter warning)');
       }
       this.mapUI.showToast(
         `⚠ Sail on the horizon! Hold W to flee (${warnDuration.toFixed(0)}s).`,
@@ -561,7 +562,11 @@ export class Game {
           const lo = cfg?.flotsamGold?.min ?? 5;
           const hi = cfg?.flotsamGold?.max ?? 25;
           const gold = lo + Math.floor(Math.random() * (hi - lo + 1));
-          this._playerGold = (this._playerGold ?? 0) + gold;
+          // Ledger_Improvements.md §3.1
+          this._adjustGold(gold, {
+            source: LEDGER_SOURCE.FLOTSAM_RECOVERED,
+            context: { routeId: this.overworldScene?.travelRoute ? `${this.overworldScene.travelRoute.a?.id}↔${this.overworldScene.travelRoute.b?.id}` : null },
+          });
           this.mapUI?.showToast?.(`Flotsam recovered: +${gold} gold!`, 'success');
           break;
         }
@@ -592,6 +597,174 @@ export class Game {
   }
 
   /**
+   * Logging_Improvements.md — set up the canonical Logger.
+   *
+   * Order matters:
+   *   1. Register sinks (Console / Overlay / Memory / LocalStorage).
+   *   2. Apply the config preset (`GAME.logging.preset`) for default levels.
+   *   3. Restore any persisted user overrides from localStorage.
+   *   4. Apply `?log=` URL params if present (and configured to override).
+   *   5. Bridge legacy `window.__yohohDebugLog` + console.warn / .error
+   *      interception so existing call sites + browser-emitted noise both
+   *      route through the new pipe.
+   */
+  _initLogger() {
+    const cfg = GAME?.logging ?? {};
+    // 1. Sinks.
+    log.addSink(new ConsoleSink());
+    log.addSink(new OverlaySink(this.debug));
+    log.addSink(new MemorySink(cfg.memoryBufferSize ?? 2048));
+    log.addSink(new LocalStorageSink({
+      maxEntries: cfg.localStorageMaxEntries ?? 500,
+      debounceMs: cfg.localStorageDebounceMs ?? 1500,
+    }));
+    // 2. Preset (defaults for each sink).
+    log.setPreset(cfg.preset ?? 'developer');
+    // 3. Persisted user overrides.
+    restoreLogLevels(log);
+    // 4. URL param overrides (reproduce-this-bug links).
+    if (cfg.urlParamOverridesPersisted !== false) {
+      const edits = parseLogUrlParam();
+      if (edits) {
+        for (const e of edits) log.setLevel(e.category, e.level);
+        log.info('logger', `Applied ?log= URL overrides: ${edits.length} edit(s)`);
+      }
+    }
+    // Attach the Logger to the DebugOverlay so the level-control panel renders.
+    this.debug?.attachLogger?.(log);
+    // Ledger_Improvements.md — attach the Ledger so the Ledger tab populates.
+    this.debug?.attachLedger?.(ledger);
+    // 5. Legacy bridges — keep call sites working until they're migrated.
+    if (typeof window !== 'undefined') {
+      // `window.__yohohDebugLog(msg)` — used by MapUI, OverworldScene
+      window.__yohohDebugLog = (msg) => log.debug('legacy', String(msg));
+      // Intercept console.warn / .error so third-party + browser noise also
+      // gets routed through the Logger (so it lands in dumps and the overlay).
+      const origWarn = console.warn.bind(console);
+      const origError = console.error.bind(console);
+      console.warn = (...args) => { origWarn(...args); log.warn('console', args.map(String).join(' ')); };
+      console.error = (...args) => { origError(...args); log.error('console', args.map(String).join(' ')); };
+      // Window-level errors / unhandled rejections — most-likely crash signal.
+      window.addEventListener('error', (e) => {
+        log.error('window', `${e.message ?? 'error'} @ ${e.filename ?? '?'}:${e.lineno ?? '?'}`, e.error);
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        log.error('window', `unhandled rejection: ${e.reason}`, e.reason);
+      });
+    }
+    // Persist user-set levels on shutdown so a fresh load remembers them.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', () => persistLogLevels(log));
+    }
+    log.onChange(() => persistLogLevels(log));
+    log.info('logger', `Logger ready: preset=${log.getPreset()} sinks=${log.sinks.length}`);
+    // Ledger_Improvements.md §3.1 — record the starting gold as the
+    // first ledger entry so the audit trail starts from a known balance.
+    ledger.record({
+      type: LEDGER_TYPE.GOLD,
+      source: LEDGER_SOURCE.SYSTEM_STARTING_GOLD,
+      delta: this._playerGold ?? 0,
+      balance: this._playerGold ?? 0,
+      context: { amount: this._playerGold ?? 0 },
+      state: this.state,
+    });
+    log.info('ledger', `Ledger ready: session=${ledger.sessionId} starting gold=${this._playerGold ?? 0}`);
+  }
+
+  /**
+   * Ledger_Improvements.md §4 — single mutation point for player gold.
+   * Always call this instead of writing `this._playerGold` directly.
+   * Records a Ledger entry tagged with the source + context so the audit
+   * trail captures every gold change.
+   */
+  _adjustGold(delta, opts = {}) {
+    if (!delta) return;
+    const before = this._playerGold ?? 0;
+    this._playerGold = Math.max(0, before + delta);
+    const realDelta = this._playerGold - before;
+    if (realDelta === 0) return;
+    ledger.record({
+      type: LEDGER_TYPE.GOLD,
+      source: opts.source ?? LEDGER_SOURCE.DEV_CHEAT_GRANT,
+      category: opts.category,
+      delta: realDelta,
+      balance: this._playerGold,
+      context: opts.context,
+      state: this.state,
+    });
+  }
+
+  /** Ledger_Improvements.md §4 — single mutation point for player infamy. */
+  _adjustInfamy(delta, opts = {}) {
+    if (!delta) return;
+    const before = this._playerInfamy ?? 0;
+    this._playerInfamy = Math.max(0, before + delta);
+    ledger.record({
+      type: LEDGER_TYPE.INFAMY,
+      source: opts.source ?? LEDGER_SOURCE.COMBAT_VICTORY,
+      category: opts.category,
+      delta,
+      balance: this._playerInfamy,
+      context: opts.context,
+      state: this.state,
+    });
+  }
+
+  /** Ledger_Improvements.md §4 — single mutation point for cargo (per good). */
+  _adjustCargo(goodId, delta, opts = {}) {
+    if (!goodId || !delta) return;
+    const cargo = this._playerCargo ?? (this._playerCargo = {});
+    const before = cargo[goodId] ?? 0;
+    cargo[goodId] = Math.max(0, before + delta);
+    if (cargo[goodId] === 0) delete cargo[goodId];
+    const realDelta = (cargo[goodId] ?? 0) - before;
+    if (realDelta === 0) return;
+    ledger.record({
+      type: LEDGER_TYPE.CARGO,
+      source: opts.source ?? 'unknown',
+      category: opts.category,
+      delta: realDelta,
+      balance: cargo[goodId] ?? 0,
+      context: { ...opts.context, good: goodId },
+      state: this.state,
+    });
+  }
+
+  /** Ledger_Improvements.md §4 — crew add. */
+  _addCrew(crew, opts = {}) {
+    if (!crew) return;
+    this._crewRoster = this._crewRoster ?? [];
+    this._crewRoster.push(crew);
+    ledger.record({
+      type: LEDGER_TYPE.CREW,
+      source: opts.source ?? LEDGER_SOURCE.CREW_HIRE,
+      category: opts.category,
+      delta: +1,
+      balance: this._crewRoster.length,
+      context: { ...opts.context, crewId: crew.id, name: crew.name },
+      state: this.state,
+    });
+  }
+
+  /** Ledger_Improvements.md §4 — crew remove. */
+  _removeCrew(crewId, opts = {}) {
+    if (!crewId) return;
+    const arr = this._crewRoster ?? [];
+    const idx = arr.findIndex(c => c.id === crewId);
+    if (idx < 0) return;
+    const [removed] = arr.splice(idx, 1);
+    ledger.record({
+      type: LEDGER_TYPE.CREW,
+      source: opts.source ?? LEDGER_SOURCE.CREW_DISMISS,
+      category: opts.category,
+      delta: -1,
+      balance: arr.length,
+      context: { ...opts.context, crewId, name: removed?.name },
+      state: this.state,
+    });
+  }
+
+  /**
    * Sailing_Improvements.md §4.5: handle autopilot keybinds.
    *   H        — snap ship rotation to the current bearing toward destination
    *   Shift+H  — toggle persistent autopilot (auto-steer + auto-throttle)
@@ -619,7 +792,7 @@ export class Game {
         this._autopilotOn ? '⚙ Autopilot engaged — Shift+H to disengage' : 'Autopilot disengaged.',
         'success',
       );
-      this.debug?.log(`autopilot → ${this._autopilotOn ? 'ON' : 'OFF'}`);
+      log.info('autopilot', `→ ${this._autopilotOn ? 'ON' : 'OFF'}`);
       return;
     }
     // One-shot heading snap.
@@ -629,7 +802,7 @@ export class Game {
     ship.rotation = info.bearingRad;
     const compass = this._compass8(info.bearingRad);
     this.mapUI?.showToast?.(`Heading set ${compass} (${Math.round((info.bearingRad * 180 / Math.PI + 360) % 360)}°).`, 'success');
-    this.debug?.log(`heading snap → ${compass}`);
+    log.info('autopilot', `heading snap → ${compass}`);
   }
 
   /**
@@ -646,7 +819,7 @@ export class Game {
         || input.isKeyJustPressed?.('KeyD')) {
       this._autopilotOn = false;
       this.mapUI?.showToast?.('Autopilot disengaged (manual override).', 'success');
-      this.debug?.log('autopilot → OFF (manual override)');
+      log.info('autopilot', 'OFF (manual override)');
     }
   }
 
@@ -732,9 +905,19 @@ export class Game {
         leaks: sailingShip.leaks,
       };
     }
-    // Apply penalties
+    // Apply penalties — Ledger_Improvements.md §3.1
     const goldCost = Math.min(CANCEL_VOYAGE?.goldCost ?? 0, this._playerGold ?? 0);
-    this._playerGold = (this._playerGold ?? 0) - goldCost;
+    if (goldCost > 0) {
+      this._adjustGold(-goldCost, {
+        source: LEDGER_SOURCE.CANCEL_VOYAGE_PENALTY,
+        context: {
+          routeId: this.overworldScene?.travelRoute
+            ? `${this.overworldScene.travelRoute.a?.id}↔${this.overworldScene.travelRoute.b?.id}`
+            : null,
+          crewMoraleLossPerCrew: CANCEL_VOYAGE?.moraleLossPerCrew ?? 0,
+        },
+      });
+    }
     const moraleLoss = CANCEL_VOYAGE?.moraleLossPerCrew ?? 0;
     const moraleMin = CREW?.moraleMin ?? 0.2;
     if (moraleLoss > 0) {
@@ -791,7 +974,16 @@ export class Game {
     // Battle_Improvements.md §1.5: COMBAT_RESULT enum instead of string literals.
     if (result === COMBAT_RESULT.VICTORY && input.isKeyJustPressed('Escape')) {
       const loot = combatScene.getLoot();
-      this._playerGold = (this._playerGold ?? 0) + (loot?.gold ?? 0);
+      // Ledger_Improvements.md §3.1 — combat loot
+      if (loot?.gold) {
+        this._adjustGold(loot.gold, {
+          source: LEDGER_SOURCE.COMBAT_LOOT,
+          context: {
+            enemyCount: this.combatScene?.getEnemies?.()?.length ?? 0,
+            salvage: loot?.salvage ?? 0,
+          },
+        });
+      }
       if (this.overworldScene.isTraveling()) {
         const ship = this.overworldScene.getSailingShip();
         const pos = this._sailingPositionBeforeCombat;
@@ -805,14 +997,17 @@ export class Game {
           ship.applyClassPhysics?.({ useSailing: true });
         }
         this.state = GAME_STATES.SAILING;
+        log.info('state', 'COMBAT → SAILING (victory, resume voyage)');
       } else {
         this.state = GAME_STATES.OVERWORLD;
+        log.info('state', 'COMBAT → OVERWORLD (victory, no travel)');
       }
     }
     if (result === COMBAT_RESULT.DEFEAT && input.isKeyJustPressed('Escape')) {
       this.overworldScene.cancelTravel();
       this._resetEncounterTimer();
       this.state = GAME_STATES.OVERWORLD;
+      log.info('state', 'COMBAT → OVERWORLD (defeat)');
     }
 
     combatScene.handleAimInput(input);
@@ -1002,22 +1197,54 @@ export class Game {
     // D.9: Auto-save when entering port
     this.saveGame();
     const dockFee = ECONOMY?.dockFee ?? 0;
-    const goldAfterDock = Math.max(0, (this._playerGold ?? 0) - dockFee);
-    this.portScene.init(currentIsland, [...(this._crewRoster ?? [])], goldAfterDock, this._playerShipClass ?? 'sloop', this._playerShipState ?? null, { ...(this._playerCargo ?? {}) }, { ...(this._playerUpgrades ?? {}) }, this._playerInfamy ?? 0, [...(this._playerUnlockedShipClasses ?? ['sloop'])]);
+    // Ledger_Improvements.md §3.1 — dock fee on port entry.
+    if (dockFee > 0 && (this._playerGold ?? 0) > 0) {
+      const realFee = Math.min(dockFee, this._playerGold ?? 0);
+      this._adjustGold(-realFee, {
+        source: LEDGER_SOURCE.DOCK_FEE,
+        context: { islandId: currentIsland.id, islandName: currentIsland.name, fee: dockFee, paid: realFee },
+      });
+    }
+    this.portScene.init(currentIsland, [...(this._crewRoster ?? [])], this._playerGold ?? 0, this._playerShipClass ?? 'sloop', this._playerShipState ?? null, { ...(this._playerCargo ?? {}) }, { ...(this._playerUpgrades ?? {}) }, this._playerInfamy ?? 0, [...(this._playerUnlockedShipClasses ?? ['sloop'])]);
     this.portScene.dockFeePaid = dockFee;
     this.portUI.show(this.portScene);
     this.state = GAME_STATES.PORT;
+    log.info('state', `OVERWORLD → PORT (${currentIsland.name ?? currentIsland.id})`);
     this.crewUI?.update?.(); // Port_Improvements.md §5: re-source roster from portScene
   }
 
   _leavePort() {
-    this._crewRoster = [...(this.portScene.getCrewRoster() ?? [])];
-    this._playerGold = this.portScene.getGold();
+    // Ledger_Improvements.md §3 — reconcile the net economic delta from the port
+    // session. Individual port transactions (buy, sell, repair, upgrade, hire)
+    // happen inside PortController and currently aren't individually ledgered
+    // (X2 phase will hook those). Until then, capture the net delta here as a
+    // single bookkeeping entry so the audit trail isn't blind to port time.
+    const newCrew  = [...(this.portScene.getCrewRoster() ?? [])];
+    const newGold  = this.portScene.getGold();
+    const newCargo = this.portScene.getCargo?.() ?? this._playerCargo ?? {};
+    const oldGold  = this._playerGold ?? 0;
+    const goldDelta = newGold - oldGold;
+    this._crewRoster = newCrew;
+    this._playerGold = newGold;
     this._playerShipState = this.portScene.getShipState?.() ?? this._playerShipState;
     this._playerUpgrades = this.portScene.getUpgrades?.() ?? this._playerUpgrades;
-    this._playerCargo = this.portScene.getCargo?.() ?? this._playerCargo ?? {};
+    this._playerCargo = newCargo;
+    if (goldDelta !== 0) {
+      // Net entry — not perfect (loses per-transaction granularity) but better
+      // than silent. PortController hooks (X2) will replace this with per-tx records.
+      ledger.record({
+        type: LEDGER_TYPE.GOLD,
+        source: 'port_net_session',  // intentionally NOT in SOURCE catalogue — marks "to-be-decomposed"
+        category: 'port',
+        delta: goldDelta,
+        balance: newGold,
+        context: { note: 'Net change across port session — decompose in PortController (Phase X2)' },
+        state: GAME_STATES.PORT,
+      });
+    }
     this.portUI.hide();
     this.state = GAME_STATES.OVERWORLD;
+    log.info('state', `PORT → OVERWORLD (gold Δ ${goldDelta >= 0 ? '+' : ''}${goldDelta})`);
     this.crewUI?.update?.(); // Port_Improvements.md §5: re-source roster from Game post-leave
   }
 
@@ -1038,31 +1265,29 @@ export class Game {
    * don't have open).
    */
   _startSailing(route) {
-    this.debug?.log(`_startSailing called: route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
+    log.debug('sailing', () => `_startSailing called: route=${route ? `[${route.a?.id}↔${route.b?.id}]` : 'null'}`);
     if (!route) {
-      this.debug?.log('  ✗ FAIL: no route passed in');
+      log.warn('sailing', 'startSailing fail: no route passed in');
       this.mapUI?.showToast?.('Select a route from your island first.', 'error');
       return false;
     }
     const currentIsland = this.overworldScene.getCurrentIsland();
     if (!currentIsland) {
-      this.debug?.log('  ✗ FAIL: no current island');
+      log.warn('sailing', 'startSailing fail: no current island');
       this.mapUI?.showToast?.('No island to set sail from.', 'error');
       return false;
     }
     const { a, b } = route;
     if (a !== currentIsland && b !== currentIsland) {
-      // The selected route doesn't touch our current island. Most likely
-      // cause: stale `_selectedRoute` reference from a previous map (load /
-      // new game) — clear it so the player can try again.
-      this.debug?.log(`  ✗ FAIL: route [${a?.id}↔${b?.id}] doesn't touch currentIsland=${currentIsland.id}`);
+      // Stale `_selectedRoute` reference from a previous map (load / new game).
+      log.warn('sailing', `startSailing fail: route [${a?.id}↔${b?.id}] doesn't touch currentIsland=${currentIsland.id}`);
       this.mapUI?.showToast?.('That route doesn\'t start from your island. Pick another.', 'error');
       this._selectedRoute = null;
       return false;
     }
     const target = a === currentIsland ? b : a;
     if (!target) {
-      this.debug?.log('  ✗ FAIL: route has no opposite endpoint');
+      log.warn('sailing', 'startSailing fail: route has no opposite endpoint');
       this.mapUI?.showToast?.('Route is malformed — no destination.', 'error');
       this._selectedRoute = null;
       return false;
@@ -1070,7 +1295,7 @@ export class Game {
     const suppliesCost = ECONOMY?.suppliesCost ?? 0;
     const gold = this._playerGold ?? 0;
     if (suppliesCost > 0 && gold < suppliesCost) {
-      this.debug?.log(`  ✗ FAIL: need ${suppliesCost} gold for supplies, have ${gold}`);
+      log.warn('sailing', `startSailing fail: need ${suppliesCost} gold for supplies, have ${gold}`);
       this.mapUI?.showToast?.(
         `Need ${suppliesCost} gold for supplies — you have ${gold}.`,
         'error',
@@ -1085,17 +1310,21 @@ export class Game {
       this._playerUpgrades ?? {},
       this._playerCargo ?? {}, // Sailing_Improvements.md §4.4
     );
-    // Structured result with `ok` + `reason` (still truthy on success).
     const ok = result && result.ok;
-    this.debug?.log(`  startTravel → ${ok ? 'OK' : `FAIL (${result?.reason ?? 'unknown'})`}`);
     if (ok) {
-      if (suppliesCost > 0) this._playerGold = Math.max(0, gold - suppliesCost);
+      // Ledger_Improvements.md §3.1 — supplies cost
+      if (suppliesCost > 0) {
+        this._adjustGold(-suppliesCost, {
+          source: LEDGER_SOURCE.SUPPLIES_COST,
+          context: { routeId: `${currentIsland.id}↔${target.id}`, cost: suppliesCost },
+        });
+      }
       this._selectedRoute = null;
       this.state = GAME_STATES.SAILING;
-      this.debug?.log(`  → state=SAILING; ship=${!!this.overworldScene.getSailingShip()}`);
+      log.info('state', `OVERWORLD → SAILING (route [${currentIsland.id}→${target.id}])`);
       return true;
     }
-    // Tailored toast per failure reason from OverworldScene.
+    log.warn('sailing', `startSailing fail: startTravel returned ${result?.reason ?? 'unknown'}`, result);
     this._showStartTravelFailureToast(result);
     return false;
   }

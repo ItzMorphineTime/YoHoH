@@ -5,6 +5,7 @@
 import { UI, ECONOMY } from '../config.js';
 import { getRouteModifiers } from '../utils/routeModifiers.js';
 import { esc } from '../utils/escapeHtml.js'; // Improvements.md §5.3
+import { log } from '../utils/Logger.js';   // Logging_Improvements.md
 
 // Charting_Improvements.md §5.4: fog of war is scoped to the Chart Screen
 // (MapChartingUI) only. The bottom MapUI panel is the action surface — players
@@ -222,23 +223,17 @@ export class MapUI {
 
   _onStartSailing() {
     // Sailing_Improvements.md "Start Sailing silent-fail" (2026-05-18):
-    // Every failure path now surfaces a toast so the player has real
-    // feedback. The debug log mirror stays for in-game diagnosis.
-    if (typeof window !== 'undefined' && window.__yohohDebugLog) {
-      window.__yohohDebugLog(`MapUI._onStartSailing: pendingRoute=${!!this._pendingRoute} cb=${!!this.onStartSailing}`);
-    }
+    // Every failure path surfaces a toast so the player has real feedback.
+    log.debug('mapui', () => `_onStartSailing: pendingRoute=${!!this._pendingRoute} cb=${!!this.onStartSailing}`);
     if (!this._pendingRoute) {
-      // This branch fires when the player clicked Start Sailing without first
-      // selecting a route, or when their selection was cleared by some other
-      // path (state transition, map reload).
       this._showToast('Select a route from your island first.', 'error');
-      console.warn('[MapUI] Start Sailing clicked with no pending route.');
+      log.warn('mapui', 'Start Sailing clicked with no pending route.');
       return;
     }
     if (!this.onStartSailing) {
       // Should be unreachable in practice — Game wires `onStartSailing` in init.
       this._showToast('Internal error: sailing handler missing.', 'error');
-      console.error('[MapUI] Start Sailing clicked but `onStartSailing` is unset.');
+      log.error('mapui', 'Start Sailing clicked but `onStartSailing` is unset.');
       return;
     }
     this.onStartSailing(this._pendingRoute);

@@ -4,7 +4,7 @@
 **Last updated:** 2026-05-16
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [Logging_Improvements.md](Logging_Improvements.md) (logging + diagnostics roadmap), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [Logging_Improvements.md](Logging_Improvements.md) (logging + diagnostics roadmap), [Ledger_Improvements.md](Ledger_Improvements.md) (player-economic audit trail), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
 
 ---
 
@@ -1025,11 +1025,18 @@ User report: pressing Start Sailing did nothing, no log entries explained why. I
 
 **Why this is at the top of the list:** every silent-fail bug we've shipped so far (ship-not-moving on hold-W, Start Sailing button doing nothing, Tavern/Shipwright/Market buttons doing nothing, main menu unclickable) shared the same shape — *the game refused to do what the player asked, with zero feedback through any channel*. Each one cost a multi-hour diagnostic session. Investing in a proper Logger + crash surface now stops that pattern dead and pays back the next time we (or a player) hits a weird edge case. See [Logging_Improvements.md](Logging_Improvements.md) for the full 21-item triage.
 
-**Phase L1 — Foundation** (first session)
-- 🔴 New `src/utils/Logger.js` with `log.trace/debug/info/warn/error(category, message, data?)`, multiple sinks (Console / Overlay / Memory / LocalStorage), level + category config.
-- 🔴 Migrate every existing `console.warn` / `console.error` / `window.__yohohDebugLog` / `debug?.log` call to the canonical Logger. Backward-compat shim so legacy call sites keep working.
-- 🟠 `GAME.logging` config block (per-sink level), `?debug` URL param boosts everything to `trace`.
-- 🟠 Category filter UI in `DebugOverlay` (checkboxes + isolate-one shortcut).
+**🔴 Non-negotiable constraints** (Logging_Improvements §0)
+
+1. **Zero measurable impact on the game's state machine.** Disabled log levels do **no work** — no string concatenation, no allocation, no sink dispatch. Fast path is one integer compare + return. Logger accepts closure-form messages (`log.trace('cat', () => …)`) so expensive payloads only evaluate when the level is enabled. Memory sink is a pre-allocated ring buffer with in-place object reuse. DebugOverlay updates are RAF-batched. LocalStorage writes are debounced. `Game._transitionState` and other hot-path log call sites are fire-and-forget — never await sinks, wrapped in try/catch so a misbehaving sink can't break the state machine. Acceptance gate: 5-minute autopilot voyage at `trace`-across-everything must shift frame time by ≤ 0.5 ms vs `silent`.
+
+2. **Easily toggleable between debug levels — at runtime, without reload.** Five entry points: (a) per-category dropdown in `DebugOverlay`; (b) `Shift+1..5` keyboard shortcuts (error / warn / info / debug / trace); (c) `?log=trace` or `?log=sailing:debug,combat:trace` URL params parsed at boot; (d) JS console — `log.setLevel('sailing', 'trace')` / `log.setPreset('verbose')`; (e) Settings modal one-switch "Verbose diagnostics" for players. Levels persist to `localStorage` across reloads. Single `GAME.logging.preset` (`production` / `developer` / `silent` / `verbose`) sets all four sinks at once; per-category overrides layer on top.
+
+**Phase L1 — Foundation** ✅ **landed (2026-05-18)** — see Logging_Improvements.md §8.
+- ✅ New `src/utils/Logger.js` honouring both §0 constraints. Sinks: Console / Overlay (RAF-batched) / Memory (pre-allocated ring buffer, default 2048) / LocalStorage (debounced + page-hide flush + quota retry).
+- ✅ High-traffic existing call sites migrated to the Logger (voyage events, autopilot, sailing, state-transitions, save/load, goods fetch). Backward-compat shim for `window.__yohohDebugLog` + `console.warn`/`error` interception so call sites not yet migrated still route through the pipe.
+- ✅ `GAME.logging` config block + per-sink/per-category overrides; `log.setLevel` / `log.setPreset` / `log.describe` runtime API; `?log=trace` and `?log=cat:level,...` URL param parsing at boot; `localStorage` persistence of user-set levels.
+- ✅ Category + level controls in `DebugOverlay` (preset row + per-sink dropdowns + per-category click-to-override + `Shift+1..5` shortcuts + live counts).
+- ⏳ Perf-gate procedure (deferred to L4 — needs an autopilot voyage harness with controlled fps measurement; manual procedure documented).
 
 **Phase L2 — Auto-event surface** (no more silent failures)
 - 🟠 `Game._transitionState(next, reason?)` helper — every state flip logged with its trigger.
@@ -1054,6 +1061,45 @@ User report: pressing Start Sailing did nothing, no log entries explained why. I
 - 🟢 Time-travel state snapshots (ring of 10 checkpoints to bisect when a bug appeared).
 
 **Acceptance for "logging is done":** the next "Start Sailing silent-fail"-class bug is impossible to ship without producing a log entry that points at the root cause.
+
+---
+
+#### 🚩 TOP PRIORITY (paired) — Transaction Ledger + Log UI overhaul
+
+These two priorities ride together because they share infrastructure: the Ledger needs a viewing surface and the existing DebugOverlay UI can't host it without an overhaul. The Log UI work is also independently overdue — at `info`-level logging the current single-column 20-row panel becomes useless. See [Ledger_Improvements.md](Ledger_Improvements.md) and [Logging_Improvements.md](Logging_Improvements.md) §9 for the full design.
+
+**Why this matters:** today every economic mutation (`this._playerGold = …`, `this._playerCargo[…] = …`, etc.) is scattered across ~15 files with no shared audit trail. When a player asks "where did my gold go?" we have no record. The Ledger captures every transaction as a structured immutable entry — type / category / source / delta / balance / context / state — queryable by time / category / source / search. Persists across sessions. Survives save/load.
+
+The DebugOverlay UI overhaul is needed because the Logger L1 panel can't show a 2000-entry transaction history meaningfully — single column, 20-line cap, no filter, no search, no tabs, no virtualised list. As soon as you turn on `info` logging the live state sections get pushed off-screen.
+
+**Phase X1 — Ledger foundation** ✅ **landed (2026-05-18)** — see Ledger_Improvements.md §11.
+- ✅ `src/utils/Ledger.js` — record / query / summary / export / persist. Pre-allocated 4096-entry ring buffer with in-place object reuse. Debounced LocalStorage (last 1000 entries × last 5 sessions). Quota-recovery + page-hide flush. Same §0.1 perf constraints as the Logger.
+- ✅ `src/utils/LedgerSources.js` — ~25 source constants across port / sailing / combat / voyage / crew / system. Per-source category defaulting via `SOURCE_TO_CATEGORY`.
+- ✅ Game `_adjustGold` / `_adjustInfamy` / `_adjustCargo` / `_addCrew` / `_removeCrew` helpers — single mutation point per economic dimension.
+- ✅ Hooks on: starting gold, flotsam corridor event, cancel-voyage penalty, combat loot, sailing supplies, dock fee, `_leavePort` net-session bookkeeping. **PortController per-transaction hooks deferred to Phase X2.**
+- ⏳ Ship-state bookmarks (deferred to X2)
+- ⏳ Save game integration (deferred to X2)
+
+**Phase L2 — Log UI overhaul** ✅ **landed (2026-05-18, paired with X1)** — see Logging_Improvements.md §8 + §9.
+- ✅ Tabbed DebugOverlay shell — State / Events / Ledger / Config tabs. Per-tab scroll preserved. Tab key cycles tabs.
+- ✅ Events tab — colour-coded level chips, expandable `data` payload via `<details>`, RAF-throttled refresh. Cap at 500 rendered rows (true virtualisation deferred to L3).
+- ✅ Filter bar — level threshold dropdown, category chips with counts (multi-select), text search across msg + data, Clear button.
+- ✅ Pause + auto-scroll toggles.
+- ✅ Ledger tab — summary strip (`gold +X / -Y = net Z`) + filter bar (type / category / search) + table view (time / source / cat / Δ / balance / context) + CSV/JSON export.
+- ⏳ True virtualisation, resize handle, drag-to-reposition, click-row-to-pause — deferred to L3.
+
+**Phase X2 — Coverage** (next)
+- 🔴 Hook PortController per-transaction (market buy/sell × goods, repair × hull/sails/leaks, upgrade purchase, ship purchase, crew hire) — replaces the temporary `port_net_session` placeholder entry.
+- 🔴 Audit remaining direct `this._playerGold` / `_playerInfamy` / cargo / crew assignment sites; migrate to helpers.
+- 🟠 Ship-state bookmark entries (arrival / port-end / combat-end).
+- 🟡 Save game integration — last 200 entries in the save payload, restored on load.
+- 🟡 Lint rule banning direct economic assignment outside the helpers.
+
+**Phase X4 — Player-facing surfaces** (stretch)
+- 🟢 Captain's Log overlay (toggle key `J`) — read-only player-friendly ledger view with tabs (Treasury / Hold / Crew / Ship), filter by time + category, CSV export.
+- 🟢 Cross-session retention UI — view / clear / export old sessions.
+
+**Acceptance for "Ledger is done":** every economic state change in the game produces a Ledger entry. The player can open a transactions view, filter by source, and see exactly when and why each gold/cargo/crew change happened.
 
 ---
 

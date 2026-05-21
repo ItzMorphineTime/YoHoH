@@ -13,6 +13,7 @@ import { deserialize, serialize } from '../map/MapSerializer.js';
 import { getRouteModifiers } from '../utils/routeModifiers.js';
 import { OVERWORLD, OVERWORLD_RENDER, SAILING, SAILING_RENDER, ARRIVAL, ROUTE_MODIFIER_EFFECTS, CARGO_LOAD, CORRIDOR_EVENTS } from '../config.js';
 import { getGoods } from '../systems/EconomySystem.js';
+import { log } from '../utils/Logger.js';
 
 export class OverworldScene {
   constructor() {
@@ -70,7 +71,7 @@ export class OverworldScene {
       this._updateShipPosition();
       return true;
     } catch (e) {
-      console.error('Failed to load map:', e);
+      log.error('map', 'Failed to load map', e);
       return false;
     }
   }
@@ -366,14 +367,11 @@ export class OverworldScene {
    * `if (ok)` callers keep working.
    */
   startTravel(targetIsland, crewRoster = [], shipClassId = 'sloop', shipState = null, upgrades = {}, cargo = null) {
-    const dbg = (msg) => {
-      if (typeof window !== 'undefined' && window.__yohohDebugLog) window.__yohohDebugLog(msg);
-    };
     // Self-heal: if travelRoute is set but sailingShip is null we're in a
     // half-state (an exception during a previous startTravel, or a future
     // bug). Recover quietly so the player doesn't get stuck forever.
     if (this.travelRoute && !this.sailingShip) {
-      dbg('startTravel self-heal: travelRoute set but no sailingShip → clearing stale state');
+      log.warn('sailing', 'startTravel self-heal: travelRoute set but no sailingShip → clearing stale state');
       this.travelRoute = null;
       this._routeBasePhysics = null;
       this._modifiedCorridorWidth = null;
@@ -381,16 +379,16 @@ export class OverworldScene {
     }
     if (this.travelRoute) {
       const stale = `[${this.travelRoute.a?.id}↔${this.travelRoute.b?.id}]`;
-      dbg(`startTravel BLOCKED: already traveling on ${stale}`);
+      log.warn('sailing', `startTravel BLOCKED: already traveling on ${stale}`);
       return { ok: false, reason: 'already-traveling', detail: stale };
     }
     if (!this.currentIsland) {
-      dbg('startTravel BLOCKED: no current island');
+      log.warn('sailing', 'startTravel BLOCKED: no current island');
       return { ok: false, reason: 'no-current-island' };
     }
     const edge = this._findEdge(this.currentIsland, targetIsland);
     if (!edge) {
-      dbg(`startTravel BLOCKED: no edge between [${this.currentIsland.id}] and [${targetIsland?.id}]`);
+      log.warn('sailing', `startTravel BLOCKED: no edge between [${this.currentIsland.id}] and [${targetIsland?.id}]`);
       return {
         ok: false,
         reason: 'no-edge',
@@ -423,8 +421,7 @@ export class OverworldScene {
       });
       newShip.setStationEffects(getStationEffects(crewRoster, shipClassId));
     } catch (err) {
-      console.error('[OverworldScene.startTravel] failed to create sailing ship:', err);
-      dbg(`startTravel BLOCKED: create-ship-failed (${err?.message ?? err})`);
+      log.error('sailing', `startTravel BLOCKED: create-ship-failed (${err?.message ?? err})`, err);
       return { ok: false, reason: 'create-ship-failed', detail: err?.message ?? String(err) };
     }
     this.sailingShip = newShip;
@@ -445,7 +442,7 @@ export class OverworldScene {
       origin: { id: this.currentIsland.id, name: this.currentIsland.name ?? `Island ${this.currentIsland.id}` },
       destination: { id: targetIsland.id, name: targetIsland.name ?? `Island ${targetIsland.id}` },
     });
-    dbg(`startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)} events=${this.corridorEvents?.length ?? 0}`);
+    log.info('sailing', () => `startTravel OK: [${this.currentIsland.id}→${targetIsland?.id}] ship maxSpeed=${newShip.maxSpeed.toFixed(3)} thrust=${newShip.thrust.toFixed(3)} events=${this.corridorEvents?.length ?? 0}`);
     return { ok: true };
   }
 

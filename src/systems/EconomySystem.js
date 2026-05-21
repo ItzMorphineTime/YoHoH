@@ -4,6 +4,7 @@
  */
 
 import { ECONOMY } from '../config.js';
+import { log } from '../utils/Logger.js';
 
 let goodsCache = null;
 
@@ -18,7 +19,7 @@ export async function loadGoods() {
     goodsCache = data.goods ?? [];
     return goodsCache;
   } catch (e) {
-    console.warn('EconomySystem: could not load goods.json', e);
+    log.warn('economy', 'could not load goods.json', e);
     goodsCache = [];
     return goodsCache;
   }
