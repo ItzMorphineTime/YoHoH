@@ -1,10 +1,14 @@
 # YoHoH — Implementation Plan (HTML/JS + Three.js)
 
 **Document status:** Draft v1.1 (reviewed)
-**Last updated:** 2026-05-16
+**Last updated:** 2026-05-22
 **Target:** Small indie prototype — PC web browser
 **Tech stack:** HTML5, JavaScript (ES6+), Three.js
-**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [Logging_Improvements.md](Logging_Improvements.md) (logging + diagnostics roadmap), [Ledger_Improvements.md](Ledger_Improvements.md) (player-economic audit trail), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+**Companion docs:** [Improvements.md](Improvements.md) (code-quality / perf backlog), [Port_Improvements.md](Port_Improvements.md) (port + crew UX backlog), [Sailing_Improvements.md](Sailing_Improvements.md) (sailing physics + UX backlog), [Charting_Improvements.md](Charting_Improvements.md) (chart screen + minimap + map UI backlog), [Battle_Improvements.md](Battle_Improvements.md) (combat physics + UX backlog), [Logging_Improvements.md](Logging_Improvements.md) (logging + diagnostics roadmap), [Ledger_Improvements.md](Ledger_Improvements.md) (player-economic audit trail), [Lore_Presentation_Improvements.md](Lore_Presentation_Improvements.md) (pitch-deck + extractor pass for the Ages expansion), [LORE.md](LORE.md), [island-generator-poc/ISLAND_GENERATOR.md](island-generator-poc/ISLAND_GENERATOR.md)
+
+### Recent landed passes (2026-05-22)
+
+- **Lore presentation pass** — followed [Lore_Presentation_Improvements.md](Lore_Presentation_Improvements.md). Phase 1 brought `scripts/extract-lore.js` to parity with the expanded LORE.md (6 new H2 sections, Ages framework, historical reveal questline, faction interpretations, future hooks, per-King historical wound, validation). Phase 2 added 5 new story slides in `docs/index.html` (Ages overview, three Age spreads, Faction matrix, Two Reveal Paths, Domain comparison) plus the Age-ribbon header and Historical Wound badge on King cards. Phase 3 polish: Lorebook category palette, King→Age cross-link chip, hover-preview on chapter cards, `?writer` URL toggle exposing Future Hooks, generated-at watermark, and a11y roles on the new grid components.
 
 ---
 

@@ -26,6 +26,11 @@ const lorebookPath = existsSync(join(root, 'docs', 'LOREBOOK.html'))
   : existsSync(join(root, 'LOREBOOK.html'))
     ? join(root, 'LOREBOOK.html')
     : null;
+const storybookPath = existsSync(join(root, 'docs', 'STORYBOOK.html'))
+  ? join(root, 'docs', 'STORYBOOK.html')
+  : existsSync(join(root, 'STORYBOOK.html'))
+    ? join(root, 'STORYBOOK.html')
+    : null;
 const outputDirs = [join(root, 'public', 'data'), join(root, 'docs', 'data')];
 
 const IMAGE_FALLBACKS = {
@@ -162,6 +167,56 @@ function getH3Sections(block) {
     };
   });
 }
+/**
+ * Lore_Presentation_Improvements §1.8: derive chapter category from an
+ * explicit map keyed by the chapter title. Previously a long keyword-soup
+ * `includes()` chain miscategorised the new Ages chapters as "World" / "Myth"
+ * without distinction. The new map keeps the obvious matches and adds a
+ * dedicated "Ages" bucket for the four Age chapters + the Cataclysm /
+ * Collapse bridges, so the Lorebook chapter grid can sort + colour them
+ * coherently.
+ */
+const LOREBOOK_CATEGORY_MAP = {
+  // World / setting
+  'The World: The Shattered Seas': 'World',
+  'The Archipelago & Your Place in It': 'World',
+  // Ages framework
+  'The Second Age: The Age of the Drowned Crown': 'Ages',
+  'The Corruption of the Deep': 'Ages',
+  'The Unbinding Tide': 'Ages',
+  'The Third Age: The Age of Free Sails': 'Ages',
+  'The Current Age: The Age of Five Crowns': 'Ages',
+  // Myth (the original Sundering arc)
+  'Story / Lore: The Sundering of the Three Crowns': 'Myth',
+  'The Atlantean Hunger': 'Myth',
+  "Admiral Barrow's Betrayal": 'Myth',
+  'Jasper Barrow and the False Treason': 'Myth',
+  "Aurelion's Dive": 'Myth',
+  'The Crown Below Ritual': 'Myth',
+  "Jasper's Binding": 'Myth',
+  'The Crown Below: The Wound That Still Pulses': 'Myth',
+  // Characters
+  "Ebon's Glory and the Ashen Turn": 'Characters',
+  'The Five Pirate Kings': 'Characters',
+  // Dragons
+  'Dragons: The Last of the Great Beasts': 'Dragons',
+  // Reveal / questlines / tone — discovery layer
+  'Public Rumours vs. Hidden Truth': 'Reveal',
+  'Tone & Narrative Beats': 'Reveal',
+  'Player-Facing Lore Reveal Structure': 'Reveal',
+  'Suggested Jasper Questline': 'Reveal',
+  'Suggested Historical Reveal Questline: The Ages of the Sea': 'Reveal',
+};
+
+function categoriseChapter(title) {
+  if (LOREBOOK_CATEGORY_MAP[title]) return LOREBOOK_CATEGORY_MAP[title];
+  if (title.startsWith('Appendix')) return 'Appendix';
+  // Conservative fallback so a future LORE.md edit doesn't silently land
+  // unrecognised chapters in "Myth" — surface them as "World" and let the
+  // closing summary log warn about uncategorised titles.
+  return 'World';
+}
+
 function extractLoreBook(md) {
   const chapters = getH2Blocks(md).map((b, index) => {
     const body = removeMainHeading(b.markdown, 2);
@@ -170,7 +225,7 @@ function extractLoreBook(md) {
       id: b.id,
       order: index + 1,
       title: b.title,
-      category: b.title.startsWith('Appendix') ? 'Appendix' : b.title.includes('Pirate Kings') ? 'Characters' : b.title.includes('Dragon') ? 'Dragons' : b.title.includes('Lore') || b.title.includes('Crown') || b.title.includes('Barrow') || b.title.includes('Aurelion') || b.title.includes('Rumours') || b.title.includes('Questline') ? 'Myth' : 'World',
+      category: categoriseChapter(b.title),
       excerpt: stripMd(ps[0] || body),
       markdown: body,
       sections: getH3Sections(b.markdown),
@@ -184,9 +239,65 @@ function extractLoreBook(md) {
 }
 function extractWorld(md) {
   const block = h2(md, /^The World:/);
-  return { title: title(block).replace(/^The World:\s*/, ''), body: paragraphs(block).join('\n\n'), rumours: bullets(block) };
+  // Lore_Presentation_Improvements §1.6: preserve the Ages-of-the-World table
+  // verbatim so the Lorebook can render it, and split the prose around it so
+  // the existing `body` no longer has a blank gap where the table used to be.
+  // The table is identified by the headers `Age | Common Name | Dominant Power | What It Means`.
+  const bodyRaw = removeMainHeading(block, 2);
+  const tableLines = bodyRaw.split('\n').filter(l => /^\|/.test(l));
+  const agesTableMd = tableLines.join('\n');
+  // Strip the table from the body but preserve the surrounding prose.
+  const bodyNoTable = bodyRaw.split('\n').filter(l => !/^\|/.test(l)).join('\n');
+  return {
+    title: title(block).replace(/^The World:\s*/, ''),
+    body: paragraphs(bodyNoTable).join('\n\n'),
+    rumours: bullets(block),
+    agesTable: agesTableMd, // raw markdown — useful for Lorebook fidelity rendering
+  };
+}
+
+/**
+ * Lore_Presentation_Improvements §1.6: extract the Ages-of-the-World table
+ * from `## The World:` as a first-class structured array. The Ages framework
+ * is the spine of the expanded lore — surfacing it as `lore.ages` lets every
+ * downstream view (overview slide, Age ribbon, king "historical wound" badge)
+ * reuse the same data.
+ *
+ * Returns: [{ age, label, power, summary, key }, ...]
+ */
+function extractAges(md) {
+  const block = h2(md, /^The World:/);
+  const rows = table(block);
+  if (!rows.length) return [];
+  // §1.6 + §2.1 + §2.9: `key` is the full slug (kept for back-compat);
+  // `shortKey` matches the beat-ageKey scheme used by `beatAgeMap` so the
+  // presentation can use one consistent palette class for both ribbon and beats.
+  const SHORT_KEY_MAP = {
+    'first-age': 'first',
+    'cataclysm': 'cataclysm',
+    'second-age': 'second',
+    'collapse-event': 'collapse',
+    'third-age': 'third',
+    'current-age': 'current',
+  };
+  return rows.map(r => {
+    const ageRaw = r.age || '';
+    const key = slug(clean(ageRaw));
+    return {
+      age: clean(ageRaw),
+      label: r.common_name || '',
+      power: r.dominant_power || '',
+      summary: r.what_it_means || '',
+      key,
+      shortKey: SHORT_KEY_MAP[key] || key,
+    };
+  });
 }
 function extractStory(md) {
+  // Lore_Presentation_Improvements §1.1: regex list expanded to cover the
+  // full Four-Age epic — Sundering, Drowned Crown era, Unbinding Tide collapse,
+  // Free Sails era, and Current Age. The previous list stopped at Jasper's
+  // Binding, so 90% of the post-Cataclysm history was invisible to the deck.
   const res = [
     /^Story \/ Lore:/,
     /^The Atlantean Hunger$/,
@@ -196,6 +307,12 @@ function extractStory(md) {
     /^The Crown Below Ritual$/,
     /^Jasper's Binding$/,
     /^The Crown Below: The Wound That Still Pulses$/,
+    /^The Second Age: The Age of the Drowned Crown$/,
+    /^The Corruption of the Deep$/,
+    /^The Unbinding Tide$/,
+    /^The Third Age: The Age of Free Sails$/,
+    /^Ebon's Glory and the Ashen Turn$/,
+    /^The Current Age: The Age of Five Crowns$/,
     /^Public Rumours vs\. Hidden Truth$/,
   ];
   const sections = res.map(re => h2(md, re)).filter(Boolean).map(block => ({
@@ -208,6 +325,8 @@ function extractStory(md) {
   }));
   const publicBlock = h2(md, /^Public Rumours vs\. Hidden Truth$/);
   const rumours = bullets(h3(publicBlock, /^Common Sailor Rumours$/));
+  // Beat titles now cover all four Ages so the "Mythic Timeline" slide can
+  // become a multi-Age epic instead of a First-Age summary.
   const beatTitles = new Set([
     'Story / Lore: The Sundering of the Three Crowns',
     'The Atlantean Hunger',
@@ -216,7 +335,29 @@ function extractStory(md) {
     "Aurelion's Dive",
     'The Crown Below Ritual',
     "Jasper's Binding",
+    'The Second Age: The Age of the Drowned Crown',
+    'The Corruption of the Deep',
+    'The Unbinding Tide',
+    'The Third Age: The Age of Free Sails',
+    "Ebon's Glory and the Ashen Turn",
+    'The Current Age: The Age of Five Crowns',
   ]);
+  // Tag each beat with its Age key so the renderer can group / colour them.
+  const beatAgeMap = {
+    'Story / Lore: The Sundering of the Three Crowns': 'first',
+    'The Atlantean Hunger': 'first',
+    "Admiral Barrow's Betrayal": 'first',
+    'Jasper Barrow and the False Treason': 'first',
+    "Aurelion's Dive": 'cataclysm',
+    'The Crown Below Ritual': 'cataclysm',
+    "Jasper's Binding": 'cataclysm',
+    'The Second Age: The Age of the Drowned Crown': 'second',
+    'The Corruption of the Deep': 'second',
+    'The Unbinding Tide': 'collapse',
+    'The Third Age: The Age of Free Sails': 'third',
+    "Ebon's Glory and the Ashen Turn": 'third',
+    'The Current Age: The Age of Five Crowns': 'current',
+  };
   return {
     title: 'The Sundering of the Three Crowns',
     subtitle: 'The hidden truth beneath every rumour in the Shattered Seas',
@@ -225,15 +366,21 @@ function extractStory(md) {
       id: s.id,
       title: s.title.replace(/^Story \/ Lore:\s*/, ''),
       summary: s.summary,
+      ageKey: beatAgeMap[s.title] || 'first',
     })),
     rumours,
   };
 }
 function extractDragons(md) {
   const block = h2(md, /^Dragons:/);
+  // Lore_Presentation_Improvements §1.7: capture the "Why Dragons Matter"
+  // bullets separately — `paragraphs()` strips bullet lines so they were
+  // silently dropped from `body`. Each bullet describes a breed's mythic role
+  // and is genuinely useful to the deck's Dragons slide.
   return {
     title: title(block),
     body: paragraphs(block).join('\n\n'),
+    matters: bullets(h3(block, /^Why Dragons Matter$/)),
     known: table(h3(block, /^Known Dragons/)).map(r => ({ name: r.dragon || '', breed: r.breed_trait || '', whereFound: r.where_found || '' })),
   };
 }
@@ -303,6 +450,86 @@ function extractQuestline(md) {
   const block = h2(md, /^Suggested Jasper Questline$/);
   return { title: title(block), quests: getH3Sections(block).map((q, i) => ({ ...q, number: i + 1 })) };
 }
+
+/**
+ * Lore_Presentation_Improvements §1.2: the historical reveal questline added
+ * with the Ages expansion. Parallel to the Jasper questline — the deck's
+ * "Two Reveal Paths" slide renders them side-by-side.
+ */
+function extractHistoricalQuestline(md) {
+  const block = h2(md, /^Suggested Historical Reveal Questline: The Ages of the Sea$/);
+  return {
+    title: title(block),
+    quests: getH3Sections(block).map((q, i) => ({ ...q, number: i + 1 })),
+  };
+}
+
+/**
+ * Lore_Presentation_Improvements §1.3: the era / event / notes table from
+ * `## Appendix: Historical Timeline`. Feeds the Ages overview slide and the
+ * Lorebook timeline page.
+ */
+function extractHistoricalTimeline(md) {
+  return table(h2(md, /^Appendix: Historical Timeline$/)).map(r => ({
+    era: r.era || '',
+    event: r.event || '',
+    notes: r.notes || '',
+  }));
+}
+
+/**
+ * Lore_Presentation_Improvements §1.4: the 9-faction matrix from
+ * `## Appendix: Faction Interpretations of History`. Powers the
+ * "Whose Story Will You Believe?" deck slide.
+ */
+function extractFactionInterpretations(md) {
+  return table(h2(md, /^Appendix: Faction Interpretations of History$/)).map(r => ({
+    faction: r.faction || '',
+    description: r.how_they_describe_the_ages || '',
+  }));
+}
+
+/**
+ * Lore_Presentation_Improvements §1.5: writer-room TODO appendix. Surfaced
+ * in the deck via a hidden `?writer=1` toggle in Phase 3.
+ */
+function extractFutureHooks(md) {
+  const block = h2(md, /^Appendix: Future Story Hooks/);
+  return { title: title(block), sections: getH3Sections(block) };
+}
+
+/**
+ * Lore_Presentation_Improvements §2.5: derive the per-King historical wound
+ * from the `## The Current Age` table (`| King | Historical Wound |`). Each
+ * King's slide can then display a one-line "I am the consequence of X age"
+ * badge, anchoring them in the Age framework instead of presenting them as
+ * isolated character cards.
+ *
+ * Matches against the first name (e.g. "Jasper Barrow" → "Jasper") since
+ * the table cell may include or omit the surname.
+ */
+function attachKingWounds(kings, md) {
+  const currentAge = h2(md, /^The Current Age: The Age of Five Crowns$/);
+  if (!currentAge) return;
+  const rows = table(currentAge);
+  if (!rows.length) return;
+  // Strip titles like Captain/Lady/Lord/Admiral/Sir so "Captain Mordekai Drakon"
+  // collapses to "mordekai" and matches the bare "Mordekai Drakon" in the table.
+  const TITLE_RE = /^(captain|lady|lord|admiral|sir|king|queen|dame)\b\s*/i;
+  function firstNameKey(s) {
+    const cleaned = clean(s || '').replace(TITLE_RE, '');
+    return cleaned.split(/\s+/)[0]?.toLowerCase() || '';
+  }
+  const woundByFirstName = {};
+  for (const r of rows) {
+    const key = firstNameKey(r.king || '');
+    if (key) woundByFirstName[key] = clean(r.historical_wound || '');
+  }
+  for (const k of kings) {
+    const key = firstNameKey(k.name);
+    k.historicalWound = woundByFirstName[key] || '';
+  }
+}
 function extractDomains(md) {
   return table(h2(md, /^Appendix: Domain Map/)).map(r => ({
     domain: r.domain || '',
@@ -326,10 +553,24 @@ function validate(lore) {
   if (lore.loreBook.chapters.length < 10) errors.push(`Expected at least 10 lorebook chapters, found ${lore.loreBook.chapters.length}.`);
   if (!lore.reveal.layers.length) errors.push('Expected player-facing reveal layers.');
   if (!lore.jasperQuestline.quests.length) errors.push('Expected Jasper questline entries.');
+  // Lore_Presentation_Improvements §1.10: assert on the Ages-expansion fields.
+  if (!Array.isArray(lore.ages) || lore.ages.length < 4) {
+    errors.push(`Expected at least 4 Ages from the World table, found ${lore.ages?.length ?? 0}.`);
+  }
+  if (!lore.historicalQuestline || !lore.historicalQuestline.quests?.length) {
+    errors.push('Expected historical reveal questline ("Ages of the Sea") with quests.');
+  }
+  if (!Array.isArray(lore.historicalTimeline) || lore.historicalTimeline.length < 5) {
+    errors.push(`Expected at least 5 entries in Historical Timeline, found ${lore.historicalTimeline?.length ?? 0}.`);
+  }
+  if (!Array.isArray(lore.factionInterpretations) || lore.factionInterpretations.length < 5) {
+    errors.push(`Expected at least 5 faction interpretations, found ${lore.factionInterpretations?.length ?? 0}.`);
+  }
   for (const k of lore.pirateKings) {
     if (!['protects', 'hunts', 'neutral'].includes(k.dragonStance)) errors.push(`${k.name} has invalid Dragon Stance: ${k.dragonStance}`);
     for (const key of ['name', 'title', 'image', 'theme', 'alignment', 'backstory', 'dragons']) if (!k[key]) errors.push(`${k.name || k.id} missing ${key}.`);
     if (!k.familiar.name || !k.domain.name) errors.push(`${k.name} missing familiar or domain data.`);
+    if (!k.historicalWound) errors.push(`${k.name} missing historicalWound — check Current Age table mapping.`);
   }
   if (errors.length) throw new Error(`Lore validation failed:\n- ${errors.join('\n- ')}`);
 }
@@ -343,6 +584,8 @@ const lore = {
     generatedAt: new Date().toISOString(),
   },
   world: extractWorld(md),
+  // Lore_Presentation_Improvements §1.6: first-class Ages framework spine.
+  ages: extractAges(md),
   storyLore: extractStory(md),
   loreBook: extractLoreBook(md),
   dragons: extractDragons(md),
@@ -351,10 +594,17 @@ const lore = {
   tone: extractTone(md),
   reveal: extractReveal(md),
   jasperQuestline: extractQuestline(md),
+  // Lore_Presentation_Improvements §1.2-§1.5: new Ages-expansion sections.
+  historicalQuestline: extractHistoricalQuestline(md),
+  historicalTimeline: extractHistoricalTimeline(md),
+  factionInterpretations: extractFactionInterpretations(md),
+  futureHooks: extractFutureHooks(md),
   domains: extractDomains(md),
   keyTerms: extractTerms(md),
   internalTruth: extractInternalTruth(md),
 };
+// §2.5: derive each King's historical wound from the Current Age table.
+attachKingWounds(lore.pirateKings, md);
 validate(lore);
 
 for (const dir of outputDirs) {
@@ -383,5 +633,29 @@ function injectLoreDataIntoHtml(htmlPath, label) {
 if (existsSync(presentationPath)) injectLoreDataIntoHtml(presentationPath, 'index.html');
 if (lorebookPath) injectLoreDataIntoHtml(lorebookPath, 'LOREBOOK.html');
 else console.warn('LOREBOOK.html not found; skipping standalone lorebook injection.');
+if (storybookPath) injectLoreDataIntoHtml(storybookPath, 'STORYBOOK.html');
+else console.warn('STORYBOOK.html not found; skipping standalone storybook injection.');
 
-console.log(`Extracted ${lore.pirateKings.length} Pirate Kings, ${lore.storyLore.beats.length} story beats, ${lore.loreBook.chapters.length} lorebook chapters, ${lore.reveal.layers.length} reveal layers, and ${lore.jasperQuestline.quests.length} Jasper quests.`);
+// Lore_Presentation_Improvements §1.9: expanded summary so missing extractors
+// are visible after every run. Pre-expansion this only mentioned kings /
+// beats / chapters / reveal layers / Jasper quests, so additions to LORE.md
+// were silent unless a downstream slide broke.
+const catCounts = lore.loreBook.chapters.reduce((acc, c) => {
+  acc[c.category] = (acc[c.category] ?? 0) + 1;
+  return acc;
+}, {});
+console.log('Extracted:');
+console.log(`  ${lore.pirateKings.length} Pirate Kings (with historicalWound: ${lore.pirateKings.filter(k => k.historicalWound).length})`);
+console.log(`  ${lore.ages.length} Ages`);
+console.log(`  ${lore.storyLore.beats.length} story beats spanning ${new Set(lore.storyLore.beats.map(b => b.ageKey)).size} ages`);
+console.log(`  ${lore.loreBook.chapters.length} lorebook chapters by category:`);
+for (const [cat, n] of Object.entries(catCounts).sort((a, b) => b[1] - a[1])) {
+  console.log(`    ${cat.padEnd(12)} ${n}`);
+}
+console.log(`  ${lore.reveal.layers.length} reveal layers`);
+console.log(`  ${lore.jasperQuestline.quests.length} Jasper quests`);
+console.log(`  ${lore.historicalQuestline.quests.length} historical-reveal quests`);
+console.log(`  ${lore.historicalTimeline.length} historical-timeline rows`);
+console.log(`  ${lore.factionInterpretations.length} faction interpretations`);
+console.log(`  ${lore.futureHooks.sections?.length ?? 0} future-hook TODOs`);
+console.log(`  ${lore.domains.length} domains, ${lore.keyTerms.length} key terms`);

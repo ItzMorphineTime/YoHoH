@@ -40,7 +40,8 @@
       "Tests whether the player protects the weak or exploits them",
       "Guides rescued dragon eggs through impossible fog routes",
       "Can become a powerful ally… or a relentless enemy"
-    ]
+    ],
+    "historicalWound": "The betrayal that caused the Shattering"
   },
   {
     "id": "mordekai",
@@ -50,11 +51,11 @@
     "image": "Images/PirateKings/Captain_Mordekai_Drakon.png",
     "theme": "Curse • Serpents • Ancient Magic",
     "alignment": "Lawful Evil",
-    "status": "",
-    "mythicRole": "The Serpent Heir • The Rival Claimant to Draconic Power",
+    "status": "Cursed / Long-Lived",
+    "mythicRole": "The Serpent Heir • The Wound of Atlantean Cruelty • The Rival Claimant to Draconic Power",
     "dragonStance": "hunts",
-    "backstory": "Mordekai was once a cabin boy aboard a doomed merchant vessel. When the ship was attacked by a colossal sea serpent, he discovered an ancient blade sealed within the hold. Slaying the beast bound its dying spirit to him.\n\nThe serpent spirit, **Ssyrix**, whispered that dragons had stolen the world's reverence while serpents were driven into the deep. It told him that the Drowning proved dragons were unworthy stewards and that only those who survive the abyss deserve dominion.\n\nOver time, the serpent's curse twisted Mordekai—granting power, longevity, and dominion over the deep, but slowly replacing his humanity. He now rules through fear and inevitability, believing the seas demand dominance, not mercy.",
-    "dragons": "Mordekai **hunts dragons** relentlessly. Serpents and dragons are ancient rivals—both draconic, both claiming dominion over the world's primal forces. He consumes dragon scales and bone to feed Ssyrix and extend his own power. His lieutenants raid volcanic islands, ambush migrating dragons at sea, and seek old nest charts from the age of Cassian Barrow.",
+    "backstory": "Mordekai Drakon was not born a king. He was a frightened boy aboard his father's merchant ship during the violent decline after the Unbinding Tide.\n\nHis father was one of the few remaining merchant captains brave enough to sail between free human ports while Atlantean remnants, sea serpents, krakens, pirates, and storm routes tore the world apart. He carried goods, messages, refugees, and forbidden charts through waters that no sane navy would patrol.\n\nBefore one dangerous voyage, Mordekai's father gave him a strange heirloom: a **magic skull dagger** carved from black bone and old silver. He told Mordekai it was not a toy, not a treasure, but a last promise.\n\n> \"If the sea takes everything else, keep this close.\"\n\nThe Atlanteans ambushed them.\n\nWhether the ship carried contraband, rebel supplies, unpaid tribute, or simply refused to kneel is a matter of rumour. What matters is that Atlantean raiders burned the sails, shattered the hull, and killed Mordekai's father in front of him.\n\nMordekai survived by clinging to a floating barrel amid wreckage, bodies, cargo, and fire.\n\nThen the sea opened beneath him.\n\nA colossal sea serpent, one of the great unbound beasts empowered by the Crown Below's corruption, swallowed him whole.\n\nInside the serpent, in darkness and acid, Mordekai should have died. Instead, terrified and half-mad, he drew his father's skull dagger and stabbed until he found the serpent's heart.\n\nThe dagger pierced it.\n\nThe serpent died.\n\nMordekai did not.\n\nThe dagger, the serpent's heart, Mordekai's grief, and the corrupted magic of the deep fused together. The serpent's dying spirit, **Ssyrix**, bound itself to the boy who had killed it from within.\n\nMordekai emerged from the corpse changed.\n\nThe frightened child became something colder.\n\nThe sea had taken his father, his ship, his childhood, and his mercy. In return, it gave him power.\n\nNow Mordekai rules through fear and inevitability. He hates Atlanteans for what they did to his family, but he has become a tyrant in their image: convinced that safety comes only through domination.",
+    "dragons": "Mordekai **hunts dragons** relentlessly. Serpents and dragons are ancient rivals—both draconic, both claiming dominion over the world's primal forces. Ssyrix whispers that dragons stole the world's reverence while serpents were driven into the deep. Mordekai consumes dragon scales and bone to feed Ssyrix, strengthen his curse, and extend his own power.\n\nHis lieutenants raid volcanic islands, ambush migrating dragons at sea, and seek old nest charts from the age of Cassian Barrow.",
     "relationshipToPlayer": "",
     "familiar": {
       "name": "Ssyrix",
@@ -64,7 +65,8 @@
         "Wraps ships, immobilizing them",
         "Inflicts stacking curses over time",
         "Can briefly possess Mordekai to amplify power",
-        "Whispers ancient anti-dragon lore"
+        "Whispers ancient anti-dragon lore",
+        "Hungers for dragonbone and Atlantean relics alike"
       ]
     },
     "domain": {
@@ -74,15 +76,18 @@
         "Ships move slower",
         "Crew morale drains over time",
         "Serpent wakes can redirect routes",
-        "Cursed offers appear after major victories"
+        "Cursed offers appear after major victories",
+        "Atlantean wrecks and serpent shrines lie half-swallowed beneath the currents"
       ]
     },
     "playerHooks": [
       "Hunts players who grow too powerful too quickly",
       "May offer cursed power in exchange for loyalty",
       "Tempts the player to trade dragon eggs for ship upgrades or serpent boons",
+      "Can provide anti-Atlantean lore that is useful but poisoned by hatred",
       "Slaying him risks releasing Ssyrix upon the world"
-    ]
+    ],
+    "historicalWound": "The human trauma of Atlantean domination and serpent corruption"
   },
   {
     "id": "adara",
@@ -92,10 +97,10 @@
     "image": "Images/PirateKings/Lady_Adara_Thalassa.png",
     "theme": "Atlantis • Leviathans • Ocean Sovereignty",
     "alignment": "Neutral (Ruthlessly Pragmatic)",
-    "status": "",
-    "mythicRole": "The Heir of the Guilty Empire • The Temptation of Order",
+    "status": "Atlantean Heir / Living Sovereign",
+    "mythicRole": "The Heir of the Guilty Empire • The Temptation of Order • The Last Dream of the Drowned Crown",
     "dragonStance": "hunts",
-    "backstory": "Adara was born to a sunken empire—one of the last true descendants of Atlantis. She grew up among coral ruins, drowned courts, broken tide-engines, and murals that told a polished version of the past: Atlantis as saviour, the surface as betrayer, and dragons as proud beasts who refused necessary sacrifice.\n\nWhen her people fell into factional ruin, Adara reclaimed their legacy by stealing the **Trident of the Tides**, an artifact granting command over leviathans.\n\nShe does not raid for gold. She conquers to rebuild a lost civilization beneath the sea. Islands that swear fealty are protected. Those that resist are erased.\n\nAdara does not think of herself as a pirate.\n\nShe considers the surface ports illegal squatters on Atlantean waters.",
+    "backstory": "Adara was born to a sunken empire—one of the last true descendants of Atlantis. She grew up among coral ruins, drowned courts, broken tide-engines, and murals that told a polished version of the past: Atlantis as saviour, the surface as betrayer, dragons as proud beasts who refused necessary sacrifice, and the Age of the Drowned Crown as the world's lost golden order.\n\nWhere surface sailors see tribute, Adara sees protection.\n\nWhere free captains see tyranny, she sees law.\n\nWhere Tidewardens see the sin of the Crown Below, she sees a flawed ritual that could have worked if guided by stronger hands.\n\nWhen her people fell into factional ruin, Adara reclaimed their legacy by stealing the **Trident of the Tides**, an artifact granting command over leviathans.\n\nShe does not raid for gold. She conquers to rebuild a lost civilization beneath the sea. Islands that swear fealty are protected. Those that resist are erased.\n\nAdara does not think of herself as a pirate.\n\nShe considers the surface ports illegal squatters on Atlantean waters.\n\n**Second Age Doctrine**  \nAdara's dream is not merely to restore Atlantis as it was before the Shattering. She wants to restore the authority of the **Drowned Crown**: the tribute routes, current engines, leviathan roads, and sea-law that once made the Second Age possible.\n\nIn her mind, the Unbinding Tide did not prove that Atlantis was wrong to rule.\n\nIt proved Atlantis was not ruthless enough.",
     "dragons": "Adara **hunts dragons** as obstacles to her ocean sovereignty. Dragons are ancient, powerful, and refuse to bow—they threaten her claim to rule the seas. She captures eggs for Atlantean rituals and slays adult dragons that encroach on her domain. She believes the Crown Below failed because it was corrupted, rushed, or betrayed—not because Atlantis was wrong to attempt it.\n\nDelivering a dragon egg to her stronghold earns rare favor—and damns the dragon.",
     "relationshipToPlayer": "",
     "familiar": {
@@ -116,15 +121,18 @@
         "Can flood islands",
         "Controls trade routes via sea beasts",
         "Offers protection to ports that swear fealty",
-        "Houses murals, archives, and ritual chambers tied to the true history of the Crown Below"
+        "Houses murals, archives, and ritual chambers tied to the true history of the Crown Below",
+        "Contains broken infrastructure from the Age of the Drowned Crown"
       ]
     },
     "playerHooks": [
       "Can become a powerful political ally",
       "Might task players with reclaiming Atlantean relics",
       "Offers lawful safety at the cost of freedom",
+      "Presents the strongest argument that tyranny can look like order",
       "Open war with her reshapes the map"
-    ]
+    ],
+    "historicalWound": "The failed empire of the Drowned Crown"
   },
   {
     "id": "nimue",
@@ -134,10 +142,10 @@
     "image": "Images/PirateKings/Nimue_Tideborn.png",
     "theme": "Darkness • Abyss • Madness",
     "alignment": "Chaotic Neutral",
-    "status": "",
-    "mythicRole": "The Listener at the Wound • The Human Doorway into the Deep",
+    "status": "Kraken-Bonded / Time-Touched",
+    "mythicRole": "The Listener at the Wound • The Human Doorway into the Deep • Child of the Unbinding Tide",
     "dragonStance": "hunts",
-    "backstory": "Once a fisher's daughter obsessed with legends, Nimue discovered an abyssal song etched into black stone. Singing it summoned not death—but a young Kraken. Instead of fleeing, she bonded with it.\n\nAs the Kraken grew, so did Nimue's power—and her distance from humanity. She no longer raids ports in any ordinary sense. She drags entire fleets into the dark to \"feed the deep.\"\n\nNimue's song may be older than Atlantis. Some scholars believe the failed Crown Below ritual woke something beneath the world, and that the Kraken is not merely a beast but a child, limb, or messenger of that deeper presence.\n\nNimue may not be conquering the sea.\n\nShe may be listening to it scream.",
+    "backstory": "Nimue Tideborn was once a fisher's daughter obsessed with legends of the Unbinding Tide. While other children were warned not to sing near black water, Nimue memorised the forbidden verses. She collected broken shell tablets, abyssal stones, drowned bells, and scraps of Atlantean warnings about krakens that had broken free from old commands.\n\nOne day, she discovered an abyssal song etched into black stone.\n\nThe song was not Atlantean.\n\nIt was older, deeper, and hungry.\n\nWhen Nimue sang it, she did not summon death.\n\nShe summoned a young Kraken.\n\nInstead of fleeing, she bonded with it.\n\nUnlike the Atlanteans, Nimue did not command the creature through tide-song. She listened. She fed it. She answered it. She let its dreams into her sleep and its hunger into her heart.\n\nAs the Kraken grew, so did Nimue's power—and her distance from humanity. The creature became the strongest Kraken in the ocean and, by the current age, something ancient in all but origin. Some scholars believe their bond has warped time around them; others insist the Kraken carries the memory of older krakens destroyed during the Unbinding Tide.\n\nNimue no longer raids ports in any ordinary sense. She drags entire fleets into the dark to \"feed the deep.\"\n\nNimue's song may be older than Atlantis. Some scholars believe the failed Crown Below ritual woke something beneath the world, and that her Kraken is not merely a beast but a child, limb, or messenger of that deeper presence.\n\nNimue may not be conquering the sea.\n\nShe may be listening to it scream.",
     "dragons": "Nimue **hunts dragons** to feed the Kraken. Dragons are powerful prey—their essence sustains the deep and empowers her bond with the abyss. She sends her servants to lure dragons into the Black Spiral, where the Kraken drags them under. A dragon egg is a rare delicacy; a full-grown dragon, a feast.",
     "relationshipToPlayer": "",
     "familiar": {
@@ -158,15 +166,18 @@
         "Visibility is severely reduced",
         "Sanity-testing environment",
         "Compass drift and false audio cues",
-        "Ancient lore can sometimes resolve encounters that combat cannot"
+        "Ancient lore can sometimes resolve encounters that combat cannot",
+        "Kraken signs appear before the creature itself: silence, missing stars, water that swallows lantern light"
       ]
     },
     "playerHooks": [
       "May ignore players entirely… until provoked",
       "Can be reasoned with via ancient lore",
       "May reveal hints about what woke beneath the Crown Below",
+      "Represents the freedom of the deep becoming horror rather than justice",
       "Killing the Kraken may break her mind—or free her"
-    ]
+    ],
+    "historicalWound": "The freedom and horror of the Unbinding Tide"
   },
   {
     "id": "ebon",
@@ -176,11 +187,11 @@
     "image": "Images/PirateKings/Flameheart_01.png",
     "theme": "Fire • Dragons • Conquest",
     "alignment": "Chaotic Evil",
-    "status": "",
-    "mythicRole": "The Modern Repetition of the First Sin • The False Dragon King",
+    "status": "Dragonfire-Blessed / Nearly Immortal",
+    "mythicRole": "The Glory of Men • The Ashen Turn • The False Dragon King",
     "dragonStance": "hunts",
-    "backstory": "Ebon was once a subordinate pirate, hungry for more. During a raid on a volcanic isle, he stole a dragon egg and survived long enough to hatch it. That dragon—**Blackfang**—made him a legend.\n\nEbon believes strength is the only truth. He conquers islands not to rule them, but to burn them into submission, forging a fleet of fear and fire.\n\nHe is the living proof that the original sin of the Shattered Seas did not end with Cassian Barrow or the Pearl Synod. Men are still stealing dragon futures and calling it destiny.",
-    "dragons": "Ebon **hunts dragons** to eliminate all rivals. He has Blackfang—the only dragon that matters. Every other dragon is a threat: another captain could hatch an egg, another King could claim a beast, another free dragon could challenge his myth. He burns dragon nests, slaughters migrating dragons, and pays bounties for eggs delivered to him—so he can crush them himself.\n\nThere will be only one Dragon King.\n\n**Blackfang:** Ebon claims Blackfang is loyal. The truth is darker. Blackfang is bound by theft, trauma, rage, and domination magic. Ebon thinks he controls dragonfire, but he is sitting on a volcano he cannot command forever.",
+    "backstory": "Ebon Flameheart was not always the nightmare whispered of in burned ports.\n\nIn the early Third Age, he was a legend of the Free Sails: a pirate captain, monster-hunter, route-breaker, teacher, and symbol of human defiance after the collapse of Atlantean rule. He broke serpent blockades, fought kraken-touched raiders, charted ash currents, opened dangerous trade lanes, and taught free captains how to survive in a world of monsters.\n\nPirates still sing that Ebon gave glory back to men.\n\nMerchants still admit that some routes exist because he opened them.\n\nEven his enemies cannot deny that he helped create the Age of Free Sails.\n\nBut Ebon's glory carried a hidden cost. He did not only teach captains how to fight monsters. He taught them how to hunt dragons.\n\nHe made dragon-hunting repeatable.\n\nProfitable.\n\nTeachable.\n\nHe turned the old sin of stolen eggs into an industry.\n\nDuring a raid on a volcanic rookery, Ebon found a surviving dragon egg among ash and broken shell. His crew expected him to sell it. Instead, he kept it. The hatchling that emerged was **Blackfang**.\n\nFor a time, Ebon and Blackfang were friends. Ebon raised him from a baby aboard his ship. Blackfang became companion, weapon, mascot, terror, and miracle. Their bond was not born from chains, but from shared fire, battle, hunger, and survival.\n\nThat bond blessed Ebon with **dragonfire spirit**. His wounds burned closed. His blood smoked. Flame could scar him but not easily kill him. His age slowed until sailors began whispering that Flameheart would never die.\n\nThen friendship became fear.\n\nEbon realised that if Blackfang had chosen him, another dragon might choose another captain. Another pirate might gain dragonfire spirit. Another crew might become legend. Another Dragon King might rise.\n\nSo he turned on the very possibility.\n\nNow Ebon burns dragon nests, slaughters migrating dragons, and pays bounties for eggs so he can destroy them himself. He does not want every dragon dead because he hates Blackfang.\n\nHe wants every other dragon dead because Blackfang made him powerful.\n\nThere will be only one Dragon King.",
+    "dragons": "Ebon **hunts dragons** to eliminate all rivals. He has Blackfang—the only dragon that matters to him. Every other dragon is a threat: another captain could hatch an egg, another King could claim a beast, another free dragon could challenge his myth.\n\nEbon's dragon hunts are not random cruelty. They are strategic extinction.\n\n**Blackfang:** Blackfang is more than a pet or weapon. He was once Ebon's chosen companion. Their bond is real, which makes Ebon's corruption more tragic and more dangerous. Blackfang may still love Ebon, fear him, resent him, or be unable to separate his own rage from Ebon's dragonfire spirit.\n\nIf Ebon falls, Blackfang may become unbound—not as a simple boss reward, but as a living consequence.",
     "relationshipToPlayer": "",
     "familiar": {
       "name": "Ember",
@@ -200,14 +211,17 @@
         "Constant fire hazards",
         "Volcanic events during combat",
         "Refugee ports and burned markets",
-        "Dragon hunter bounties are common"
+        "Dragon hunter bounties are common",
+        "Old Free Sail monuments now stand blackened beneath Ebon's banners"
       ]
     },
     "playerHooks": [
       "Ultimate test of naval combat skill",
       "Can trigger massive world events if unchecked",
       "Offers huge rewards for dragon eggs, then destroys them",
+      "His old teachings may appear in early tutorial content, creating a delayed villain reveal",
       "Slaying him may leave Blackfang unbound… and furious"
-    ]
+    ],
+    "historicalWound": "The pirate prosperity that became dragon genocide"
   }
 ]
